@@ -1,8 +1,8 @@
 # Get headers to send a request to the Aylo site.
 function Get-Headers {
   param(
-    [String]$authorization,
-    [String]$apikey,
+    [String]$authCode,
+    [String]$apiKey,
     [ValidateSet("bangbros", "realitykings", "twistys", "milehigh", "biempire", `
         "babes", "erito", "mofos", "fakehub", "sexyhub", "propertysex", "metrohd", `
         "brazzers", "milfed", "gilfed", "dilfed", "men", "whynotbi", `
@@ -11,7 +11,7 @@ function Get-Headers {
   )
 
   # Cannot execute without an API key.
-  if ($apikey.Length -eq 0) {
+  if ($apiKey.Length -eq 0) {
     Write-Host "ERROR: The Aylo API key has not been set. Please update your config." -ForegroundColor Red
     return
   }
@@ -19,16 +19,16 @@ function Get-Headers {
   $useragent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.0.0 Safari/537.36"
   $headers = @{
     "UserAgent" = "$useragent";
-    "instance"  = "$apikey";
+    "instance"  = "$apiKey";
   }
 
   # Only non-member data is available without an auth code.
-  if ($authorization.Length -eq 0) {
-    Write-Host "WARNING: No authorization code provided. Scraping non-member data only." -ForegroundColor Yellow
+  if ($authCode.Length -eq 0) {
+    Write-Host "WARNING: No auth code provided. Scraping non-member data only." -ForegroundColor Yellow
   }
 
   else {
-    $headers.authorization = "$authorization"
+    $headers.authCode = "$authCode"
   }
   return $headers
 }

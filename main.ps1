@@ -1,5 +1,5 @@
 # ? Dev variables
-$useDevConfig = $true
+$useDevConfig = $false
 
 # Global variables
 if ($IsWindows) { $directorydelimiter = '\' }
@@ -35,11 +35,20 @@ function Set-Entry {
     while (($operationSelection -notmatch "[1-3]"))
 
     if ($operationSelection -eq 1) {
+        # Update the config if needed
+        if ($userConfig.aylo.apiKey.Length -eq 0) {
+            . "./config-management.ps1"
+            $userConfig = Set-ConfigAyloApikey -pathToUserConfig $pathToUserConfig
+        }
+        if ($userConfig.aylo.authCode.Length -eq 0) {
+            . "./config-management.ps1"
+            $userConfig = Set-ConfigAyloAuthCode -pathToUserConfig $pathToUserConfig
+        }
+
         # Load the scraper
         . "./apis/aylo/aylo-scraper.ps1"
-
         # ? Dev testing only
-        $headers = Get-Headers -apikey $userConfig.aylo.apikey -authorization $userConfig.aylo.authorization -studio "brazzers"
+        $headers = Get-Headers -apiKey $userConfig.aylo.apiKey -authCode $userConfig.aylo.authCode -studio "brazzers"
         Write-Host $headers
     }
     
