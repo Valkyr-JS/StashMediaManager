@@ -33,8 +33,9 @@ function Get-Media {
         $outputPath = $outputDirectory + $filename
         $existingFile = Test-Path $outputPath
 
-        # Download if the file doesn't exist, or the filesize is less than 95% accurate
-        if ($null -eq $existingFile -or $existingFile.Length -le ($expectedFileSize * 0.95)) {
+        # Download if the file doesn't exist
+        # TODO - Check existing file matches db MD5 hash
+        if ($null -eq $existingFile) {
             Write-Host "Downloading scene: $outputPath"
             return Invoke-WebRequest -uri $target -OutFile ( New-Item -Path $outputPath -Force )
         }
