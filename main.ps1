@@ -1,5 +1,5 @@
 # ? Dev variables
-$useDevConfig = $false
+$useDevConfig = $true
 
 # Global variables
 if ($IsWindows) { $directorydelimiter = '\' }
@@ -64,6 +64,17 @@ function Set-Entry {
             $performerIDs = $performerIDs -split (" ")
 
             Set-StudioData -actorIds $performerIDs -apiKey $userConfig.aylo.apiKey -authCode $userConfig.aylo.authCode -studio "brazzers" -ContentTypes ("actor", "scene") -outputDir "./apis/aylo/data"
+
+            # Load the downloader
+            . "./apis/aylo/aylo-downloader.ps1"
+            
+            foreach ($perfid in $performerIDs) {
+                $scenesJSON = Get-Content "./apis/aylo/data/brazzers/$perfid/scene.json" -raw | ConvertFrom-Json
+
+                foreach ($sceneData in $scenesJSON) {
+                    Get-SceneVideo -videosData $sceneData.videos
+                }
+            }
         }
 
     }
