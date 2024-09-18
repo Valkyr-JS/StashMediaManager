@@ -1,5 +1,5 @@
 # ? Dev variables
-$useDevConfig = $false
+$useDevConfig = $true
 
 # Global variables
 if ($IsWindows) { $directorydelimiter = '\' }
@@ -40,6 +40,8 @@ function Set-Entry {
             . "./config-management.ps1"
             $userConfig = Set-ConfigAyloApikey -pathToUserConfig $pathToUserConfig
         }
+
+        # TODO - Move auth code out of config as it probably needs setting on every use due to changing regularly. 
         if ($userConfig.aylo.authCode.Length -eq 0) {
             . "./config-management.ps1"
             $userConfig = Set-ConfigAyloAuthCode -pathToUserConfig $pathToUserConfig
@@ -47,9 +49,7 @@ function Set-Entry {
 
         # Load the scraper
         . "./apis/aylo/aylo-scraper.ps1"
-        # ? Dev testing only
-        $headers = Get-Headers -apiKey $userConfig.aylo.apiKey -authCode $userConfig.aylo.authCode -studio "brazzers"
-        Write-Host $headers
+        Set-StudioData -apiKey $userConfig.aylo.apiKey -authCode $userConfig.aylo.authCode -studio "brazzers" -ContentTypes ("scene") -outputDir "./apis/aylo/data"
     }
     
     else { Write-Host "This feature is awaiting development." }

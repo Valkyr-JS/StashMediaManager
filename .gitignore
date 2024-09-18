@@ -1,1 +1,4 @@
 config.dev.json
+
+# Ignore all data pulled from APIs
+apis/**/data/

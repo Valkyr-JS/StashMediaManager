@@ -1,8 +1,8 @@
-# Get headers to send a request to the Aylo site.
+# Get headers to send a request to the Aylo site
 function Get-Headers {
   param(
-    [String]$authCode,
     [String]$apiKey,
+    [String]$authCode,
     [ValidateSet("bangbros", "realitykings", "twistys", "milehigh", "biempire", `
         "babes", "erito", "mofos", "fakehub", "sexyhub", "propertysex", "metrohd", `
         "brazzers", "milfed", "gilfed", "dilfed", "men", "whynotbi", `
@@ -28,7 +28,109 @@ function Get-Headers {
   }
 
   else {
-    $headers.authCode = "$authCode"
+    $headers.authorization = "$authCode"
   }
   return $headers
+}
+
+# Set the query parameters for the web request
+function Set-QueryParameters {
+  param (
+    [String]$apiKey,
+    [String]$authCode,
+    [string]$groupid = $null,
+    [Int]$offset = 0,
+    [Parameter(Mandatory)]
+    [string]$studio,
+    #content types can only be {actor, scene, movie}
+    [Parameter(Mandatory)]
+    [ValidateSet('actor', 'movie', 'scene')]
+    [string]$ContentType
+  )
+  #initialize variables
+  $Body = @{
+    limit  = 100
+    offset = $offset
+  }
+  $header = Get-Headers -apiKey $apiKey -authCode $authCode -studio $studio
+  If ($null -eq $groupid) { $body.Add("groupID", $groupid) }
+  #api call for actors is different from movies and releases
+  If ($ContentType -eq "actor") {
+    $urlapi = "https://site-api.project1service.com/v1/actors"
+  }
+  else {
+    $urlapi = "https://site-api.project1service.com/v2/releases"
+    $body.Add("orderBy", "-dateReleased")
+    $body.Add('type', $ContentType)
+  }
+  $params = @{
+    "Uri"     = $urlapi
+    "Body"    = $Body
+    "Headers" = $header
+  }
+  return $params
+}
+
+# Get the number of pages the data is split into
+function Get-MaxPages ($meta) {
+  $limit = $meta.count
+  $maxpage = $meta.total / $limit
+  $maxpage = [Math]::Ceiling($maxpage)
+  return $maxpage
+}
+
+# Get the studio JSON data from the site
+function Get-StudioJsonData () {
+  param (
+    [String]$apiKey,
+    [String]$authCode,
+    [string]$groupid = $null,
+    [Parameter(Mandatory)]
+    [string]$studio,
+    #content types can only be {actor, scene, movie}
+    [Parameter(Mandatory)]
+    [ValidateSet('actor', 'movie', 'scene')]
+    [string]$ContentType
+  )
+
+  $scenelist = New-Object -TypeName System.Collections.ArrayList
+  $params = Set-QueryParameters -apiKey $apiKey -authCode $authCode -studio $studio -ContentType $ContentType
+  $scenes0 = Invoke-RestMethod @params 
+  $limit = $scenes0.meta.count
+  $maxpage = Get-MaxPages -meta $scenes0.meta
+
+  for ($p = 1; $p -le $maxpage; $p++) {
+    $page = $p - 1
+    Write-Host "Downloading: page $p of $maxpage" 
+    $offset = $page * $limit
+    $params = Set-QueryParameters -apiKey $apiKey -authCode $authCode -studio $studio -ContentType $ContentType -offset $offset
+    $scenes = Invoke-RestMethod @params 
+    $scenelist.AddRange($scenes.result)
+    Start-Sleep -Seconds 3
+  }
+  return $scenelist
+}
+
+# Create the studio data JSON file
+function Set-StudioData {
+  param(
+    [String]$apiKey,
+    [String]$authCode,
+    [Parameter(Mandatory)]
+    [ValidateSet('actor', 'movie', 'scene')]
+    [string[]]$ContentTypes,
+    [string[]]$studios,
+    [string]$outputDir
+  )
+
+  foreach ($ContentType in $ContentTypes ) {
+    foreach ($studio in $studios) {
+      $filedir = "$outputDir/$studio"
+      $filepath = Join-Path -Path $filedir -ChildPath "$ContentType.json"
+      if (!(Test-Path $filedir)) { New-Item -ItemType "directory" -Path $filedir }
+      Write-Host "Downloading: $studio : $ContentType" 
+      $json = Get-StudioJsonData -apiKey $apiKey -authCode $authCode -studio $studio -ContentType $ContentType
+      $json | ConvertTo-Json -Depth 32 | Out-File -FilePath $filepath
+    }
+  }
 }
