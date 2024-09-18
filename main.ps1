@@ -72,7 +72,7 @@ function Set-Entry {
                 $scenesJSON = Get-Content "./apis/aylo/data/brazzers/$perfid/scene.json" -raw | ConvertFrom-Json
 
                 foreach ($sceneData in $scenesJSON) {
-                    Get-SceneVideo -videosData $sceneData.videos
+                    Get-SceneVideo -outputDir "J:\Synapse\Downloads" -sceneData $sceneData
                 }
             }
         }
