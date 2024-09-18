@@ -36,6 +36,7 @@ function Get-Headers {
 # Set the query parameters for the web request
 function Set-QueryParameters {
   param (
+    [Int]$actorId,
     [String]$apiKey,
     [String]$authCode,
     [string]$groupid = $null,
@@ -63,6 +64,11 @@ function Set-QueryParameters {
     $body.Add("orderBy", "-dateReleased")
     $body.Add('type', $ContentType)
   }
+
+  if ($null -ne $actorId) {
+    $body.Add("actorId", $actorId)
+  }
+
   $params = @{
     "Uri"     = $urlapi
     "Body"    = $Body
@@ -74,6 +80,9 @@ function Set-QueryParameters {
 # Get the number of pages the data is split into
 function Get-MaxPages ($meta) {
   $limit = $meta.count
+  if ($meta.count -eq 0) {
+    return 0
+  }
   $maxpage = $meta.total / $limit
   $maxpage = [Math]::Ceiling($maxpage)
   return $maxpage
@@ -82,6 +91,7 @@ function Get-MaxPages ($meta) {
 # Get the studio JSON data from the site
 function Get-StudioJsonData () {
   param (
+    [Int]$actorId,
     [String]$apiKey,
     [String]$authCode,
     [string]$groupid = $null,
@@ -94,19 +104,23 @@ function Get-StudioJsonData () {
   )
 
   $scenelist = New-Object -TypeName System.Collections.ArrayList
-  $params = Set-QueryParameters -apiKey $apiKey -authCode $authCode -studio $studio -ContentType $ContentType
+  $params = Set-QueryParameters -actorID $actorId -apiKey $apiKey -authCode $authCode -studio $studio -ContentType $ContentType
   $scenes0 = Invoke-RestMethod @params 
   $limit = $scenes0.meta.count
   $maxpage = Get-MaxPages -meta $scenes0.meta
+
+  if ($maxpage -eq 0) {
+    Write-Host "No content found for this query." -ForegroundColor Yellow
+    return $scenelist
+  }
 
   for ($p = 1; $p -le $maxpage; $p++) {
     $page = $p - 1
     Write-Host "Downloading: page $p of $maxpage" 
     $offset = $page * $limit
-    $params = Set-QueryParameters -apiKey $apiKey -authCode $authCode -studio $studio -ContentType $ContentType -offset $offset
+    $params = Set-QueryParameters -actorID $actorId -apiKey $apiKey -authCode $authCode -studio $studio -ContentType $ContentType -offset $offset
     $scenes = Invoke-RestMethod @params 
     $scenelist.AddRange($scenes.result)
-    Start-Sleep -Seconds 3
   }
   return $scenelist
 }
@@ -114,6 +128,7 @@ function Get-StudioJsonData () {
 # Create the studio data JSON file
 function Set-StudioData {
   param(
+    [Int[]]$actorIds,
     [String]$apiKey,
     [String]$authCode,
     [Parameter(Mandatory)]
@@ -125,12 +140,16 @@ function Set-StudioData {
 
   foreach ($ContentType in $ContentTypes ) {
     foreach ($studio in $studios) {
-      $filedir = "$outputDir/$studio"
-      $filepath = Join-Path -Path $filedir -ChildPath "$ContentType.json"
-      if (!(Test-Path $filedir)) { New-Item -ItemType "directory" -Path $filedir }
-      Write-Host "Downloading: $studio : $ContentType" 
-      $json = Get-StudioJsonData -apiKey $apiKey -authCode $authCode -studio $studio -ContentType $ContentType
-      $json | ConvertTo-Json -Depth 32 | Out-File -FilePath $filepath
+      foreach ($actorID in $actorIds) {
+        Write-Host "Downloading: $studio : $ContentType : $actorID" 
+        $json = Get-StudioJsonData -actorId $actorID -apiKey $apiKey -authCode $authCode -studio $studio -ContentType $ContentType
+        if ($json.Length -gt 0) {
+          $filedir = "$outputDir/$studio/$actorID"
+          $filepath = Join-Path -Path $filedir -ChildPath "$ContentType.json"
+          if (!(Test-Path $filedir)) { New-Item -ItemType "directory" -Path $filedir }  
+          $json | ConvertTo-Json -Depth 32 | Out-File -FilePath $filepath
+        }
+      }
     }
   }
 }

@@ -1,5 +1,5 @@
 # ? Dev variables
-$useDevConfig = $true
+$useDevConfig = $false
 
 # Global variables
 if ($IsWindows) { $directorydelimiter = '\' }
@@ -13,6 +13,7 @@ else {
 }
 
 $userConfig = Get-Content -Raw $pathToUserConfig | ConvertFrom-Json
+$apiOptions = ("Aylo")
 
 # Load the entrypoint for the script.
 function Set-Entry {
@@ -22,34 +23,49 @@ function Set-Entry {
 
     # User first selects an API
     Write-Host "What API are you working with?"
-    Write-Host "1. Aylo"
+    $apicounter = 1
+    foreach ($op in $apiOptions) {
+        Write-Host "$apicounter. $op";
+        $apicounter++
+    }
+
     do { $apiSelection = read-host "Enter your selection (1)" }
-    while (($apiSelection -notmatch "[1]"))
+    while (($apiSelection -notmatch "[1-$apicounter]"))
+
+    Write-Host `n"WARNING: Please make sure your auth code is up to date in your config before you continue, as it cannot be set as part of this script." -ForegroundColor Yellow
 
     # Next, user selects an operation
-    Write-Host "What would you like to do?"
-    Write-Host "1. Update the database"
-    Write-Host "2. Download content"
-    Write-Host "3. Update Stash"
-    do { $operationSelection = read-host "Enter your selection (1-3)" }
-    while (($operationSelection -notmatch "[1-3]"))
+    Write-Host `n"What would you like to do?"
+    Write-Host "1. Download media"
+    Write-Host "2. Update Stash"
+    do { $operationSelection = read-host "Enter your selection (1-2)" }
+    while (($operationSelection -notmatch "[1-2]"))
 
-    if ($operationSelection -eq 1) {
+    if ($operationSelection -eq 1 -and $apiSelection -eq 1) {
         # Update the config if needed
         if ($userConfig.aylo.apiKey.Length -eq 0) {
             . "./config-management.ps1"
             $userConfig = Set-ConfigAyloApikey -pathToUserConfig $pathToUserConfig
         }
 
-        # TODO - Move auth code out of config as it probably needs setting on every use due to changing regularly. 
-        if ($userConfig.aylo.authCode.Length -eq 0) {
-            . "./config-management.ps1"
-            $userConfig = Set-ConfigAyloAuthCode -pathToUserConfig $pathToUserConfig
-        }
+        # Next, user specifies what to download
+        Write-Host `n"What content do you want to download?"
+        Write-Host "1. All content from a group of performers"
+        do { $contentSelection = read-host "Enter your selection (1)" }
+        while (($contentSelection -notmatch "[1]"))
 
         # Load the scraper
         . "./apis/aylo/aylo-scraper.ps1"
-        Set-StudioData -apiKey $userConfig.aylo.apiKey -authCode $userConfig.aylo.authCode -studio "brazzers" -ContentTypes ("scene") -outputDir "./apis/aylo/data"
+
+        if ($contentSelection -eq 1) {
+            # Next, user specifies performer IDs
+            Write-Host `n"Specify all performer IDs you wish to download in a space-separated list, e.g. '123 2534 1563'."
+            $performerIDs = read-host "Performer IDs"
+            $performerIDs = $performerIDs -split (" ")
+
+            Set-StudioData -actorIds $performerIDs -apiKey $userConfig.aylo.apiKey -authCode $userConfig.aylo.authCode -studio "brazzers" -ContentTypes ("actor", "scene") -outputDir "./apis/aylo/data"
+        }
+
     }
     
     else { Write-Host "This feature is awaiting development." }
