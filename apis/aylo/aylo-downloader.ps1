@@ -2,6 +2,7 @@
 # Get all available scene media
 function Get-AllSceneMedia {
     param(
+        $galleryData,
         [Parameter(Mandatory)][String]$outputDir,
         [Parameter(Mandatory)]$sceneData
     )
@@ -25,30 +26,33 @@ function Get-AllSceneMedia {
     # Get downloading
     Get-SceneVideo -outputDir $outputDir -sceneData $sceneData
     Get-SceneTrailer -outputDir $outputDir -sceneData $sceneData
+    Get-SceneGallery -galleryData $galleryData -outputDir $outputDir -sceneData $sceneData
 }
 
 # Download a media file into the appropriate directory.
 function Get-MediaFile {
     param(
+        [string]$filename,
         [Parameter(Mandatory)]
-        [ValidateSet("scene", "trailer", ErrorMessage = "Error: mediaType argumement is not supported" )]
+        [ValidateSet("gallery", "scene", "trailer", ErrorMessage = "Error: mediaType argumement is not supported" )]
         [String]$mediaType,
-        [Parameter(Mandatory)]
-        [String]$outputDir,
+        [Parameter(Mandatory)][String]$outputDir,
         [Parameter(Mandatory)]$sceneData,
-        [Parameter(Mandatory)]
-        [String]$target
+        [Parameter(Mandatory)][String]$target
     )
-    # Set the filename
+
+    # ? Gallery filenames are passed as an argument, as the default filename is
+    # available in the API.
+
     if ($mediaType -eq "scene") {
         # Use the default filename that would be used for downloading manually.
         $filename = $target.split("filename=")[1]
     }
 
     if ($mediaType -eq "trailer") {
+        Write-Host "Trailer target: $target"
         # Use the default filename that would be used for downloading manually.
-        $filename = $target.split("/")
-        $filename = $filename[$filename.Length - 1]
+        $filename = $target.split("/")[-1]
     }
 
     $outputPath = $outputDir + $filename
@@ -63,6 +67,19 @@ function Get-MediaFile {
     else {
         return Write-Host "$mediaType file already exists. Skipped." -ForegroundColor Yellow
     }
+}
+
+# Download the scene gallery
+function Get-SceneGallery {
+    param(
+        $galleryData,
+        [Parameter(Mandatory)][string]$outputDir,
+        [Parameter(Mandatory)]$sceneData
+    )
+    $fileToDownload = $galleryData.galleries | Where-Object { $_.format -eq "download" }
+    $fileToDownload = $fileToDownload[0]
+
+    return Get-MediaFile -filename $fileToDownload.filePattern -mediaType "gallery" -outputDir $outputDir -sceneData $sceneData -target $fileToDownload.urls.download
 }
 
 # Download the scene trailer

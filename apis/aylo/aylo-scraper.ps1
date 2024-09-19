@@ -45,7 +45,7 @@ function Set-QueryParameters {
     [string]$studio,
     #content types can only be {actor, scene, movie}
     [Parameter(Mandatory)]
-    [ValidateSet('actor', 'movie', 'scene')]
+    [ValidateSet('actor', 'gallery', 'movie', 'scene')]
     [string]$ContentType
   )
   #initialize variables
@@ -65,7 +65,7 @@ function Set-QueryParameters {
     $body.Add('type', $ContentType)
   }
 
-  if ($null -ne $actorId) {
+  if ($null -ne $actorId -and $ContentType -ne "gallery") {
     $body.Add("actorId", $actorId)
   }
 
@@ -94,13 +94,13 @@ function Get-StudioJsonData () {
     [Int]$actorId,
     [String]$apiKey,
     [String]$authCode,
+    [Parameter(Mandatory)]
+    [ValidateSet('actor', 'gallery', 'movie', 'scene')]
+    [string]$ContentType,
     [string]$groupid = $null,
+    [Int[]]$sceneIds,
     [Parameter(Mandatory)]
-    [string]$studio,
-    #content types can only be {actor, scene, movie}
-    [Parameter(Mandatory)]
-    [ValidateSet('actor', 'movie', 'scene')]
-    [string]$ContentType
+    [string]$studio
   )
 
   $scenelist = New-Object -TypeName System.Collections.ArrayList
@@ -114,6 +114,8 @@ function Get-StudioJsonData () {
     return $scenelist
   }
 
+  # TODO - Separate scrape for galleries - query for each scene in the list and create a $gallerylist array
+
   for ($p = 1; $p -le $maxpage; $p++) {
     $page = $p - 1
     Write-Host "Downloading: page $p of $maxpage" 
@@ -121,6 +123,7 @@ function Get-StudioJsonData () {
     $params = Set-QueryParameters -actorID $actorId -apiKey $apiKey -authCode $authCode -studio $studio -ContentType $ContentType -offset $offset
     $scenes = Invoke-RestMethod @params 
     $scenelist.AddRange($scenes.result)
+    if ($ContentType -eq "gallery") { Start-Sleep -Seconds 1 }
   }
   return $scenelist
 }
@@ -132,22 +135,46 @@ function Set-StudioData {
     [String]$apiKey,
     [String]$authCode,
     [Parameter(Mandatory)]
-    [ValidateSet('actor', 'movie', 'scene')]
+    [ValidateSet('actor', 'gallery', 'movie', 'scene')]
     [string[]]$ContentTypes,
+    [bool]$forceGalleryScrape = $false,
     [string[]]$studios,
     [string]$outputDir
   )
 
   foreach ($ContentType in $ContentTypes ) {
-    foreach ($studio in $studios) {
-      foreach ($actorID in $actorIds) {
-        Write-Host "Downloading: $studio : $ContentType : $actorID" 
-        $json = Get-StudioJsonData -actorId $actorID -apiKey $apiKey -authCode $authCode -studio $studio -ContentType $ContentType
-        if ($json.Length -gt 0) {
-          $filedir = "$outputDir/$studio/$actorID"
-          $filepath = Join-Path -Path $filedir -ChildPath "$ContentType.json"
-          if (!(Test-Path $filedir)) { New-Item -ItemType "directory" -Path $filedir }  
-          $json | ConvertTo-Json -Depth 32 | Out-File -FilePath $filepath
+    # The galleries API doesn't use the actorId parameter, so the whole lot
+    # needs to be pulled.
+    if ($ContentType -eq "gallery") {
+      foreach ($studio in $studios) {
+        # Check if the data should be fetched
+        $filedir = "$outputDir/$studio"
+        $filepath = Join-Path -Path $filedir -ChildPath "$ContentType.json"
+        $jsonExists = Test-Path $filepath
+
+        # Download if json doesn't exist already or the user has explicitly
+        # asked to.
+        if (!$jsonExists -or $forceGalleryScrape) {
+          Write-Host "Downloading: $studio : $ContentType" 
+          $json = Get-StudioJsonData -apiKey $apiKey -authCode $authCode -studio $studio -ContentType $ContentType
+          if ($json.Length -gt 0) {
+            if (!(Test-Path $filedir)) { New-Item -ItemType "directory" -Path $filedir }  
+            $json | ConvertTo-Json -Depth 32 | Out-File -FilePath $filepath
+          }
+        } 
+      }      
+    }
+    else {
+      foreach ($studio in $studios) {
+        foreach ($actorID in $actorIds) {
+          Write-Host "Downloading: $studio : $ContentType : $actorID" 
+          $json = Get-StudioJsonData -actorId $actorID -apiKey $apiKey -authCode $authCode -studio $studio -ContentType $ContentType
+          if ($json.Length -gt 0) {
+            $filedir = "$outputDir/$studio/$actorID"
+            $filepath = Join-Path -Path $filedir -ChildPath "$ContentType.json"
+            if (!(Test-Path $filedir)) { New-Item -ItemType "directory" -Path $filedir }  
+            $json | ConvertTo-Json -Depth 32 | Out-File -FilePath $filepath
+          }
         }
       }
     }
