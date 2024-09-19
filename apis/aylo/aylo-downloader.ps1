@@ -1,15 +1,9 @@
-# Download a media file into the appropriate directory.
-function Get-Media {
+
+# Get all available scene media
+function Get-AllSceneMedia {
     param(
-        [uint64]$expectedFileSize,
-        [Parameter(Mandatory)]
-        [ValidateSet("scene", ErrorMessage = "Error: mediaType argumement is not supported" )]
-        [String]$mediaType,
-        [Parameter(Mandatory)]
-        [String]$outputDir,
-        [Parameter(Mandatory)]$sceneData,
-        [Parameter(Mandatory)]
-        [String]$target
+        [Parameter(Mandatory)][String]$outputDir,
+        [Parameter(Mandatory)]$sceneData
     )
     $date = Get-Date -Date $sceneData.dateReleased -Format "yyyy-MM-dd"
     $parentStudio = $sceneData.brandMeta.displayName
@@ -18,31 +12,84 @@ function Get-Media {
     $title = $sceneData.title.Split([IO.Path]::GetInvalidFileNameChars()) -join ''
     $title = $title.replace("  ", " ")
 
+    # Create the final output directory
+    $contentFolder = "$sceneID $date $title"
+
     # Check if the final string in outputDir is a backslash, and add one if needed.
     if ($outputDir.Substring($outputDir.Length - 1) -ne "\") {
         $outputDir += "\"
     }
-    $outputDirectory = "$outputDir$(if($parentStudio.Length){"$parentStudio\"})$studio\"
 
-    $contentFolder = "$sceneID $date $title"
-    $outputDirectory += "$contentFolder\"
+    $outputDir = "$outputDir$(if($parentStudio.Length){"$parentStudio\"})$studio\$contentFolder\"
 
+    # Get downloading
+    Get-SceneVideo -outputDir $outputDir -sceneData $sceneData
+    Get-SceneTrailer -outputDir $outputDir -sceneData $sceneData
+}
+
+# Download a media file into the appropriate directory.
+function Get-MediaFile {
+    param(
+        [Parameter(Mandatory)]
+        [ValidateSet("scene", "trailer", ErrorMessage = "Error: mediaType argumement is not supported" )]
+        [String]$mediaType,
+        [Parameter(Mandatory)]
+        [String]$outputDir,
+        [Parameter(Mandatory)]$sceneData,
+        [Parameter(Mandatory)]
+        [String]$target
+    )
+    # Set the filename
     if ($mediaType -eq "scene") {
         # Use the default filename that would be used for downloading manually.
         $filename = $target.split("filename=")[1]
-        $outputPath = $outputDirectory + $filename
-        $existingFile = Test-Path $outputPath
-
-        # Download if the file doesn't exist
-        # TODO - Check existing file matches db MD5 hash
-        if ($null -eq $existingFile) {
-            Write-Host "Downloading scene: $outputPath"
-            return Invoke-WebRequest -uri $target -OutFile ( New-Item -Path $outputPath -Force )
-        }
-        else {
-            return Write-Host "File already exists. Skipped." -ForegroundColor Yellow
-        }
     }
+
+    if ($mediaType -eq "trailer") {
+        # Use the default filename that would be used for downloading manually.
+        $filename = $target.split("/")
+        $filename = $filename[$filename.Length - 1]
+    }
+
+    $outputPath = $outputDir + $filename
+    $existingFile = Test-Path $outputPath
+
+    # Download if the file doesn't exist
+    # TODO - Check existing file matches db MD5 hash
+    if (!$existingFile) {
+        Write-Host "Downloading $($mediaType): $outputPath"
+        return Invoke-WebRequest -uri $target -OutFile ( New-Item -Path $outputPath -Force )
+    }
+    else {
+        return Write-Host "$mediaType file already exists. Skipped." -ForegroundColor Yellow
+    }
+}
+
+# Download the scene trailer
+function Get-SceneTrailer {
+    param(
+        [Parameter(Mandatory)][string]$outputDir,
+        [Parameter(Mandatory)]$sceneData
+    )
+
+    # Filter videos to get the optimal file
+    [array]$files = $sceneData.children | Where-Object { $_.type -eq "trailer" }
+    $files = $files.videos.full.files
+
+    # 1. Prefer AV1 codec
+    [array]$filteredFiles = $files | Where-Object { $_.codec -eq "av1" }
+    if ($filteredFiles.count -gt 0) {
+        # For AV1 codec files, get the biggest file
+        $filteredFiles = $filteredFiles | Sort-Object -Property "height" -Descending
+        $fileToDownload = $filteredFiles[0]
+        return Get-MediaFile -mediaType "trailer" -outputDir $outputDir -sceneData $sceneData -target $fileToDownload.urls.view
+    }
+
+    # 2. Get the highest resoltion file available
+    $filteredFiles = $files
+    $filteredFiles = $filteredFiles | Sort-Object -Property "sizeBytes" -Descending
+    $fileToDownload = $filteredFiles[0]
+    return Get-MediaFile -mediaType "trailer" -outputDir $outputDir -sceneData $sceneData -target $fileToDownload.urls.view
 }
 
 # Download the preferred scene file
@@ -66,7 +113,7 @@ function Get-SceneVideo {
         # For AV1 codec files, get the biggest file
         $filteredFiles = $filteredFiles | Sort-Object -Property "height" -Descending
         $fileToDownload = $filteredFiles[0]
-        return Get-Media -expectedFileSize $fileToDownload.sizeBytes -mediaType "scene" -outputDir $outputDir -sceneData $sceneData -target $fileToDownload.urls.download
+        return Get-MediaFile -mediaType "scene" -outputDir $outputDir -sceneData $sceneData -target $fileToDownload.urls.download
     }
 
     # 2. Get the highest resoltion file under 6GB as long as it's at least HD
@@ -88,19 +135,19 @@ function Get-SceneVideo {
             }
         }
         $fileToDownload = $biggestFile
-        return Get-Media -expectedFileSize $fileToDownload.sizeBytes -mediaType "scene" -outputDir $outputDir -sceneData $sceneData -target $fileToDownload.urls.download
+        return Get-MediaFile -mediaType "scene" -outputDir $outputDir -sceneData $sceneData -target $fileToDownload.urls.download
     }
 
     # 3. Get the HD file if there's one available
     $filteredFiles = $files | Where-Object { $_.height -eq 1080 -or [int]($_.label.TrimEnd('p')) -eq 1080 }
     if ($filteredFiles.count -gt 0) {
         $fileToDownload = $filteredFiles[0]
-        return Get-Media -expectedFileSize $fileToDownload.sizeBytes -mediaType "scene" -outputDir $outputDir -sceneData $sceneData -target $fileToDownload.urls.download
+        return Get-MediaFile -mediaType "scene" -outputDir $outputDir -sceneData $sceneData -target $fileToDownload.urls.download
     }
 
     # 4. Just get the biggest file available
     $filteredFiles = $files
     $filteredFiles = $filteredFiles | Sort-Object -Property "sizeBytes" -Descending
     $fileToDownload = $filteredFiles[0]
-    return Get-Media -expectedFileSize $fileToDownload.sizeBytes -mediaType "scene" -outputDir $outputDir -sceneData $sceneData -target $fileToDownload.urls.download
+    return Get-MediaFile -mediaType "scene" -outputDir $outputDir -sceneData $sceneData -target $fileToDownload.urls.download
 }
