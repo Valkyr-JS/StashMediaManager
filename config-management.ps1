@@ -15,6 +15,21 @@ function Set-ConfigDownloadDirectory {
     return $userConfig
 }
 
+# Set the user config value for the scraped data directory
+function Set-ConfigScrapedDataDirectory {
+    param(
+        [String]$pathToUserConfig
+    )
+
+    $userConfig = Get-Content $pathToUserConfig -raw | ConvertFrom-Json
+    do { $userInput = read-host "Please enter a valid path to your scraped data folder" }
+    while (($userInput.Length -eq 0) -or !(Test-Path $userInput))
+
+    $userConfig.general.scrapedDataDirectory = "$userInput"
+    $userConfig | ConvertTo-Json -depth 32 | set-content $pathToUserConfig
+    return $userConfig
+}
+
 # ----------------------------------- AYLO ----------------------------------- #
 
 # Set the user config value for aylo.apiKey.

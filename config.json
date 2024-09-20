@@ -4,6 +4,7 @@
     "authCode": ""
   },
   "general": {
-    "downloadDirectory": ""
+    "downloadDirectory": "",
+    "scrapedDataDirectory": ""
   }
 }

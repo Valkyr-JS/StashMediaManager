@@ -53,7 +53,16 @@ function Set-Entry {
         if ($downloadDirectory[-1] -eq $directorydelimiter) {
             $downloadDirectory = $downloadDirectory.Substring(0, $downloadDirectory.Length - 1)
         }
-        Write-Host $downloadDirectory
+
+        if ($userConfig.general.scrapedDataDirectory.Length -eq 0) {
+            $userConfig = Set-ConfigScrapedDataDirectory -pathToUserConfig $pathToUserConfig
+        }
+
+        # Ensure the scraped data directory doesn't have a trailing directory delimiter
+        [string]$scrapedDataDirectory = $userConfig.general.scrapedDataDirectory
+        if ($scrapedDataDirectory[-1] -eq $directorydelimiter) {
+            $scrapedDataDirectory = $scrapedDataDirectory.Substring(0, $scrapedDataDirectory.Length - 1)
+        }
 
         if ($userConfig.aylo.apiKey.Length -eq 0) {
             $userConfig = Set-ConfigAyloApikey -pathToUserConfig $pathToUserConfig
@@ -74,14 +83,14 @@ function Set-Entry {
             $performerIDs = read-host "Performer IDs"
             $performerIDs = $performerIDs -split (" ")
 
-            Set-StudioData -actorIds $performerIDs -apiKey $userConfig.aylo.apiKey -authCode $userConfig.aylo.authCode -studio "brazzers" -ContentTypes ("actor", "scene", "gallery") -outputDir "./apis/aylo/data"
+            Set-StudioData -actorIds $performerIDs -apiKey $userConfig.aylo.apiKey -authCode $userConfig.aylo.authCode -studio "brazzers" -ContentTypes ("actor", "scene", "gallery") -outputDir ($scrapedDataDirectory + $directorydelimiter + "aylo")
 
             # Load the downloader
             . "./apis/aylo/aylo-downloader.ps1"
 
             foreach ($perfid in $performerIDs) {
-                $scenesJSON = Get-Content "./apis/aylo/data/brazzers/$perfid/scene.json" -raw | ConvertFrom-Json
-                $galleryJSON = Get-Content "./apis/aylo/data/brazzers/$perfid/gallery.json" -raw | ConvertFrom-Json
+                $scenesJSON = Get-Content "$scrapedDataDirectory/aylo/brazzers/$perfid/scene.json" -raw | ConvertFrom-Json
+                $galleryJSON = Get-Content "$scrapedDataDirectory/aylo/brazzers/$perfid/gallery.json" -raw | ConvertFrom-Json
 
                 foreach ($sceneData in $scenesJSON) {
                     # Get the gallery data for the specific scene

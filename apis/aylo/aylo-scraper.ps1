@@ -194,7 +194,7 @@ function Set-StudioData {
     else {
       foreach ($studio in $studios) {
         foreach ($actorID in $actorIds) {
-          Write-Host "Downloading: $studio : $ContentType : $actorID" 
+          Write-Host "Scraping: $studio : $ContentType : $actorID" 
           $json = Get-StudioJsonData -actorId $actorID -apiKey $apiKey -authCode $authCode -studio $studio -ContentType $ContentType
           if ($json.Length -gt 0) {
             $filedir = "$outputDir/$studio/$actorID"
