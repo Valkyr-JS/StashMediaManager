@@ -3,10 +3,6 @@ function Get-Headers {
   param(
     [String]$apiKey,
     [String]$authCode,
-    [ValidateSet("bangbros", "realitykings", "twistys", "milehigh", "biempire", `
-        "babes", "erito", "mofos", "fakehub", "sexyhub", "propertysex", "metrohd", `
-        "brazzers", "milfed", "gilfed", "dilfed", "men", "whynotbi", `
-        "seancody", "iconmale", "realitydudes", "spicevids", ErrorMessage = "Error: studio argumement is not supported" )]
     [String]$studio
   )
 
@@ -64,6 +60,7 @@ function Set-QueryParameters {
     $urlapi = "https://site-api.project1service.com/v2/releases"
     $body.Add("orderBy", "-dateReleased")
     $body.Add('type', $ContentType)
+    $body.Add('brand', $studio)
   }
 
   if ($ContentType -eq "gallery") {

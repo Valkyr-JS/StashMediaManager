@@ -13,7 +13,7 @@ else {
 }
 
 $userConfig = Get-Content -Raw $pathToUserConfig | ConvertFrom-Json
-$apiOptions = ("Aylo")
+$apiData = Get-Content -Raw "./apis/apiData.json" | ConvertFrom-Json
 
 # Load the entrypoint for the script.
 function Set-Entry {
@@ -22,15 +22,18 @@ function Set-Entry {
     Write-Host "-------------------"
 
     # User first selects an API
-    Write-Host "What API are you working with?"
+    Write-Host "Which API are you working with?"
     $apicounter = 1
-    foreach ($op in $apiOptions) {
-        Write-Host "$apicounter. $op";
+    foreach ($item in $apiData) {
+        Write-Host "$apicounter. $($item.name)";
         $apicounter++
     }
 
     do { $apiSelection = read-host "Enter your selection (1)" }
     while (($apiSelection -notmatch "[1-$apicounter]"))
+
+    $apiData = $apiData[$apiSelection - 1]
+    $apiName = $apiData.name
 
     Write-Host `n"WARNING: Please make sure your auth code is up to date in your config before you continue, as it cannot be set as part of this script." -ForegroundColor Yellow
 
@@ -41,7 +44,23 @@ function Set-Entry {
     do { $operationSelection = read-host "Enter your selection (1-2)" }
     while (($operationSelection -notmatch "[1-2]"))
 
-    if ($operationSelection -eq 1 -and $apiSelection -eq 1) {
+    # AYLO
+    if ($operationSelection -eq 1 -and $apiData.name -eq "Aylo") {
+        Write-Host `n"Specify the studios you wish to download from in a space-separated list, e.g. 'bangbros mofos brazzers'."
+        Write-Host "Accepted studios are: $($apiData.studios)"
+        do {
+            $studios = read-host "Studios"
+            $studiosValid = $true
+            foreach ($s in ($studios -split " ")) {
+                if ($apiData.studios -notcontains $s.Trim()) {
+                    $studiosValid = $false
+                }
+            }
+        }
+        while ($studiosValid -eq $false)
+
+        $studios = $studios -split (" ")
+
         # Update the config if needed
         . "./config-management.ps1"
         if ($userConfig.general.downloadDirectory.Length -eq 0) {
@@ -83,24 +102,34 @@ function Set-Entry {
             $performerIDs = read-host "Performer IDs"
             $performerIDs = $performerIDs -split (" ")
 
-            Set-StudioData -actorIds $performerIDs -apiKey $userConfig.aylo.apiKey -authCode $userConfig.aylo.authCode -studio "brazzers" -ContentTypes ("actor", "scene", "gallery") -outputDir ($scrapedDataDirectory + $directorydelimiter + "aylo")
+            Set-StudioData -actorIds $performerIDs -apiKey $userConfig.aylo.apiKey -authCode $userConfig.aylo.authCode -ContentTypes ("actor", "scene", "gallery") -outputDir ($scrapedDataDirectory + $directorydelimiter + "aylo") -studios $studios
 
             # Load the downloader
             . "./apis/aylo/aylo-downloader.ps1"
 
-            foreach ($perfid in $performerIDs) {
-                $scenesJSON = Get-Content "$scrapedDataDirectory/aylo/brazzers/$perfid/scene.json" -raw | ConvertFrom-Json
-                $galleryJSON = Get-Content "$scrapedDataDirectory/aylo/brazzers/$perfid/gallery.json" -raw | ConvertFrom-Json
+            foreach ($studio in $studios) {
+                foreach ($perfid in $performerIDs) {
+                    $scenesJsonPath = "$scrapedDataDirectory/$apiName/$studio/$perfid/scene.json"
+                    $galleriesJsonPath = "$scrapedDataDirectory/$apiName/$studio/$perfid/gallery.json"
 
-                foreach ($sceneData in $scenesJSON) {
-                    # Get the gallery data for the specific scene
-                    $galleryID = ($sceneData.children | Where-Object { $_.type -eq "gallery" }).id
-                    $galleryData = $galleryJSON | Where-Object { $_.id -eq $galleryID }
-                    if ($galleryData.count -eq 0) {
-                        Write-Host "WARNING: No gallery data found for scene $($sceneData.id)"
+                    if (!(Test-Path $scenesJsonPath) -or !(Test-Path $galleriesJsonPath)) {
+                        Write-Host "ERROR: No JSON data found for performer $perfid in studio $studio." -ForegroundColor Red
                     }
-
-                    Get-AllSceneMedia -galleryData $galleryData -outputDir $downloadDirectory -sceneData $sceneData
+                    else {
+                        $scenesJSON = Get-Content $scenesJsonPath -raw | ConvertFrom-Json
+                        $galleryJSON = Get-Content $galleriesJsonPath -raw | ConvertFrom-Json
+        
+                        foreach ($sceneData in $scenesJSON) {
+                            # Get the gallery data for the specific scene
+                            $galleryID = ($sceneData.children | Where-Object { $_.type -eq "gallery" }).id
+                            $galleryData = $galleryJSON | Where-Object { $_.id -eq $galleryID }
+                            if ($galleryData.count -eq 0) {
+                                Write-Host "WARNING: No gallery data found for scene $($sceneData.id)"
+                            }
+        
+                            Get-AllSceneMedia -galleryData $galleryData -outputDir $downloadDirectory -sceneData $sceneData
+                        }
+                    }
                 }
             }
         }
