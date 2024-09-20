@@ -2,5 +2,9 @@
   "aylo": {
     "apiKey": "",
     "authCode": ""
+  },
+  "general": {
+    "downloadDirectory": "",
+    "scrapedDataDirectory": ""
   }
 }
