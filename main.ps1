@@ -54,11 +54,6 @@ function Set-Entry {
         do { $contentSelection = read-host "Enter your selection (1)" }
         while (($contentSelection -notmatch "[1]"))
 
-        # Ask whether to force scraping gallery data
-        Write-Host `n"Should gallery data be scraped if it already exists? This may take some time."
-        do { $forceGalleryScrape = read-host "Enter your selection (y/N)" }
-        while (($forceGalleryScrape -notmatch "[yn]"))
-
         # Load the scraper
         . "./apis/aylo/aylo-scraper.ps1"
 
@@ -67,25 +62,23 @@ function Set-Entry {
             Write-Host `n"Specify all performer IDs you wish to download in a space-separated list, e.g. '123 2534 1563'."
             $performerIDs = read-host "Performer IDs"
             $performerIDs = $performerIDs -split (" ")
-            $forceGalleryScrape = $forceGalleryScrape -eq "y"
 
-            Set-StudioData -actorIds $performerIDs -apiKey $userConfig.aylo.apiKey -authCode $userConfig.aylo.authCode -studio "brazzers" -ContentTypes ("actor", "scene", "gallery") -forceGalleryScrape $forceGalleryScrape -outputDir "./apis/aylo/data"
+            Set-StudioData -actorIds $performerIDs -apiKey $userConfig.aylo.apiKey -authCode $userConfig.aylo.authCode -studio "brazzers" -ContentTypes ("actor", "scene", "gallery") -outputDir "./apis/aylo/data"
 
             # Load the downloader
             . "./apis/aylo/aylo-downloader.ps1"
-            
-            # Gallery data is all in one big file. Get it now and filter as needed.
-            $allGalleriesJSON = Get-Content "./apis/aylo/data/brazzers/gallery.json" -raw | ConvertFrom-Json
 
             foreach ($perfid in $performerIDs) {
                 $scenesJSON = Get-Content "./apis/aylo/data/brazzers/$perfid/scene.json" -raw | ConvertFrom-Json
-
-                # Filter the galleries that the performer appears in
-                $galleriesJSON = $allGalleriesJSON | Where-Object { $_.parent.actors.id -eq $perfid }
+                $galleryJSON = Get-Content "./apis/aylo/data/brazzers/$perfid/gallery.json" -raw | ConvertFrom-Json
 
                 foreach ($sceneData in $scenesJSON) {
                     # Get the gallery data for the specific scene
-                    $galleryData = $galleriesJSON | Where-Object { $_.parent.id -eq $sceneData.id }
+                    $galleryID = ($sceneData.children | Where-Object { $_.type -eq "gallery" }).id
+                    $galleryData = $galleryJSON | Where-Object { $_.id -eq $galleryID }
+                    if ($galleryData.count -eq 0) {
+                        Write-Host "WARNING: No gallery data found for scene $($sceneData.id)"
+                    }
 
                     Get-AllSceneMedia -galleryData $galleryData -outputDir "J:\Synapse\Downloads" -sceneData $sceneData
                 }

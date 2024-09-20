@@ -26,7 +26,9 @@ function Get-AllSceneMedia {
     # Get downloading
     Get-SceneVideo -outputDir $outputDir -sceneData $sceneData
     Get-SceneTrailer -outputDir $outputDir -sceneData $sceneData
-    Get-SceneGallery -galleryData $galleryData -outputDir $outputDir -sceneData $sceneData
+    if ($null -ne $galleryData) {
+        Get-SceneGallery -galleryData $galleryData -outputDir $outputDir -sceneData $sceneData
+    }
 }
 
 # Download a media file into the appropriate directory.

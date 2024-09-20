@@ -39,6 +39,7 @@ function Set-QueryParameters {
     [Int]$actorId,
     [String]$apiKey,
     [String]$authCode,
+    [Int]$galleryId,
     [string]$groupid = $null,
     [Int]$offset = 0,
     [Parameter(Mandatory)]
@@ -54,15 +55,19 @@ function Set-QueryParameters {
     offset = $offset
   }
   $header = Get-Headers -apiKey $apiKey -authCode $authCode -studio $studio
-  If ($null -eq $groupid) { $body.Add("groupID", $groupid) }
+  if ($null -eq $groupid) { $body.Add("groupID", $groupid) }
   #api call for actors is different from movies and releases
-  If ($ContentType -eq "actor") {
+  if ($ContentType -eq "actor") {
     $urlapi = "https://site-api.project1service.com/v1/actors"
   }
   else {
     $urlapi = "https://site-api.project1service.com/v2/releases"
     $body.Add("orderBy", "-dateReleased")
     $body.Add('type', $ContentType)
+  }
+
+  if ($ContentType -eq "gallery") {
+    $body.Add("id", $galleryId)
   }
 
   if ($null -ne $actorId -and $ContentType -ne "gallery") {
@@ -97,11 +102,26 @@ function Get-StudioJsonData () {
     [Parameter(Mandatory)]
     [ValidateSet('actor', 'gallery', 'movie', 'scene')]
     [string]$ContentType,
+    [Int[]]$galleryIds,
     [string]$groupid = $null,
-    [Int[]]$sceneIds,
     [Parameter(Mandatory)]
     [string]$studio
   )
+
+  # Handle gallery scrapes separately as they rely on scene data. Each scene needs a separate scrape.
+  if ($ContentType -eq "gallery") {
+    $gallerylist = New-Object -TypeName System.Collections.ArrayList
+  
+    for ($p = 0; $p -lt $galleryIds.Length; $p++) {
+      Write-Host "Downloading: gallery $($p + 1) of $($galleryIds.Length)"
+      $galleryId = $galleryIds[$p]
+      $offset = 0
+      $params = Set-QueryParameters -actorID $actorId -apiKey $apiKey -authCode $authCode -ContentType $ContentType -galleryID $galleryId -offset $offset -studio $studio
+      $gallery = Invoke-RestMethod @params 
+      $gallerylist.AddRange($gallery.result)
+    }
+    return $gallerylist
+  }
 
   $scenelist = New-Object -TypeName System.Collections.ArrayList
   $params = Set-QueryParameters -actorID $actorId -apiKey $apiKey -authCode $authCode -studio $studio -ContentType $ContentType
@@ -114,8 +134,6 @@ function Get-StudioJsonData () {
     return $scenelist
   }
 
-  # TODO - Separate scrape for galleries - query for each scene in the list and create a $gallerylist array
-
   for ($p = 1; $p -le $maxpage; $p++) {
     $page = $p - 1
     Write-Host "Downloading: page $p of $maxpage" 
@@ -123,7 +141,6 @@ function Get-StudioJsonData () {
     $params = Set-QueryParameters -actorID $actorId -apiKey $apiKey -authCode $authCode -studio $studio -ContentType $ContentType -offset $offset
     $scenes = Invoke-RestMethod @params 
     $scenelist.AddRange($scenes.result)
-    if ($ContentType -eq "gallery") { Start-Sleep -Seconds 1 }
   }
   return $scenelist
 }
@@ -137,32 +154,42 @@ function Set-StudioData {
     [Parameter(Mandatory)]
     [ValidateSet('actor', 'gallery', 'movie', 'scene')]
     [string[]]$ContentTypes,
-    [bool]$forceGalleryScrape = $false,
     [string[]]$studios,
     [string]$outputDir
   )
-
   foreach ($ContentType in $ContentTypes ) {
-    # The galleries API doesn't use the actorId parameter, so the whole lot
-    # needs to be pulled.
+    # The galleries API doesn't use the actorId parameter. Instead, get all the
+    # scene IDs from the scene scrape.
+    #
+    # ! This means the scenes MUST be scraped before galleries!
     if ($ContentType -eq "gallery") {
       foreach ($studio in $studios) {
-        # Check if the data should be fetched
-        $filedir = "$outputDir/$studio"
-        $filepath = Join-Path -Path $filedir -ChildPath "$ContentType.json"
-        $jsonExists = Test-Path $filepath
-
-        # Download if json doesn't exist already or the user has explicitly
-        # asked to.
-        if (!$jsonExists -or $forceGalleryScrape) {
-          Write-Host "Downloading: $studio : $ContentType" 
-          $json = Get-StudioJsonData -apiKey $apiKey -authCode $authCode -studio $studio -ContentType $ContentType
-          if ($json.Length -gt 0) {
-            if (!(Test-Path $filedir)) { New-Item -ItemType "directory" -Path $filedir }  
-            $json | ConvertTo-Json -Depth 32 | Out-File -FilePath $filepath
+        foreach ($actorID in $actorIds) {
+          # Make sure that scene data exists
+          $scenesJsonFile = "$outputDir/$studio/$actorID/scene.json"
+          if (!(Test-Path $scenesJsonFile)) {
+            Write-Host "No scenes data available for gallery scrape. Skipping."
           }
-        } 
-      }      
+          else {
+            # Get the scene IDs from the scene scrape
+            $scenesJson = Get-Content $scenesJsonFile -raw | ConvertFrom-Json
+            $galleryIds = @()
+            $galleryIds += ($scenesJson.children | Where-Object { $_.type -eq "gallery" }).id
+
+            Write-Host "Downloading: $studio : $ContentType : $actorID" 
+            $json = Get-StudioJsonData -actorId $actorID -apiKey $apiKey -authCode $authCode -ContentType $ContentType -galleryIds $galleryIds -studio $studio
+            if ($json.Length -gt 0) {
+              $filedir = "$outputDir/$studio/$actorID"
+              $filepath = Join-Path -Path $filedir -ChildPath "$ContentType.json"
+              if (!(Test-Path $filedir)) { New-Item -ItemType "directory" -Path $filedir }  
+              Write-Host "Generating JSON: $filepath"
+              $json | ConvertTo-Json -Depth 32 | Out-File -FilePath $filepath
+              if (!(Test-Path $filedir)) { Write-Host "ERROR: Generating JSON failed" -ForegroundColor Red }  
+              else { Write-Host "SUCCESS: JSON Generated" -ForegroundColor Green }  
+            }
+          }
+        }
+      }
     }
     else {
       foreach ($studio in $studios) {
@@ -172,8 +199,11 @@ function Set-StudioData {
           if ($json.Length -gt 0) {
             $filedir = "$outputDir/$studio/$actorID"
             $filepath = Join-Path -Path $filedir -ChildPath "$ContentType.json"
-            if (!(Test-Path $filedir)) { New-Item -ItemType "directory" -Path $filedir }  
+            if (!(Test-Path $filedir)) { New-Item -ItemType "directory" -Path $filedir } 
+            Write-Host "Generating JSON: $filepath"
             $json | ConvertTo-Json -Depth 32 | Out-File -FilePath $filepath
+            if (!(Test-Path $filedir)) { Write-Host "ERROR: Generating JSON failed" -ForegroundColor Red }  
+            else { Write-Host "SUCCESS: JSON Generated" -ForegroundColor Green }  
           }
         }
       }
