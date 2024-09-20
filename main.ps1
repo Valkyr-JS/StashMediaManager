@@ -63,16 +63,24 @@ function Set-Entry {
             $performerIDs = read-host "Performer IDs"
             $performerIDs = $performerIDs -split (" ")
 
-            Set-StudioData -actorIds $performerIDs -apiKey $userConfig.aylo.apiKey -authCode $userConfig.aylo.authCode -studio "brazzers" -ContentTypes ("actor", "scene") -outputDir "./apis/aylo/data"
+            Set-StudioData -actorIds $performerIDs -apiKey $userConfig.aylo.apiKey -authCode $userConfig.aylo.authCode -studio "brazzers" -ContentTypes ("actor", "scene", "gallery") -outputDir "./apis/aylo/data"
 
             # Load the downloader
             . "./apis/aylo/aylo-downloader.ps1"
-            
+
             foreach ($perfid in $performerIDs) {
                 $scenesJSON = Get-Content "./apis/aylo/data/brazzers/$perfid/scene.json" -raw | ConvertFrom-Json
+                $galleryJSON = Get-Content "./apis/aylo/data/brazzers/$perfid/gallery.json" -raw | ConvertFrom-Json
 
                 foreach ($sceneData in $scenesJSON) {
-                    Get-AllSceneMedia -outputDir "J:\Synapse\Downloads" -sceneData $sceneData
+                    # Get the gallery data for the specific scene
+                    $galleryID = ($sceneData.children | Where-Object { $_.type -eq "gallery" }).id
+                    $galleryData = $galleryJSON | Where-Object { $_.id -eq $galleryID }
+                    if ($galleryData.count -eq 0) {
+                        Write-Host "WARNING: No gallery data found for scene $($sceneData.id)"
+                    }
+
+                    Get-AllSceneMedia -galleryData $galleryData -outputDir "J:\Synapse\Downloads" -sceneData $sceneData
                 }
             }
         }
