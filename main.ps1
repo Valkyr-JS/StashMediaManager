@@ -43,8 +43,19 @@ function Set-Entry {
 
     if ($operationSelection -eq 1 -and $apiSelection -eq 1) {
         # Update the config if needed
+        . "./config-management.ps1"
+        if ($userConfig.general.downloadDirectory.Length -eq 0) {
+            $userConfig = Set-ConfigDownloadDirectory -pathToUserConfig $pathToUserConfig
+        }
+
+        # Ensure the download directory doesn't have a trailing directory delimiter
+        [string]$downloadDirectory = $userConfig.general.downloadDirectory
+        if ($downloadDirectory[-1] -eq $directorydelimiter) {
+            $downloadDirectory = $downloadDirectory.Substring(0, $downloadDirectory.Length - 1)
+        }
+        Write-Host $downloadDirectory
+
         if ($userConfig.aylo.apiKey.Length -eq 0) {
-            . "./config-management.ps1"
             $userConfig = Set-ConfigAyloApikey -pathToUserConfig $pathToUserConfig
         }
 
@@ -80,7 +91,7 @@ function Set-Entry {
                         Write-Host "WARNING: No gallery data found for scene $($sceneData.id)"
                     }
 
-                    Get-AllSceneMedia -galleryData $galleryData -outputDir "J:\Synapse\Downloads" -sceneData $sceneData
+                    Get-AllSceneMedia -galleryData $galleryData -outputDir $downloadDirectory -sceneData $sceneData
                 }
             }
         }
