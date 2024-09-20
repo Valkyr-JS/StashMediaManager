@@ -35,7 +35,7 @@ function Set-Entry {
     $apiData = $apiData[$apiSelection - 1]
     $apiName = $apiData.name
 
-    Write-Host `n"WARNING: Please make sure your auth code is up to date in your config before you continue, as it cannot be set as part of this script." -ForegroundColor Yellow
+    Write-Host `n"WARNING: Please make sure your authorization code is up to date in your config before you continue. If it needs updating, cancel this script, manually update the config, then run the script again." -ForegroundColor Yellow
 
     # Next, user selects an operation
     Write-Host `n"What would you like to do?"
@@ -120,11 +120,14 @@ function Set-Entry {
                         $galleryJSON = Get-Content $galleriesJsonPath -raw | ConvertFrom-Json
         
                         foreach ($sceneData in $scenesJSON) {
+                            $studioName = $sceneData.collections[0].name
+                            if ($null -eq $studioName) { $studioName = $studio }
+                            Write-Host `n"Downloading $studio scene $($sceneData.id) - $studioName - $($sceneData.title)"
                             # Get the gallery data for the specific scene
                             $galleryID = ($sceneData.children | Where-Object { $_.type -eq "gallery" }).id
                             $galleryData = $galleryJSON | Where-Object { $_.id -eq $galleryID }
                             if ($galleryData.count -eq 0) {
-                                Write-Host "WARNING: No gallery data found for scene $($sceneData.id)"
+                                Write-Host "WARNING: No gallery data found for scene $($sceneData.id)" -ForegroundColor Yellow
                             }
         
                             Get-AllSceneMedia -galleryData $galleryData -outputDir $downloadDirectory -sceneData $sceneData

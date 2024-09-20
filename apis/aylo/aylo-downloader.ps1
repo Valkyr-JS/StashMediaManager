@@ -1,4 +1,8 @@
 
+# Global variables
+if ($IsWindows) { $directorydelimiter = '\' }
+else { $directorydelimiter = '/' }
+
 # Get all available scene media
 function Get-AllSceneMedia {
     param(
@@ -9,19 +13,23 @@ function Get-AllSceneMedia {
     $date = Get-Date -Date $sceneData.dateReleased -Format "yyyy-MM-dd"
     $parentStudio = $sceneData.brandMeta.displayName
     $sceneID = $sceneData.id
-    $studio = $sceneData.collections[0].name
     $title = $sceneData.title.Split([IO.Path]::GetInvalidFileNameChars()) -join ''
     $title = $title.replace("  ", " ")
+
+    $studio = $sceneData.collections[0].name
+
+    # If studio is blank, the studio is also the parent studio
+    if ($null -eq $studio) { $studio = $parentStudio }
 
     # Create the final output directory
     $contentFolder = "$sceneID $date $title"
 
     # Check if the final string in outputDir is a backslash, and add one if needed.
-    if ($outputDir.Substring($outputDir.Length - 1) -ne "\") {
-        $outputDir += "\"
+    if ($outputDir.Substring($outputDir.Length - 1) -ne $directorydelimiter) {
+        $outputDir += $directorydelimiter
     }
 
-    $outputDir = "$outputDir$(if($parentStudio.Length){"$parentStudio\"})$studio\$contentFolder\"
+    $outputDir += (($parentStudio, $studio, $contentFolder, "") -join $directorydelimiter)
 
     # Get downloading
     Get-SceneVideo -outputDir $outputDir -sceneData $sceneData
@@ -52,7 +60,6 @@ function Get-MediaFile {
     }
 
     if ($mediaType -eq "trailer") {
-        Write-Host "Trailer target: $target"
         # Use the default filename that would be used for downloading manually.
         $filename = $target.split("/")[-1]
     }
@@ -60,14 +67,26 @@ function Get-MediaFile {
     $outputPath = $outputDir + $filename
     $existingFile = Test-Path $outputPath
 
+    $mediaTypeCap = ( Get-Culture ).TextInfo.ToTitleCase( $mediaType.ToLower() )
+
     # Download if the file doesn't exist
-    # TODO - Check existing file matches db MD5 hash
     if (!$existingFile) {
         Write-Host "Downloading $($mediaType): $outputPath"
-        return Invoke-WebRequest -uri $target -OutFile ( New-Item -Path $outputPath -Force )
+        Invoke-WebRequest -uri $target -OutFile ( New-Item -Path $outputPath -Force )
+
+        # Check the file has been downloaded successfully.
+        #
+        # TODO - Check existing file matches db MD5 hash
+        if (!(Test-Path $outputPath)) {
+            return Write-Host "FAILED: $outputPath" -ForegroundColor Red
+        }
+        else {
+            return Write-Host "SUCCESS: Downloaded $outputPath" -ForegroundColor Green
+        }
+
     }
     else {
-        return Write-Host "$mediaType file already exists. Skipped." -ForegroundColor Yellow
+        return Write-Host "$mediaTypeCap already exists. Skipping $outputPath"
     }
 }
 

@@ -1,3 +1,7 @@
+# Global variables
+if ($IsWindows) { $directorydelimiter = '\' }
+else { $directorydelimiter = '/' }
+
 # Get headers to send a request to the Aylo site
 function Get-Headers {
   param(
@@ -163,7 +167,7 @@ function Set-StudioData {
       foreach ($studio in $studios) {
         foreach ($actorID in $actorIds) {
           # Make sure that scene data exists
-          $scenesJsonFile = "$outputDir/$studio/$actorID/scene.json"
+          $scenesJsonFile = @($outputDir, $studio, $actorID, "scene.json") -join $directorydelimiter
           if (!(Test-Path $scenesJsonFile)) {
             Write-Host "No scenes data available for gallery scrape. Skipping."
           }
@@ -173,16 +177,16 @@ function Set-StudioData {
             $galleryIds = @()
             $galleryIds += ($scenesJson.children | Where-Object { $_.type -eq "gallery" }).id
 
-            Write-Host "Downloading: $studio : $ContentType : $actorID" 
+            Write-Host `n"Scraping: $studio : $ContentType : actor ID $actorID" 
             $json = Get-StudioJsonData -actorId $actorID -apiKey $apiKey -authCode $authCode -ContentType $ContentType -galleryIds $galleryIds -studio $studio
             if ($json.Length -gt 0) {
-              $filedir = "$outputDir/$studio/$actorID"
+              $filedir = ($outputDir, $studio, $actorID) -join $directorydelimiter
               $filepath = Join-Path -Path $filedir -ChildPath "$ContentType.json"
               if (!(Test-Path $filedir)) { New-Item -ItemType "directory" -Path $filedir }  
               Write-Host "Generating JSON: $filepath"
               $json | ConvertTo-Json -Depth 32 | Out-File -FilePath $filepath
-              if (!(Test-Path $filedir)) { Write-Host "ERROR: Generating JSON failed" -ForegroundColor Red }  
-              else { Write-Host "SUCCESS: JSON Generated" -ForegroundColor Green }  
+              if (!(Test-Path $filedir)) { Write-Host "ERROR: generating gallery JSON failed" -ForegroundColor Red }  
+              else { Write-Host "SUCCESS: gallery JSON generated at $filedir " -ForegroundColor Green }  
             }
           }
         }
@@ -191,16 +195,16 @@ function Set-StudioData {
     else {
       foreach ($studio in $studios) {
         foreach ($actorID in $actorIds) {
-          Write-Host "Scraping: $studio : $ContentType : $actorID" 
+          Write-Host `n"Scraping: $studio : $ContentType : actor ID $actorID" 
           $json = Get-StudioJsonData -actorId $actorID -apiKey $apiKey -authCode $authCode -studio $studio -ContentType $ContentType
           if ($json.Length -gt 0) {
-            $filedir = "$outputDir/$studio/$actorID"
+            $filedir = ($outputDir, $studio, $actorID) -join $directorydelimiter
             $filepath = Join-Path -Path $filedir -ChildPath "$ContentType.json"
             if (!(Test-Path $filedir)) { New-Item -ItemType "directory" -Path $filedir } 
             Write-Host "Generating JSON: $filepath"
             $json | ConvertTo-Json -Depth 32 | Out-File -FilePath $filepath
-            if (!(Test-Path $filedir)) { Write-Host "ERROR: Generating JSON failed" -ForegroundColor Red }  
-            else { Write-Host "SUCCESS: JSON Generated" -ForegroundColor Green }  
+            if (!(Test-Path $filedir)) { Write-Host "ERROR: generating $ContentType JSON failed" -ForegroundColor Red }  
+            else { Write-Host "SUCCESS: $ContentType JSON generated at $filedir" -ForegroundColor Green }  
           }
         }
       }
