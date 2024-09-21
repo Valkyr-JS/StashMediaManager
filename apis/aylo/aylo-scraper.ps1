@@ -103,10 +103,9 @@ function Set-ContentData {
     }
     else {
         $filedir = Join-Path $outputDir $studioName $contentType
-        $date = Get-Date -Date $result.dateReleased -Format "yyyy-MM-dd"
         $title = ($result.title.Split([IO.Path]::GetInvalidFileNameChars()) -join '')
         $title = $title.replace("  ", " ")
-        $filename = "$id $date $title.json"
+        $filename = "$id $title.json"
     }
 
     $filepath = Join-Path -Path $filedir -ChildPath $filename

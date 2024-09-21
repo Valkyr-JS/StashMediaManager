@@ -10,7 +10,6 @@ function Get-AllSceneMedia {
         [Parameter(Mandatory)][String]$outputDir,
         [Parameter(Mandatory)]$sceneData
     )
-    $date = Get-Date -Date $sceneData.dateReleased -Format "yyyy-MM-dd"
     $parentStudio = $sceneData.brandMeta.displayName
     $sceneID = $sceneData.id
     $title = $sceneData.title.Split([IO.Path]::GetInvalidFileNameChars()) -join ''
@@ -22,7 +21,7 @@ function Get-AllSceneMedia {
     if ($null -eq $studio) { $studio = $parentStudio }
 
     # Create the final output directory
-    $contentFolder = "$sceneID $date $title"
+    $contentFolder = "$sceneID $title"
 
     # Check if the final string in outputDir is a backslash, and add one if needed.
     if ($outputDir.Substring($outputDir.Length - 1) -ne $directorydelimiter) {
