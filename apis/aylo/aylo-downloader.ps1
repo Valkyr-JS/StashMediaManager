@@ -1,3 +1,4 @@
+. "../../helpers.ps1"
 
 # Global variables
 if ($IsWindows) { $directorydelimiter = '\' }
@@ -12,8 +13,7 @@ function Get-AllSceneMedia {
     )
     $parentStudio = $sceneData.brandMeta.displayName
     $sceneID = $sceneData.id
-    $title = $sceneData.title.Split([IO.Path]::GetInvalidFileNameChars()) -join ''
-    $title = $title.replace("  ", " ")
+    $title = Get-SanitizedTitle -title $sceneData.title
 
     $studio = $sceneData.collections[0].name
 
@@ -41,7 +41,7 @@ function Get-AllSceneMedia {
 # Download a media file into the appropriate directory.
 function Get-MediaFile {
     param(
-        [string]$filename,
+        [Parameter(Mandatory)][string]$filename,
         [Parameter(Mandatory)]
         [ValidateSet("gallery", "scene", "trailer", ErrorMessage = "Error: mediaType argumement is not supported" )]
         [String]$mediaType,
@@ -50,21 +50,8 @@ function Get-MediaFile {
         [Parameter(Mandatory)][String]$target
     )
 
-    # ? Gallery filenames are passed as an argument, as the default filename is
-    # available in the API.
-
-    if ($mediaType -eq "scene") {
-        # Use the default filename that would be used for downloading manually.
-        $filename = $target.split("filename=")[1]
-    }
-
-    if ($mediaType -eq "trailer") {
-        # Use the default filename that would be used for downloading manually.
-        $filename = $target.split("/")[-1]
-    }
-
-    $outputPath = $outputDir + $filename
-    $existingFile = Test-Path $outputPath
+    $outputPath = Join-Path $outputDir $filename
+    $existingFile = Test-Path -LiteralPath $outputPath
 
     $mediaTypeCap = ( Get-Culture ).TextInfo.ToTitleCase( $mediaType.ToLower() )
 
@@ -80,9 +67,8 @@ function Get-MediaFile {
         }
 
         # Check the file has been downloaded successfully.
-        #
         # TODO - Check existing file matches db MD5 hash
-        if (!(Test-Path $outputPath)) {
+        if (!(Test-Path -LiteralPath $outputPath)) {
             return Write-Host "FAILED: $outputPath" -ForegroundColor Red
         }
         else {
@@ -105,7 +91,9 @@ function Get-SceneGallery {
     $fileToDownload = $galleryData.galleries | Where-Object { $_.format -eq "download" }
     $fileToDownload = $fileToDownload[0]
 
-    return Get-MediaFile -filename $fileToDownload.filePattern -mediaType "gallery" -outputDir $outputDir -sceneData $sceneData -target $fileToDownload.urls.download
+    $filename = Set-MediaFilename -mediaType "gallery" -extension "zip" -id $galleryData.id -title $sceneData.title
+
+    return Get-MediaFile -filename $filename -mediaType "gallery" -outputDir $outputDir -sceneData $sceneData -target $fileToDownload.urls.download
 }
 
 # Download the scene trailer
@@ -117,6 +105,7 @@ function Get-SceneTrailer {
 
     # Filter videos to get the optimal file
     [array]$files = $sceneData.children | Where-Object { $_.type -eq "trailer" }
+    $trailerID = $files[0].id
     $files = $files.videos.full.files
 
     # 1. Prefer AV1 codec
@@ -125,14 +114,18 @@ function Get-SceneTrailer {
         # For AV1 codec files, get the biggest file
         $filteredFiles = $filteredFiles | Sort-Object -Property "height" -Descending
         $fileToDownload = $filteredFiles[0]
-        return Get-MediaFile -mediaType "trailer" -outputDir $outputDir -sceneData $sceneData -target $fileToDownload.urls.view
+        $filename = Set-MediaFilename -mediaType "trailer" -extension "mp4" -id $trailerID -resolution $fileToDownload.label -title $sceneData.title
+
+        return Get-MediaFile -filename $filename -mediaType "trailer" -outputDir $outputDir -sceneData $sceneData -target $fileToDownload.urls.view
     }
 
     # 2. Get the highest resoltion file available
     $filteredFiles = $files
     $filteredFiles = $filteredFiles | Sort-Object -Property "sizeBytes" -Descending
     $fileToDownload = $filteredFiles[0]
-    return Get-MediaFile -mediaType "trailer" -outputDir $outputDir -sceneData $sceneData -target $fileToDownload.urls.view
+    $filename = Set-MediaFilename -mediaType "trailer" -extension "mp4" -id $trailerID -resolution $fileToDownload.label -title $sceneData.title
+
+    return Get-MediaFile -filename $filename -mediaType "trailer" -outputDir $outputDir -sceneData $sceneData -target $fileToDownload.urls.view
 }
 
 # Download the preferred scene file
@@ -156,7 +149,9 @@ function Get-SceneVideo {
         # For AV1 codec files, get the biggest file
         $filteredFiles = $filteredFiles | Sort-Object -Property "height" -Descending
         $fileToDownload = $filteredFiles[0]
-        return Get-MediaFile -mediaType "scene" -outputDir $outputDir -sceneData $sceneData -target $fileToDownload.urls.download
+        $filename = Set-MediaFilename -mediaType "scene" -extension "mp4" -id $sceneData.id -resolution $fileToDownload.label -title $sceneData.title
+
+        return Get-MediaFile -filename $filename -mediaType "scene" -outputDir $outputDir -sceneData $sceneData -target $fileToDownload.urls.download
     }
 
     # 2. Get the highest resoltion file under 6GB as long as it's at least HD
@@ -178,19 +173,25 @@ function Get-SceneVideo {
             }
         }
         $fileToDownload = $biggestFile
-        return Get-MediaFile -mediaType "scene" -outputDir $outputDir -sceneData $sceneData -target $fileToDownload.urls.download
+        $filename = Set-MediaFilename -mediaType "scene" -extension "mp4" -id $sceneData.id -resolution $fileToDownload.label -title $sceneData.title
+
+        return Get-MediaFile -filename $filename -mediaType "scene" -outputDir $outputDir -sceneData $sceneData -target $fileToDownload.urls.download
     }
 
     # 3. Get the HD file if there's one available
     $filteredFiles = $files | Where-Object { $_.height -eq 1080 -or [int]($_.label.TrimEnd('p')) -eq 1080 }
     if ($filteredFiles.count -gt 0) {
         $fileToDownload = $filteredFiles[0]
-        return Get-MediaFile -mediaType "scene" -outputDir $outputDir -sceneData $sceneData -target $fileToDownload.urls.download
+        $filename = Set-MediaFilename -mediaType "scene" -extension "mp4" -id $sceneData.id -resolution $fileToDownload.label -title $sceneData.title
+
+        return Get-MediaFile -filename $filename -mediaType "scene" -outputDir $outputDir -sceneData $sceneData -target $fileToDownload.urls.download
     }
 
     # 4. Just get the biggest file available
     $filteredFiles = $files
     $filteredFiles = $filteredFiles | Sort-Object -Property "sizeBytes" -Descending
     $fileToDownload = $filteredFiles[0]
-    return Get-MediaFile -mediaType "scene" -outputDir $outputDir -sceneData $sceneData -target $fileToDownload.urls.download
+    $filename = Set-MediaFilename -mediaType "scene" -extension "mp4" -id $sceneData.id -resolution $fileToDownload.label -title $sceneData.title
+
+    return Get-MediaFile -filename $filename -mediaType "scene" -outputDir $outputDir -sceneData $sceneData -target $fileToDownload.urls.download
 }

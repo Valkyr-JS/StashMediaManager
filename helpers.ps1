@@ -3,7 +3,7 @@ function Get-SanitizedTitle {
     param(
         [Parameter(Mandatory)][String]$title
     )
-    $title = ($result.title.Split([IO.Path]::GetInvalidFileNameChars()) -join '')
+    $title = ($title.Split([IO.Path]::GetInvalidFileNameChars()) -join '')
     $title = $title.replace("  ", " ")
     return $title
 }
@@ -11,19 +11,19 @@ function Get-SanitizedTitle {
 # Create the filename for a content item.
 function Set-MediaFilename {
     param(
-        [Parameter(Mandatory)][ValidateSet('gallery', 'scene', 'trailer')][Int]$contentType,
+        [Parameter(Mandatory)][ValidateSet('gallery', 'scene', 'trailer')][String]$mediaType,
         [Parameter(Mandatory)][String]$extension,
         [Parameter(Mandatory)][Int]$id,
         [Parameter(Mandatory)][String]$title,
-        [Int]$resolution
+        [String]$resolution
     )
     # Sanitise the title string
     $title = Get-SanitizedTitle -title $title
 
-    $filename = "$id $title $contentType" 
-    if ($contentType -eq "trailer" -or $contentType -eq "scene") {
+    $filename = "$id $title [$mediaType" 
+    if ($mediaType -eq "trailer" -or $mediaType -eq "scene") {
         $filename += " $resolution"
     }
-    $filename += ".$extension"
+    $filename += "].$extension"
     return $filename
 }

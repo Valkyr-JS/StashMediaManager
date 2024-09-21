@@ -103,7 +103,7 @@ function Set-Entry {
             $performerIDs = $performerIDs -split (" ")
             $outputDir = ($scrapedDataDirectory + $directorydelimiter + "aylo")
 
-            Set-AllContentDataByActorID -actorIDs $performerIDs -apiKey $userConfig.aylo.apiKey -authCode $userConfig.aylo.authCode -outputDir $outputDir -studioNames $studios
+            Set-AllContentDataByActorID -actorIDs $performerIDs -apiKey $userConfig.aylo.apiKey -authCode $userConfig.aylo.authCode -downloadDirectory $downloadDirectory -outputDir $outputDir -studioNames $studios
 
             # Load the downloader
             . "./apis/aylo/aylo-downloader.ps1"
@@ -148,7 +148,7 @@ function Set-Entry {
                     foreach ($sceneData in $actorScenes) {
                         $studioName = $sceneData.collections[0].name
                         if ($null -eq $studioName) { $studioName = $studio }
-                        Write-Host `n"Downloading $studio scene $($sceneData.id) - $studioName - $($sceneData.title)"
+                        Write-Host `n"Downloading $studio scene $($sceneData.id) - $studioName - $($sceneData.title)" -ForegroundColor Cyan
                         # Get the gallery data for the specific scene
                         $galleryID = ($sceneData.children | Where-Object { $_.type -eq "gallery" }).id
                         $galleryData = $actorGalleries | Where-Object { $_.id -eq $galleryID }
