@@ -94,7 +94,7 @@ function Set-Entry {
         while (($contentSelection -notmatch "[1]"))
 
         # Load the scraper
-        . "./apis/aylo/aylo-scene-scraper.ps1"
+        . "./apis/aylo/aylo-scraper.ps1"
 
         if ($contentSelection -eq 1) {
             # Next, user specifies performer IDs
@@ -140,7 +140,7 @@ function Set-Entry {
                     $actorGalleries = @()
                     Get-ChildItem $galleryFolder -Filter *.json | Foreach-Object {
                         $galleryData = Get-Content $_ -raw | ConvertFrom-Json
-                        if ($galleryData.actors.id -eq $actorJson.id) {
+                        if ($galleryData.parent.actors.id -eq $actorJson.id) {
                             $actorGalleries += $galleryData
                         }
                     }
