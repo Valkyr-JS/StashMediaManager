@@ -89,6 +89,7 @@ function Get-MaxPages ($meta) {
 function Set-ContentData {
     param(
         [Parameter(Mandatory)][string]$contentType,
+        [Parameter(Mandatory)][string]$downloadDirectory,
         [Parameter(Mandatory)][string]$outputDir,
         [Parameter(Mandatory)]$result,
         [Parameter(Mandatory)][string]$studioName
@@ -102,18 +103,30 @@ function Set-ContentData {
         $filename = "$id.json"
     }
     else {
+        $sceneID = $id
+        if ($contentType -eq "gallery") { $sceneID = $result.parent.id }
+    
         $filedir = Join-Path $outputDir $studioName $contentType
-        $date = Get-Date -Date $result.dateReleased -Format "yyyy-MM-dd"
         $title = ($result.title.Split([IO.Path]::GetInvalidFileNameChars()) -join '')
         $title = $title.replace("  ", " ")
-        $filename = "$id $date $title.json"
+        $filename = "$id $title.json"
+
+        # Skip if content already exists
+        $subStudio = $result.collections[0].name
+        if ($null -eq $studio) { $studio = $studioName }
+
+        $contentFolder = Join-Path $downloadDirectory $studioName $subStudio "$sceneID $title"
+        if (Test-Path -LiteralPath $contentFolder) {
+            Write-Host (Get-ChildItem $contentFolder | Where-Object { $_.BaseName -match $contentType })
+            $contentFile = Get-ChildItem $contentFolder | Where-Object { $_.BaseName -match $contentType }
+            if ($contentFile.Length -gt 0) {
+                return Write-Host "Media already exists. Skipping $filepath"    
+            }
+        }
     }
 
     $filepath = Join-Path -Path $filedir -ChildPath $filename
     if (!(Test-Path $filedir)) { New-Item -ItemType "directory" -Path $filedir } 
-
-    # Skip if data already exists
-    if ((Test-Path $filepath)) { return Write-Host "Scraped data already exists. Skipping $filepath" } 
 
     Write-Host "Generating JSON: $filepath"
     $result | ConvertTo-Json -Depth 32 | Out-File -FilePath $filepath
@@ -199,6 +212,7 @@ function Set-AllContentDataByActorID {
         [Parameter(Mandatory)][Int[]]$actorIDs,
         [Parameter(Mandatory)][String]$apiKey,
         [Parameter(Mandatory)][String]$authCode,
+        [Parameter(Mandatory)][string]$downloadDirectory,
         [Parameter(Mandatory)][string]$outputDir,
         [Parameter(Mandatory)][string[]]$studioNames
     )
@@ -206,6 +220,7 @@ function Set-AllContentDataByActorID {
 
     foreach ($actorID in $actorIDs) {
         foreach ($studioName in $studioNames) {
+            $costarIDs = @()
             $galleryIDs = @()
             foreach ($contentType in $contentTypes) {
                 Write-Host "Scraping actor $actorID : $studioName : $contentType"
@@ -213,6 +228,9 @@ function Set-AllContentDataByActorID {
         
                 foreach ($result in $results) {
                     if ($contentType -eq "scene") {
+                        # Get other actors from the scene scrape so they can be scraped later on
+                        $costarIDs += $result.actors.id
+
                         # Get gallery IDs from the scene scrape so they can be scraped later on
                         $galleryData = $result.children | Where-Object { $_.type -eq "gallery" }
                         if ($galleryData.count -gt 0) {
@@ -220,14 +238,25 @@ function Set-AllContentDataByActorID {
                         }
                     }
     
-                    Set-ContentData -contentType $contentType -outputDir $outputDir -result $result -studioName $studioName
+                    Set-ContentData -contentType $contentType -downloadDirectory $downloadDirectory -outputDir $outputDir -result $result -studioName $studioName
                 }
             }
+            # Scrape costars after other content types have been completed
+            if ($costarIDs.count -gt 0) {
+                $costarIDs = $costarIDs | Select-Object -Unique
+                foreach ($costarID in $costarIDs) {
+                    $results = Get-AllContentDataByActorID -actorID $costarID -apiKey $apiKey -authCode $authCode -contentType "actor" -studioName $studioName
+                    foreach ($result in $results) {
+                        Set-ContentData -contentType "actor" -downloadDirectory $downloadDirectory -outputDir $outputDir -result $result -studioName $studioName
+                    }
+                }
+            }
+
             # Scrape galleries after other content types have been completed
             if ($galleryIDs.count -gt 0) {
                 $results = Get-AllGalleryDataByID -apiKey $apiKey -authCode $authCode -ids $galleryIDs -studioName $studioName
                 foreach ($result in $results) {
-                    Set-ContentData -contentType "gallery" -outputDir $outputDir -result $result -studioName $studioName
+                    Set-ContentData -contentType "gallery" -downloadDirectory $downloadDirectory -outputDir $outputDir -result $result -studioName $studioName
                 }
             }
         }
