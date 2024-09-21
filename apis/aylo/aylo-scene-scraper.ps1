@@ -112,6 +112,9 @@ function Set-ContentData {
     $filepath = Join-Path -Path $filedir -ChildPath $filename
     if (!(Test-Path $filedir)) { New-Item -ItemType "directory" -Path $filedir } 
 
+    # Skip if data already exists
+    if ((Test-Path $filepath)) { return Write-Host "Scraped data already exists. Skipping $filepath" } 
+
     Write-Host "Generating JSON: $filepath"
     $result | ConvertTo-Json -Depth 32 | Out-File -FilePath $filepath
 
