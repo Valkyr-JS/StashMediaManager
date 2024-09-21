@@ -206,6 +206,7 @@ function Set-AllContentDataByActorID {
 
     foreach ($actorID in $actorIDs) {
         foreach ($studioName in $studioNames) {
+            $costarIDs = @()
             $galleryIDs = @()
             foreach ($contentType in $contentTypes) {
                 Write-Host "Scraping actor $actorID : $studioName : $contentType"
@@ -213,6 +214,9 @@ function Set-AllContentDataByActorID {
         
                 foreach ($result in $results) {
                     if ($contentType -eq "scene") {
+                        # Get other actors from the scene scrape so they can be scraped later on
+                        $costarIDs += $result.actors.id
+
                         # Get gallery IDs from the scene scrape so they can be scraped later on
                         $galleryData = $result.children | Where-Object { $_.type -eq "gallery" }
                         if ($galleryData.count -gt 0) {
@@ -223,6 +227,17 @@ function Set-AllContentDataByActorID {
                     Set-ContentData -contentType $contentType -outputDir $outputDir -result $result -studioName $studioName
                 }
             }
+            # Scrape costars after other content types have been completed
+            if ($costarIDs.count -gt 0) {
+                $costarIDs = $costarIDs | Select-Object -Unique
+                foreach ($costarID in $costarIDs) {
+                    $results = Get-AllContentDataByActorID -actorID $costarID -apiKey $apiKey -authCode $authCode -contentType "actor" -studioName $studioName
+                    foreach ($result in $results) {
+                        Set-ContentData -contentType "actor" -outputDir $outputDir -result $result -studioName $studioName
+                    }
+                }
+            }
+
             # Scrape galleries after other content types have been completed
             if ($galleryIDs.count -gt 0) {
                 $results = Get-AllGalleryDataByID -apiKey $apiKey -authCode $authCode -ids $galleryIDs -studioName $studioName
