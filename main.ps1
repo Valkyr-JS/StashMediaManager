@@ -94,15 +94,16 @@ function Set-Entry {
         while (($contentSelection -notmatch "[1]"))
 
         # Load the scraper
-        . "./apis/aylo/aylo-scraper.ps1"
+        . "./apis/aylo/aylo-scene-scraper.ps1"
 
         if ($contentSelection -eq 1) {
             # Next, user specifies performer IDs
             Write-Host `n"Specify all performer IDs you wish to download in a space-separated list, e.g. '123 2534 1563'."
             $performerIDs = read-host "Performer IDs"
             $performerIDs = $performerIDs -split (" ")
+            $outputDir = ($scrapedDataDirectory + $directorydelimiter + "aylo")
 
-            Set-StudioData -actorIds $performerIDs -apiKey $userConfig.aylo.apiKey -authCode $userConfig.aylo.authCode -ContentTypes ("actor", "scene", "gallery") -outputDir ($scrapedDataDirectory + $directorydelimiter + "aylo") -studios $studios
+            Set-AllContentDataByActorID -actorIDs $performerIDs -apiKey $userConfig.aylo.apiKey -authCode $userConfig.aylo.authCode -outputDir $outputDir -studioNames $studios
 
             # Load the downloader
             . "./apis/aylo/aylo-downloader.ps1"

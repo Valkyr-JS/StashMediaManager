@@ -32,12 +32,13 @@ function Get-Headers {
 # Set the query parameters for the web request
 function Set-QueryParameters {
     param (
-        [Parameter(Mandatory)][ValidateSet('actorID')][string]$method,
+        [Parameter(Mandatory)][ValidateSet('actorID', 'id')][string]$method,
         [Parameter(Mandatory)][String]$apiKey,
         [Parameter(Mandatory)][String]$authCode,
         [Parameter(Mandatory)][string]$contentType,
         [Parameter(Mandatory)][string]$studioName,
         [Int]$actorID,
+        [Int]$id,
         [Int]$offset
     )
     
@@ -55,11 +56,14 @@ function Set-QueryParameters {
         $urlapi = "https://site-api.project1service.com/v2/releases"
         $body.Add("orderBy", "-dateReleased")
         $body.Add('type', $contentType)
-        $body.Add('brand', $studio)
+        $body.Add('brand', $studioName)
     }
     
-    if ($method -eq "actorID" -and $contentType -ne "gallery") {
+    if ($method -eq "actorID") {
         $body.Add("actorId", $actorID)
+    }
+    elseif ($method -eq "id") {
+        $body.Add("id", $id)
     }
     
     $params = @{
@@ -91,22 +95,51 @@ function Set-ContentData {
     )
 
     # Create the file path
-    $filedir = Join-Path $outputDir $studioName $contentType
-
-    $date = Get-Date -Date $result.dateReleased -Format "yyyy-MM-dd"
     $id = $result.id
-    $title = ($result.title.Split([IO.Path]::GetInvalidFileNameChars()) -join '')
-    $title = $title.replace("  ", " ")
-    $filename = "$id $date $title.json"
-        
+
+    if ($contentType -eq "actor") {
+        $filedir = Join-Path $outputDir $contentType
+        $name = ($result.name.Split([IO.Path]::GetInvalidFileNameChars()) -join '')
+        $name = $name.replace("  ", " ")
+        $filename = "$id $name.json"
+    }
+    else {
+        $filedir = Join-Path $outputDir $studioName $contentType
+        $date = Get-Date -Date $result.dateReleased -Format "yyyy-MM-dd"
+        $title = ($result.title.Split([IO.Path]::GetInvalidFileNameChars()) -join '')
+        $title = $title.replace("  ", " ")
+        $filename = "$id $date $title.json"
+    }
+
     $filepath = Join-Path -Path $filedir -ChildPath $filename
     if (!(Test-Path $filedir)) { New-Item -ItemType "directory" -Path $filedir } 
 
     Write-Host "Generating JSON: $filepath"
-    $json | ConvertTo-Json -Depth 32 | Out-File -FilePath $filepath
+    $result | ConvertTo-Json -Depth 32 | Out-File -FilePath $filepath
 
     if (!(Test-Path $filedir)) { Write-Host "ERROR: JSON generation failed - $filepath" -ForegroundColor Red }  
     else { Write-Host "SUCCESS: JSON generated - $filepath" -ForegroundColor Green }  
+}
+
+# Get all gallery data items with an ID in a provided array
+function Get-AllGalleryDataByID {
+    param(
+        [Parameter(Mandatory)][Int[]]$ids,
+        [Parameter(Mandatory)][String]$apiKey,
+        [Parameter(Mandatory)][String]$authCode,
+        [Parameter(Mandatory)][string]$studioName
+    )
+
+    $results = New-Object -TypeName System.Collections.ArrayList
+      
+    for ($p = 0; $p -lt $ids.Length; $p++) {
+        Write-Host "Scraping: gallery $($p + 1) of $($ids.Length)"
+        $id = $ids[$p]
+        $params = Set-QueryParameters -apiKey $apiKey -authCode $authCode -contentType "gallery" -id $id -method "id" -offset 0 -studioName $studioName
+        $gallery = Invoke-RestMethod @params 
+        $results.AddRange($gallery.result)
+    }
+    return $results
 }
 
 # Get all data items featuring a provided actor
@@ -134,7 +167,7 @@ function Get-AllContentDataByActorID {
         $page = $p - 1
         Write-Host "Scraping: page $p of $maxpage" 
         $offset = $page * $limit
-        $params = Set-QueryParameters -actorID $actorID -apiKey $apiKey -authCode $authCode -contentType $contentType -offset $offset -studio $studio
+        $params = Set-QueryParameters -actorID $actorID -apiKey $apiKey -authCode $authCode -contentType $contentType -method "actorID" -offset $offset -studioName $studioName
         $scenes = Invoke-RestMethod @params 
         $results.AddRange($scenes.result)
     }
@@ -144,13 +177,40 @@ function Get-AllContentDataByActorID {
 # Create all data JSON files for content items featuring a provided actor
 function Set-AllContentDataByActorID {
     param(
-        [Parameter(Mandatory)][ValidateSet('actor', 'gallery', 'movie', 'scene')][string]$contentType,
+        [Parameter(Mandatory)][Int[]]$actorIDs,
+        [Parameter(Mandatory)][String]$apiKey,
+        [Parameter(Mandatory)][String]$authCode,
         [Parameter(Mandatory)][string]$outputDir,
-        [Parameter(Mandatory)][string]$studioName
+        [Parameter(Mandatory)][string[]]$studioNames
     )
+    $contentTypes = @('actor', 'scene')
 
-    $results = Get-AllContentDataByActorID -actorID $actorID -apiKey $apiKey -authCode $authCode -contentType $contentType -studioName $studioName
-    foreach ($result in $results) {
-        Set-ContentData -contentType $contentType -outputDir $outputDir -result $result -studioName $studioName
+    foreach ($actorID in $actorIDs) {
+        foreach ($studioName in $studioNames) {
+            $galleryIDs = @()
+            foreach ($contentType in $contentTypes) {
+                Write-Host "Scraping actor $actorID : $studioName : $contentType"
+                $results = Get-AllContentDataByActorID -actorID $actorID -apiKey $apiKey -authCode $authCode -contentType $contentType -studioName $studioName
+        
+                foreach ($result in $results) {
+                    if ($contentType -eq "scene") {
+                        # Get gallery IDs from the scene scrape so they can be scraped later on
+                        $galleryData = $result.children | Where-Object { $_.type -eq "gallery" }
+                        if ($galleryData.count -gt 0) {
+                            $galleryIDs += $galleryData[0].id
+                        }
+                    }
+    
+                    Set-ContentData -contentType $contentType -outputDir $outputDir -result $result -studioName $studioName
+                }
+            }
+            # Scrape galleries after other content types have been completed
+            if ($galleryIDs.count -gt 0) {
+                $results = Get-AllGalleryDataByID -apiKey $apiKey -authCode $authCode -ids $galleryIDs -studioName $studioName
+                foreach ($result in $results) {
+                    Set-ContentData -contentType "gallery" -outputDir $outputDir -result $result -studioName $studioName
+                }
+            }
+        }
     }
 }
