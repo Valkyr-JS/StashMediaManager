@@ -1,213 +1,235 @@
-# Global variables
-if ($IsWindows) { $directorydelimiter = '\' }
-else { $directorydelimiter = '/' }
-
 # Get headers to send a request to the Aylo site
 function Get-Headers {
-  param(
-    [String]$apiKey,
-    [String]$authCode,
-    [String]$studio
-  )
-
-  # Cannot execute without an API key.
-  if ($apiKey.Length -eq 0) {
-    Write-Host "ERROR: The Aylo API key has not been set. Please update your config." -ForegroundColor Red
-    return
-  }
-  
-  $useragent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.0.0 Safari/537.36"
-  $headers = @{
-    "UserAgent" = "$useragent";
-    "instance"  = "$apiKey";
-  }
-
-  # Only non-member data is available without an auth code.
-  if ($authCode.Length -eq 0) {
-    Write-Host "WARNING: No auth code provided. Scraping non-member data only." -ForegroundColor Yellow
-  }
-
-  else {
-    $headers.authorization = "$authCode"
-  }
-  return $headers
+    param(
+        [Parameter(Mandatory)][String]$apiKey,
+        [Parameter(Mandatory)][String]$authCode,
+        [Parameter(Mandatory)][string]$studioName
+    )
+    
+    # Cannot execute without an API key.
+    if ($apiKey.Length -eq 0) {
+        Write-Host "ERROR: The Aylo API key has not been set. Please update your config." -ForegroundColor Red
+        return
+    }
+      
+    $useragent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.0.0 Safari/537.36"
+    $headers = @{
+        "UserAgent" = "$useragent";
+        "instance"  = "$apiKey";
+    }
+    
+    # Only non-member data is available without an auth code.
+    if ($authCode.Length -eq 0) {
+        Write-Host "WARNING: No auth code provided. Scraping non-member data only." -ForegroundColor Yellow
+    }
+    
+    else {
+        $headers.authorization = "$authCode"
+    }
+    return $headers
 }
 
 # Set the query parameters for the web request
 function Set-QueryParameters {
-  param (
-    [Int]$actorId,
-    [String]$apiKey,
-    [String]$authCode,
-    [Int]$galleryId,
-    [string]$groupid = $null,
-    [Int]$offset = 0,
-    [Parameter(Mandatory)]
-    [string]$studio,
-    #content types can only be {actor, scene, movie}
-    [Parameter(Mandatory)]
-    [ValidateSet('actor', 'gallery', 'movie', 'scene')]
-    [string]$ContentType
-  )
-  #initialize variables
-  $Body = @{
-    limit  = 100
-    offset = $offset
-  }
-  $header = Get-Headers -apiKey $apiKey -authCode $authCode -studio $studio
-  if ($null -eq $groupid) { $body.Add("groupID", $groupid) }
-  #api call for actors is different from movies and releases
-  if ($ContentType -eq "actor") {
-    $urlapi = "https://site-api.project1service.com/v1/actors"
-  }
-  else {
-    $urlapi = "https://site-api.project1service.com/v2/releases"
-    $body.Add("orderBy", "-dateReleased")
-    $body.Add('type', $ContentType)
-    $body.Add('brand', $studio)
-  }
+    param (
+        [Parameter(Mandatory)][ValidateSet('actorID', 'id')][string]$method,
+        [Parameter(Mandatory)][String]$apiKey,
+        [Parameter(Mandatory)][String]$authCode,
+        [Parameter(Mandatory)][string]$contentType,
+        [Parameter(Mandatory)][string]$studioName,
+        [Int]$actorID,
+        [Int]$id,
+        [Int]$offset
+    )
+    
+    $header = Get-Headers -apiKey $apiKey -authCode $authCode -studioName $studioName
+    $body = @{
+        limit  = 100
+        offset = $offset
+    }
 
-  if ($ContentType -eq "gallery") {
-    $body.Add("id", $galleryId)
-  }
-
-  if ($null -ne $actorId -and $ContentType -ne "gallery") {
-    $body.Add("actorId", $actorId)
-  }
-
-  $params = @{
-    "Uri"     = $urlapi
-    "Body"    = $Body
-    "Headers" = $header
-  }
-  return $params
+    # The API call for actors is different from other content types
+    if ($contentType -eq "actor") {
+        $urlapi = "https://site-api.project1service.com/v1/actors"
+    }
+    else {
+        $urlapi = "https://site-api.project1service.com/v2/releases"
+        $body.Add("orderBy", "-dateReleased")
+        $body.Add('type', $contentType)
+        $body.Add('brand', $studioName)
+    }
+    
+    if ($method -eq "actorID") {
+        $body.Add("actorId", $actorID)
+    }
+    elseif ($method -eq "id") {
+        $body.Add("id", $id)
+    }
+    
+    $params = @{
+        "Uri"     = $urlapi
+        "Body"    = $Body
+        "Headers" = $header
+    }
+    return $params
 }
 
 # Get the number of pages the data is split into
 function Get-MaxPages ($meta) {
-  $limit = $meta.count
-  if ($meta.count -eq 0) {
-    return 0
-  }
-  $maxpage = $meta.total / $limit
-  $maxpage = [Math]::Ceiling($maxpage)
-  return $maxpage
-}
-
-# Get the studio JSON data from the site
-function Get-StudioJsonData () {
-  param (
-    [Int]$actorId,
-    [String]$apiKey,
-    [String]$authCode,
-    [Parameter(Mandatory)]
-    [ValidateSet('actor', 'gallery', 'movie', 'scene')]
-    [string]$ContentType,
-    [Int[]]$galleryIds,
-    [string]$groupid = $null,
-    [Parameter(Mandatory)]
-    [string]$studio
-  )
-
-  # Handle gallery scrapes separately as they rely on scene data. Each scene needs a separate scrape.
-  if ($ContentType -eq "gallery") {
-    $gallerylist = New-Object -TypeName System.Collections.ArrayList
-  
-    for ($p = 0; $p -lt $galleryIds.Length; $p++) {
-      Write-Host "Downloading: gallery $($p + 1) of $($galleryIds.Length)"
-      $galleryId = $galleryIds[$p]
-      $offset = 0
-      $params = Set-QueryParameters -actorID $actorId -apiKey $apiKey -authCode $authCode -ContentType $ContentType -galleryID $galleryId -offset $offset -studio $studio
-      $gallery = Invoke-RestMethod @params 
-      $gallerylist.AddRange($gallery.result)
+    $limit = $meta.count
+    if ($meta.count -eq 0) {
+        return 0
     }
-    return $gallerylist
-  }
+    $maxpage = $meta.total / $limit
+    $maxpage = [Math]::Ceiling($maxpage)
+    return $maxpage
+}  
 
-  $scenelist = New-Object -TypeName System.Collections.ArrayList
-  $params = Set-QueryParameters -actorID $actorId -apiKey $apiKey -authCode $authCode -studio $studio -ContentType $ContentType
-  $scenes0 = Invoke-RestMethod @params 
-  $limit = $scenes0.meta.count
-  $maxpage = Get-MaxPages -meta $scenes0.meta
+# Create the data JSON file for a single content item
+function Set-ContentData {
+    param(
+        [Parameter(Mandatory)][string]$contentType,
+        [Parameter(Mandatory)][string]$outputDir,
+        [Parameter(Mandatory)]$result,
+        [Parameter(Mandatory)][string]$studioName
+    )
 
-  if ($maxpage -eq 0) {
-    Write-Host "No content found for this query." -ForegroundColor Yellow
-    return $scenelist
-  }
+    # Create the file path
+    $id = $result.id
 
-  for ($p = 1; $p -le $maxpage; $p++) {
-    $page = $p - 1
-    Write-Host "Downloading: page $p of $maxpage" 
-    $offset = $page * $limit
-    $params = Set-QueryParameters -actorID $actorId -apiKey $apiKey -authCode $authCode -studio $studio -ContentType $ContentType -offset $offset
-    $scenes = Invoke-RestMethod @params 
-    $scenelist.AddRange($scenes.result)
-  }
-  return $scenelist
-}
-
-# Create the studio data JSON file
-function Set-StudioData {
-  param(
-    [Int[]]$actorIds,
-    [String]$apiKey,
-    [String]$authCode,
-    [Parameter(Mandatory)]
-    [ValidateSet('actor', 'gallery', 'movie', 'scene')]
-    [string[]]$ContentTypes,
-    [string[]]$studios,
-    [string]$outputDir
-  )
-  foreach ($ContentType in $ContentTypes ) {
-    # The galleries API doesn't use the actorId parameter. Instead, get all the
-    # scene IDs from the scene scrape.
-    #
-    # ! This means the scenes MUST be scraped before galleries!
-    if ($ContentType -eq "gallery") {
-      foreach ($studio in $studios) {
-        foreach ($actorID in $actorIds) {
-          # Make sure that scene data exists
-          $scenesJsonFile = @($outputDir, $studio, $actorID, "scene.json") -join $directorydelimiter
-          if (!(Test-Path $scenesJsonFile)) {
-            Write-Host "No scenes data available for gallery scrape. Skipping."
-          }
-          else {
-            # Get the scene IDs from the scene scrape
-            $scenesJson = Get-Content $scenesJsonFile -raw | ConvertFrom-Json
-            $galleryIds = @()
-            $galleryIds += ($scenesJson.children | Where-Object { $_.type -eq "gallery" }).id
-
-            Write-Host `n"Scraping: $studio : $ContentType : actor ID $actorID" 
-            $json = Get-StudioJsonData -actorId $actorID -apiKey $apiKey -authCode $authCode -ContentType $ContentType -galleryIds $galleryIds -studio $studio
-            if ($json.Length -gt 0) {
-              $filedir = ($outputDir, $studio, $actorID) -join $directorydelimiter
-              $filepath = Join-Path -Path $filedir -ChildPath "$ContentType.json"
-              if (!(Test-Path $filedir)) { New-Item -ItemType "directory" -Path $filedir }  
-              Write-Host "Generating JSON: $filepath"
-              $json | ConvertTo-Json -Depth 32 | Out-File -FilePath $filepath
-              if (!(Test-Path $filedir)) { Write-Host "ERROR: generating gallery JSON failed" -ForegroundColor Red }  
-              else { Write-Host "SUCCESS: gallery JSON generated at $filedir " -ForegroundColor Green }  
-            }
-          }
-        }
-      }
+    if ($contentType -eq "actor") {
+        $filedir = Join-Path $outputDir $contentType
+        $filename = "$id.json"
     }
     else {
-      foreach ($studio in $studios) {
-        foreach ($actorID in $actorIds) {
-          Write-Host `n"Scraping: $studio : $ContentType : actor ID $actorID" 
-          $json = Get-StudioJsonData -actorId $actorID -apiKey $apiKey -authCode $authCode -studio $studio -ContentType $ContentType
-          if ($json.Length -gt 0) {
-            $filedir = ($outputDir, $studio, $actorID) -join $directorydelimiter
-            $filepath = Join-Path -Path $filedir -ChildPath "$ContentType.json"
-            if (!(Test-Path $filedir)) { New-Item -ItemType "directory" -Path $filedir } 
-            Write-Host "Generating JSON: $filepath"
-            $json | ConvertTo-Json -Depth 32 | Out-File -FilePath $filepath
-            if (!(Test-Path $filedir)) { Write-Host "ERROR: generating $ContentType JSON failed" -ForegroundColor Red }  
-            else { Write-Host "SUCCESS: $ContentType JSON generated at $filedir" -ForegroundColor Green }  
-          }
-        }
-      }
+        $filedir = Join-Path $outputDir $studioName $contentType
+        $date = Get-Date -Date $result.dateReleased -Format "yyyy-MM-dd"
+        $title = ($result.title.Split([IO.Path]::GetInvalidFileNameChars()) -join '')
+        $title = $title.replace("  ", " ")
+        $filename = "$id $date $title.json"
     }
-  }
+
+    $filepath = Join-Path -Path $filedir -ChildPath $filename
+    if (!(Test-Path $filedir)) { New-Item -ItemType "directory" -Path $filedir } 
+
+    # Skip if data already exists
+    if ((Test-Path $filepath)) { return Write-Host "Scraped data already exists. Skipping $filepath" } 
+
+    Write-Host "Generating JSON: $filepath"
+    $result | ConvertTo-Json -Depth 32 | Out-File -FilePath $filepath
+
+    if (!(Test-Path $filedir)) { Write-Host "ERROR: JSON generation failed - $filepath" -ForegroundColor Red }  
+    else { Write-Host "SUCCESS: JSON generated - $filepath" -ForegroundColor Green }  
+}
+
+# Get all gallery data items with an ID in a provided array
+function Get-AllGalleryDataByID {
+    param(
+        [Parameter(Mandatory)][Int[]]$ids,
+        [Parameter(Mandatory)][String]$apiKey,
+        [Parameter(Mandatory)][String]$authCode,
+        [Parameter(Mandatory)][string]$studioName
+    )
+
+    $results = New-Object -TypeName System.Collections.ArrayList
+      
+    for ($p = 0; $p -lt $ids.Length; $p++) {
+        Write-Host "Scraping: gallery $($p + 1) of $($ids.Length)"
+        $id = $ids[$p]
+        $params = Set-QueryParameters -apiKey $apiKey -authCode $authCode -contentType "gallery" -id $id -method "id" -offset 0 -studioName $studioName
+        try {
+            $gallery = Invoke-RestMethod @params
+        }
+        catch {
+            Write-Host "ERROR: gallery scrape failed." -ForegroundColor Red
+            Write-Host "$_" -ForegroundColor Red
+        }
+        $results.AddRange($gallery.result)
+    }
+    return $results
+}
+
+# Get all data items featuring a provided actor
+function Get-AllContentDataByActorID {
+    param (
+        [Parameter(Mandatory)][Int]$actorID,
+        [Parameter(Mandatory)][String]$apiKey,
+        [Parameter(Mandatory)][String]$authCode,
+        [Parameter(Mandatory)][string]$contentType,
+        [Parameter(Mandatory)][string]$studioName
+    )
+
+    $results = New-Object -TypeName System.Collections.ArrayList
+    $params = Set-QueryParameters -actorID $actorID -apiKey $apiKey -authCode $authCode -contentType $contentType -method "actorID" -studioName $studioName
+    try {
+        $scenes0 = Invoke-RestMethod @params 
+    }
+    catch {
+        Write-Host "ERROR: $contentType scrape failed." -ForegroundColor Red
+        Write-Host "$_" -ForegroundColor Red
+    }
+    $limit = $scenes0.meta.count
+    $maxpage = Get-MaxPages -meta $scenes0.meta
+  
+    if ($maxpage -eq 0) {
+        Write-Host "No content found for this query." -ForegroundColor Yellow
+        return $results
+    }
+  
+    for ($p = 1; $p -le $maxpage; $p++) {
+        $page = $p - 1
+        Write-Host "Scraping: page $p of $maxpage" 
+        $offset = $page * $limit
+        $params = Set-QueryParameters -actorID $actorID -apiKey $apiKey -authCode $authCode -contentType $contentType -method "actorID" -offset $offset -studioName $studioName
+        try {
+            $scenes = Invoke-RestMethod @params
+        }
+        catch {
+            Write-Host "ERROR: $contentType scrape failed." -ForegroundColor Red
+            Write-Host "$_" -ForegroundColor Red
+        }
+        $results.AddRange($scenes.result)
+    }
+    return $results
+}
+
+# Create all data JSON files for content items featuring a provided actor
+function Set-AllContentDataByActorID {
+    param(
+        [Parameter(Mandatory)][Int[]]$actorIDs,
+        [Parameter(Mandatory)][String]$apiKey,
+        [Parameter(Mandatory)][String]$authCode,
+        [Parameter(Mandatory)][string]$outputDir,
+        [Parameter(Mandatory)][string[]]$studioNames
+    )
+    $contentTypes = @('actor', 'scene')
+
+    foreach ($actorID in $actorIDs) {
+        foreach ($studioName in $studioNames) {
+            $galleryIDs = @()
+            foreach ($contentType in $contentTypes) {
+                Write-Host "Scraping actor $actorID : $studioName : $contentType"
+                $results = Get-AllContentDataByActorID -actorID $actorID -apiKey $apiKey -authCode $authCode -contentType $contentType -studioName $studioName
+        
+                foreach ($result in $results) {
+                    if ($contentType -eq "scene") {
+                        # Get gallery IDs from the scene scrape so they can be scraped later on
+                        $galleryData = $result.children | Where-Object { $_.type -eq "gallery" }
+                        if ($galleryData.count -gt 0) {
+                            $galleryIDs += $galleryData[0].id
+                        }
+                    }
+    
+                    Set-ContentData -contentType $contentType -outputDir $outputDir -result $result -studioName $studioName
+                }
+            }
+            # Scrape galleries after other content types have been completed
+            if ($galleryIDs.count -gt 0) {
+                $results = Get-AllGalleryDataByID -apiKey $apiKey -authCode $authCode -ids $galleryIDs -studioName $studioName
+                foreach ($result in $results) {
+                    Set-ContentData -contentType "gallery" -outputDir $outputDir -result $result -studioName $studioName
+                }
+            }
+        }
+    }
 }

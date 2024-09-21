@@ -101,37 +101,62 @@ function Set-Entry {
             Write-Host `n"Specify all performer IDs you wish to download in a space-separated list, e.g. '123 2534 1563'."
             $performerIDs = read-host "Performer IDs"
             $performerIDs = $performerIDs -split (" ")
+            $outputDir = ($scrapedDataDirectory + $directorydelimiter + "aylo")
 
-            Set-StudioData -actorIds $performerIDs -apiKey $userConfig.aylo.apiKey -authCode $userConfig.aylo.authCode -ContentTypes ("actor", "scene", "gallery") -outputDir ($scrapedDataDirectory + $directorydelimiter + "aylo") -studios $studios
+            Set-AllContentDataByActorID -actorIDs $performerIDs -apiKey $userConfig.aylo.apiKey -authCode $userConfig.aylo.authCode -outputDir $outputDir -studioNames $studios
 
             # Load the downloader
             . "./apis/aylo/aylo-downloader.ps1"
 
             foreach ($studio in $studios) {
-                foreach ($perfid in $performerIDs) {
-                    $scenesJsonPath = "$scrapedDataDirectory/$apiName/$studio/$perfid/scene.json"
-                    $galleriesJsonPath = "$scrapedDataDirectory/$apiName/$studio/$perfid/gallery.json"
-
-                    if (!(Test-Path $scenesJsonPath) -or !(Test-Path $galleriesJsonPath)) {
-                        Write-Host "ERROR: No JSON data found for performer $perfid in studio $studio." -ForegroundColor Red
+                foreach ($actorID in $performerIDs) {
+                    # Get the JSON data for the actor to download
+                    $actorJson = Join-Path $scrapedDataDirectory $apiName "actor" "$actorID.json"
+                    if (!(Test-Path $actorJson)) {
+                        return Write-Host "ERROR: Actor JSON not found - $actorJson." -ForegroundColor Red
                     }
-                    else {
-                        $scenesJSON = Get-Content $scenesJsonPath -raw | ConvertFrom-Json
-                        $galleryJSON = Get-Content $galleriesJsonPath -raw | ConvertFrom-Json
-        
-                        foreach ($sceneData in $scenesJSON) {
-                            $studioName = $sceneData.collections[0].name
-                            if ($null -eq $studioName) { $studioName = $studio }
-                            Write-Host `n"Downloading $studio scene $($sceneData.id) - $studioName - $($sceneData.title)"
-                            # Get the gallery data for the specific scene
-                            $galleryID = ($sceneData.children | Where-Object { $_.type -eq "gallery" }).id
-                            $galleryData = $galleryJSON | Where-Object { $_.id -eq $galleryID }
-                            if ($galleryData.count -eq 0) {
-                                Write-Host "WARNING: No gallery data found for scene $($sceneData.id)" -ForegroundColor Yellow
-                            }
-        
-                            Get-AllSceneMedia -galleryData $galleryData -outputDir $downloadDirectory -sceneData $sceneData
+                    $actorJson = Get-Content $actorJson -raw | ConvertFrom-Json
+
+                    # Loop through all scraped scene data to find scenes the actor features in
+                    $scenesFolder = Join-Path $scrapedDataDirectory $apiName $studio "scene"
+                    if (!(Test-Path $scenesFolder)) {
+                        return Write-Host "ERROR: Folder not found - $scenesFolder." -ForegroundColor Red
+                    }
+
+                    $actorScenes = @()
+                    Get-ChildItem $scenesFolder -Filter *.json | Foreach-Object {
+                        $sceneData = Get-Content $_ -raw | ConvertFrom-Json
+                        if ($sceneData.actors.id -eq $actorJson.id) {
+                            $actorScenes += $sceneData
                         }
+                    }
+
+                    # Loop through all scraped gallery data to find galleries the actor features in
+                    $galleryFolder = Join-Path $scrapedDataDirectory $apiName $studio "gallery"
+                    if (!(Test-Path $galleryFolder)) {
+                        return Write-Host "ERROR: Folder not found - $galleryFolder." -ForegroundColor Red
+                    }
+
+                    $actorGalleries = @()
+                    Get-ChildItem $galleryFolder -Filter *.json | Foreach-Object {
+                        $galleryData = Get-Content $_ -raw | ConvertFrom-Json
+                        if ($galleryData.parent.actors.id -eq $actorJson.id) {
+                            $actorGalleries += $galleryData
+                        }
+                    }
+       
+                    foreach ($sceneData in $actorScenes) {
+                        $studioName = $sceneData.collections[0].name
+                        if ($null -eq $studioName) { $studioName = $studio }
+                        Write-Host `n"Downloading $studio scene $($sceneData.id) - $studioName - $($sceneData.title)"
+                        # Get the gallery data for the specific scene
+                        $galleryID = ($sceneData.children | Where-Object { $_.type -eq "gallery" }).id
+                        $galleryData = $actorGalleries | Where-Object { $_.id -eq $galleryID }
+                        if ($galleryData.count -eq 0) {
+                            Write-Host "WARNING: No gallery data found for scene $($sceneData.id)" -ForegroundColor Yellow
+                        }
+        
+                        Get-AllSceneMedia -galleryData $galleryData -outputDir $downloadDirectory -sceneData $sceneData
                     }
                 }
             }

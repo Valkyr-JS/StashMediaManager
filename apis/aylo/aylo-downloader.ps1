@@ -72,7 +72,13 @@ function Get-MediaFile {
     # Download if the file doesn't exist
     if (!$existingFile) {
         Write-Host "Downloading $($mediaType): $outputPath"
-        Invoke-WebRequest -uri $target -OutFile ( New-Item -Path $outputPath -Force )
+        try {
+            Invoke-WebRequest -uri $target -OutFile ( New-Item -Path $outputPath -Force )
+        }
+        catch {
+            Write-Host "ERROR: Could not download $($mediaType): $outputPath" -ForegroundColor Red
+            return Write-Host "$_" -ForegroundColor Red
+        }
 
         # Check the file has been downloaded successfully.
         #
