@@ -99,9 +99,7 @@ function Set-ContentData {
 
     if ($contentType -eq "actor") {
         $filedir = Join-Path $outputDir $contentType
-        $name = ($result.name.Split([IO.Path]::GetInvalidFileNameChars()) -join '')
-        $name = $name.replace("  ", " ")
-        $filename = "$id $name.json"
+        $filename = "$id.json"
     }
     else {
         $filedir = Join-Path $outputDir $studioName $contentType
