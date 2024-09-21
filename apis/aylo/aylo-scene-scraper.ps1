@@ -134,7 +134,13 @@ function Get-AllGalleryDataByID {
         Write-Host "Scraping: gallery $($p + 1) of $($ids.Length)"
         $id = $ids[$p]
         $params = Set-QueryParameters -apiKey $apiKey -authCode $authCode -contentType "gallery" -id $id -method "id" -offset 0 -studioName $studioName
-        $gallery = Invoke-RestMethod @params 
+        try {
+            $gallery = Invoke-RestMethod @params
+        }
+        catch {
+            Write-Host "ERROR: gallery scrape failed." -ForegroundColor Red
+            Write-Host "$_" -ForegroundColor Red
+        }
         $results.AddRange($gallery.result)
     }
     return $results
@@ -152,7 +158,13 @@ function Get-AllContentDataByActorID {
 
     $results = New-Object -TypeName System.Collections.ArrayList
     $params = Set-QueryParameters -actorID $actorID -apiKey $apiKey -authCode $authCode -contentType $contentType -method "actorID" -studioName $studioName
-    $scenes0 = Invoke-RestMethod @params 
+    try {
+        $scenes0 = Invoke-RestMethod @params 
+    }
+    catch {
+        Write-Host "ERROR: $contentType scrape failed." -ForegroundColor Red
+        Write-Host "$_" -ForegroundColor Red
+    }
     $limit = $scenes0.meta.count
     $maxpage = Get-MaxPages -meta $scenes0.meta
   
@@ -166,7 +178,13 @@ function Get-AllContentDataByActorID {
         Write-Host "Scraping: page $p of $maxpage" 
         $offset = $page * $limit
         $params = Set-QueryParameters -actorID $actorID -apiKey $apiKey -authCode $authCode -contentType $contentType -method "actorID" -offset $offset -studioName $studioName
-        $scenes = Invoke-RestMethod @params 
+        try {
+            $scenes = Invoke-RestMethod @params
+        }
+        catch {
+            Write-Host "ERROR: $contentType scrape failed." -ForegroundColor Red
+            Write-Host "$_" -ForegroundColor Red
+        }
         $results.AddRange($scenes.result)
     }
     return $results
