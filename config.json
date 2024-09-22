@@ -1,7 +1,6 @@
 {
   "aylo": {
-    "apiKey": "",
-    "authCode": ""
+    "masterSite": ""
   },
   "general": {
     "downloadDirectory": "",
