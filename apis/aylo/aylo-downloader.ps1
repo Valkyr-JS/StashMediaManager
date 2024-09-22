@@ -30,12 +30,13 @@ function Get-AllSceneMedia {
 
     $outputDir += (($parentStudio, $studio, $contentFolder, "") -join $directorydelimiter)
 
-    # Get downloading
-    Get-SceneVideo -outputDir $outputDir -sceneData $sceneData
+    # Get downloading in order of expected file size, from smallest to largest
+    Get-ScenePoster -outputDir $outputDir -sceneData $sceneData
     Get-SceneTrailer -outputDir $outputDir -sceneData $sceneData
     if ($null -ne $galleryData) {
         Get-SceneGallery -galleryData $galleryData -outputDir $outputDir -sceneData $sceneData
     }
+    Get-SceneVideo -outputDir $outputDir -sceneData $sceneData
 }
 
 # Download a media file into the appropriate directory.
@@ -43,7 +44,7 @@ function Get-MediaFile {
     param(
         [Parameter(Mandatory)][string]$filename,
         [Parameter(Mandatory)]
-        [ValidateSet("gallery", "scene", "trailer", ErrorMessage = "Error: mediaType argumement is not supported" )]
+        [ValidateSet("gallery", "poster", "scene", "trailer", ErrorMessage = "Error: mediaType argumement is not supported" )]
         [String]$mediaType,
         [Parameter(Mandatory)][String]$outputDir,
         [Parameter(Mandatory)]$sceneData,
@@ -52,7 +53,6 @@ function Get-MediaFile {
 
     $outputPath = Join-Path $outputDir $filename
     $existingFile = Test-Path -LiteralPath $outputPath
-
     $mediaTypeCap = ( Get-Culture ).TextInfo.ToTitleCase( $mediaType.ToLower() )
 
     # Download if the file doesn't exist
@@ -94,6 +94,21 @@ function Get-SceneGallery {
     $filename = Set-MediaFilename -mediaType "gallery" -extension "zip" -id $galleryData.id -title $sceneData.title
 
     return Get-MediaFile -filename $filename -mediaType "gallery" -outputDir $outputDir -sceneData $sceneData -target $fileToDownload.urls.download
+}
+
+# Download the scene poster
+function Get-ScenePoster {
+    param(
+        [Parameter(Mandatory)][string]$outputDir,
+        [Parameter(Mandatory)]$sceneData
+    )
+
+    $fileToDownload = $sceneData.images.poster."0".xx
+    $resolution = "$($fileToDownload.height)px"
+
+    $filename = Set-MediaFilename -mediaType "poster" -extension "webp" -id $sceneData.id -resolution $resolution -title $sceneData.title
+
+    return Get-MediaFile -filename $filename -mediaType "poster" -outputDir $outputDir -sceneData $sceneData -target $fileToDownload.urls.webp
 }
 
 # Download the scene trailer
