@@ -11,7 +11,7 @@ function Get-SanitizedTitle {
 # Create the filename for a content item.
 function Set-MediaFilename {
     param(
-        [Parameter(Mandatory)][ValidateSet('gallery', 'scene', 'trailer')][String]$mediaType,
+        [Parameter(Mandatory)][ValidateSet('gallery', 'poster', 'scene', 'trailer')][String]$mediaType,
         [Parameter(Mandatory)][String]$extension,
         [Parameter(Mandatory)][Int]$id,
         [Parameter(Mandatory)][String]$title,
@@ -21,7 +21,7 @@ function Set-MediaFilename {
     $title = Get-SanitizedTitle -title $title
 
     $filename = "$id $title [$mediaType" 
-    if ($mediaType -eq "trailer" -or $mediaType -eq "scene") {
+    if ($mediaType -eq "poster" -or $mediaType -eq "scene" -or $mediaType -eq "trailer") {
         $filename += " $resolution"
     }
     $filename += "].$extension"
