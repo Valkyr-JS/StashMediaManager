@@ -147,8 +147,8 @@ function Get-AyloQueryData {
     return $result
 }
 
-# Get data for all content related to the given Aylo scene
-function Get-AyloSceneData {
+# Get data for all content related to the given Aylo scene and output it to a JSON file
+function Get-AyloSceneJson {
     param (
         [Parameter(Mandatory)][String]$parentStudio,
         [Parameter(Mandatory)][Int]$sceneID
@@ -159,7 +159,6 @@ function Get-AyloSceneData {
     $sceneResult = $sceneResult.result[0]
 
     # Next fetch the gallery data
-    
     $galleryID = $sceneResult.children | Where-Object { $_.type -eq "gallery" }
     $galleryID = $galleryID.id
     Write-Host "$galleryID"
@@ -179,5 +178,13 @@ function Get-AyloSceneData {
         }
     }
 
-    $sceneResult | ConvertTo-Json -Depth 32 | Out-File -FilePath "$($userConfig.general.scrapedDataDirectory)/result.json"
+    # TODO - Scrape actors data into separate files if required.
+
+    # Output the scene JSON file
+    $sceneTitle = $sceneResult.title
+    $filename = "$sceneID $sceneTitle.json"
+    $outputDir = Join-Path $userConfig.general.scrapedDataDirectory "aylo" "scenes $parentStudio"
+    if (!(Test-Path $outputDir)) { New-Item -ItemType "directory" -Path $outputDir }
+    $outputDest = Join-Path $outputDir $filename
+    $sceneResult | ConvertTo-Json -Depth 32 | Out-File -FilePath $outputDest
 }
