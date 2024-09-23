@@ -101,6 +101,7 @@ function Set-AyloQueryParameters {
     # The API call for actors is different from other content types
     if ($apiType -eq "actor") {
         $urlapi = "https://site-api.project1service.com/v1/actors"
+        $body.Add('id', $id)
     }
     else {
         $urlapi = "https://site-api.project1service.com/v2/releases"
@@ -147,6 +148,24 @@ function Get-AyloQueryData {
     return $result
 }
 
+# Get data for all content related to the given Aylo actor and output it to a JSON file
+function Get-AyloActorJson {
+    param (
+        [Parameter(Mandatory)][Int]$actorID
+    )
+    # Attempt to scrape actor data
+    $actorResult = Get-AyloQueryData -apiType "actor" -contentID $actorID
+    $actorResult = $actorResult.result[0]
+
+    # Output the actor JSON file
+    $actorName = $actorResult.name
+    $filename = "$actorID $actorName.json"
+    $outputDir = Join-Path $userConfig.general.scrapedDataDirectory "aylo" "actors"
+    if (!(Test-Path $outputDir)) { New-Item -ItemType "directory" -Path $outputDir }
+    $outputDest = Join-Path $outputDir $filename
+    $actorResult | ConvertTo-Json -Depth 32 | Out-File -FilePath $outputDest
+}
+
 # Get data for all content related to the given Aylo scene and output it to a JSON file
 function Get-AyloSceneJson {
     param (
@@ -178,12 +197,15 @@ function Get-AyloSceneJson {
         }
     }
 
-    # TODO - Scrape actors data into separate files if required.
+    # Scrape actors data into separate files if required.
+    foreach($actor in $sceneResult.actors) {
+        Get-AyloActorJson -actorID $actor.id
+    }
 
     # Output the scene JSON file
     $sceneTitle = $sceneResult.title
     $filename = "$sceneID $sceneTitle.json"
-    $outputDir = Join-Path $userConfig.general.scrapedDataDirectory "aylo" "scenes $parentStudio"
+    $outputDir = Join-Path $userConfig.general.scrapedDataDirectory "aylo" "scenes" $parentStudio
     if (!(Test-Path $outputDir)) { New-Item -ItemType "directory" -Path $outputDir }
     $outputDest = Join-Path $outputDir $filename
     $sceneResult | ConvertTo-Json -Depth 32 | Out-File -FilePath $outputDest
