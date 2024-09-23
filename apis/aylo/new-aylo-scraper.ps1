@@ -183,22 +183,25 @@ function Get-AyloSceneJson {
     Write-Host "$galleryID"
 
     $galleryResult = Get-AyloQueryData -apiType "gallery" -contentID $galleryID -parentStudio $parentStudio
-    $galleryResult = $galleryResult.result[0]
 
-    # Remove duplicate data to reduce file size
-    $galleryResult.PSObject.Properties.Remove("brand")
-    $galleryResult.PSObject.Properties.Remove("brandMeta")
-    $galleryResult.PSObject.Properties.Remove("parent")
+    # If gallery data is found, merge it into the scene data
+    if ($galleryResult.meta.count) {
+        $galleryResult = $galleryResult.result[0]
 
-    # Merge the gallery data into the scene data
-    for ($i = 0; $i -lt $sceneResult.children.count; $i++) {
-        if ($sceneResult.children[$i].type -eq "gallery") {
-            $sceneResult.children[$i] = $galleryResult
+        # Remove duplicate data to reduce file size
+        $galleryResult.PSObject.Properties.Remove("brand")
+        $galleryResult.PSObject.Properties.Remove("brandMeta")
+        $galleryResult.PSObject.Properties.Remove("parent")
+    
+        for ($i = 0; $i -lt $sceneResult.children.count; $i++) {
+            if ($sceneResult.children[$i].type -eq "gallery") {
+                $sceneResult.children[$i] = $galleryResult
+            }
         }
     }
 
     # Scrape actors data into separate files if required.
-    foreach($actor in $sceneResult.actors) {
+    foreach ($actor in $sceneResult.actors) {
         Get-AyloActorJson -actorID $actor.id
     }
 
