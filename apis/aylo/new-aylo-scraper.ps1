@@ -67,7 +67,7 @@ function Set-AyloHeaders {
     # Click login
     $loginBtn = Find-SeElement -Driver $Driver -CssSelector "button[type=submit]"
     Invoke-SeClick -Element $loginBtn
-    Find-SeElement -Driver $Driver -Wait -Timeout 15 -Id "root"
+    Find-SeElement -Driver $Driver -Wait -Timeout 8 -Id "root"
 
     # Get new page content
     $html = $Driver.PageSource
@@ -118,35 +118,66 @@ function Set-AyloQueryParameters {
     return $params
 }
 
+# Attempt to fetch the given data from the Aylo API
+function Get-AyloQueryData {
+    param(
+        [Parameter(Mandatory)][ValidateSet('actor', 'gallery', 'movie', 'scene')][String]$apiType,
+        [Int]$contentID,
+        [Int]$offset,
+        [string]$parentStudio
+    )
 
+    $params = Set-AyloQueryParameters -apiType $apiType -id $contentID -offset $offset -parentStudio $parentStudio
+
+    try { $result = Invoke-RestMethod @params }
+    catch {
+        # If initial scrape fails, try fetching new auth keys
+        Write-Host "WARNING: Scene scrape failed. Attempting to fetch new auth keys." -ForegroundColor Yellow
+        Set-AyloHeaders
+        $params = Set-AyloQueryParameters -apiType $apiType -id $contentID -offset $offset -parentStudio $parentStudio
+
+        # Retry scrape once with new keys
+        try { $result = Invoke-RestMethod @params }
+        catch {
+            Write-Host "ERROR: $contentType scrape failed." -ForegroundColor Red
+            return Write-Host "$_" -ForegroundColor Red
+        }
+    }
+
+    return $result
+}
 
 # Get data for all content related to the given Aylo scene
 function Get-AyloSceneData {
-    $results = New-Object -TypeName System.Collections.ArrayList
+    param (
+        [Parameter(Mandatory)][String]$parentStudio,
+        [Parameter(Mandatory)][Int]$sceneID
+    )
 
-    # Attempt to scrape data
-    $params = Set-AyloQueryParameters -apiType "scene" -id 10409621 -parentStudio "brazzers"
-    try {
-        $scenes = Invoke-RestMethod @params 
-    }
-    catch {
-        # If initial scrape fails, try fetching new auth keys
-        Write-Host "WARNING: $contentType scrape failed. Attempting to fetch new auth keys" -ForegroundColor Yellow
-        Set-AyloHeaders
-        $params = Set-AyloQueryParameters -apiType "scene" -id 10409621 -parentStudio "brazzers"
+    # Attempt to scrape scene data
+    $sceneResult = Get-AyloQueryData -apiType "scene" -contentID $sceneID -parentStudio $parentStudio
+    $sceneResult = $sceneResult.result[0]
 
-        # Retry scrape once with new keys
-        try {
-            $scenes = Invoke-RestMethod @params 
-        }
-        catch {
-            Write-Host "ERROR: $contentType scrape failed." -ForegroundColor Red
-            Write-Host "$_" -ForegroundColor Red
-        }
-    }
+    # Next fetch the gallery data
     
-    $results.AddRange($scenes.result)
+    $galleryID = $sceneResult.children | Where-Object { $_.type -eq "gallery" }
+    $galleryID = $galleryID.id
+    Write-Host "$galleryID"
 
-    $results | ConvertTo-Json -Depth 32 | Out-File -FilePath "$($userConfig.general.scrapedDataDirectory)/results.json"
-    Write-Host $results
+    $galleryResult = Get-AyloQueryData -apiType "gallery" -contentID $galleryID -parentStudio $parentStudio
+    $galleryResult = $galleryResult.result[0]
+
+    # Remove duplicate data to reduce file size
+    $galleryResult.PSObject.Properties.Remove("brand")
+    $galleryResult.PSObject.Properties.Remove("brandMeta")
+    $galleryResult.PSObject.Properties.Remove("parent")
+
+    # Merge the gallery data into the scene data
+    for ($i = 0; $i -lt $sceneResult.children.count; $i++) {
+        if ($sceneResult.children[$i].type -eq "gallery") {
+            $sceneResult.children[$i] = $galleryResult
+        }
+    }
+
+    $sceneResult | ConvertTo-Json -Depth 32 | Out-File -FilePath "$($userConfig.general.scrapedDataDirectory)/result.json"
 }
