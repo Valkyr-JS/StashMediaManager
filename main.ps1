@@ -1,3 +1,5 @@
+. "./helpers.ps1"
+
 # ? Dev variables
 $useDevConfig = $true
 
@@ -33,9 +35,6 @@ function Set-Entry {
     while (($apiSelection -notmatch "[1-$apicounter]"))
 
     $apiData = $apiData[$apiSelection - 1]
-    $apiName = $apiData.name
-
-    Write-Host `n"WARNING: Please make sure your authorization code is up to date in your config before you continue. If it needs updating, cancel this script, manually update the config, then run the script again." -ForegroundColor Yellow
 
     # Next, user selects an operation
     Write-Host `n"What would you like to do?"
@@ -46,20 +45,20 @@ function Set-Entry {
 
     # AYLO
     if ($operationSelection -eq 1 -and $apiData.name -eq "Aylo") {
-        Write-Host `n"Specify the studios you wish to download from in a space-separated list, e.g. 'bangbros mofos brazzers'."
-        Write-Host "Accepted studios are: $($apiData.studios)"
+        Write-Host `n"Specify the networks you wish to download from in a space-separated list, e.g. 'bangbros mofos brazzers'."
+        Write-Host "Accepted networks are: $($apiData.networks)"
         do {
-            $studios = read-host "Studios"
-            $studiosValid = $true
-            foreach ($s in ($studios -split " ")) {
-                if ($apiData.studios -notcontains $s.Trim()) {
-                    $studiosValid = $false
+            $networks = read-host "Networks"
+            $networksValid = $true
+            foreach ($s in ($networks -split " ")) {
+                if ($apiData.networks -notcontains $s.Trim()) {
+                    $networksValid = $false
                 }
             }
         }
-        while ($studiosValid -eq $false)
+        while ($networksValid -eq $false)
 
-        $studios = $studios -split (" ")
+        $networks = $networks -split (" ")
 
         # Update the config if needed
         . "./config-management.ps1"
@@ -83,10 +82,6 @@ function Set-Entry {
             $scrapedDataDirectory = $scrapedDataDirectory.Substring(0, $scrapedDataDirectory.Length - 1)
         }
 
-        if ($userConfig.aylo.apiKey.Length -eq 0) {
-            $userConfig = Set-ConfigAyloApikey -pathToUserConfig $pathToUserConfig
-        }
-
         # Next, user specifies what to download
         Write-Host `n"What content do you want to download?"
         Write-Host "1. All content from a group of performers"
@@ -94,74 +89,20 @@ function Set-Entry {
         while (($contentSelection -notmatch "[1]"))
 
         # Load the scraper
-        . "./apis/aylo/aylo-scraper.ps1"
+        . "./apis/aylo/aylo-actions.ps1"
+        . "./apis/aylo/new-aylo-scraper.ps1"
 
         if ($contentSelection -eq 1) {
-            # Next, user specifies performer IDs
+            # Next, user specifies actor IDs
             Write-Host `n"Specify all performer IDs you wish to download in a space-separated list, e.g. '123 2534 1563'."
-            $performerIDs = read-host "Performer IDs"
-            $performerIDs = $performerIDs -split (" ")
-            $outputDir = ($scrapedDataDirectory + $directorydelimiter + "aylo")
+            $actorIDs = read-host "Performer IDs"
+            $actorIDs = $actorIDs -split (" ")
+            Write-Host $networks
 
-            Set-AllContentDataByActorID -actorIDs $performerIDs -apiKey $userConfig.aylo.apiKey -authCode $userConfig.aylo.authCode -downloadDirectory $downloadDirectory -outputDir $outputDir -studioNames $studios
-
-            # Load the downloader
-            . "./apis/aylo/aylo-downloader.ps1"
-
-            foreach ($studio in $studios) {
-                foreach ($actorID in $performerIDs) {
-                    # Get the JSON data for the actor to download
-                    $actorJson = Join-Path $scrapedDataDirectory $apiName "actor" "$actorID.json"
-                    if (!(Test-Path $actorJson)) {
-                        return Write-Host "ERROR: Actor JSON not found - $actorJson." -ForegroundColor Red
-                    }
-                    $actorJson = Get-Content $actorJson -raw | ConvertFrom-Json
-
-                    # Loop through all scraped scene data to find scenes the actor features in
-                    $scenesFolder = Join-Path $scrapedDataDirectory $apiName $studio "scene"
-                    if (!(Test-Path $scenesFolder)) {
-                        return Write-Host "ERROR: Folder not found - $scenesFolder." -ForegroundColor Red
-                    }
-
-                    $actorScenes = @()
-                    Get-ChildItem $scenesFolder -Filter *.json | Foreach-Object {
-                        $sceneData = Get-Content $_ -raw | ConvertFrom-Json
-                        if ($sceneData.actors.id -eq $actorJson.id) {
-                            $actorScenes += $sceneData
-                        }
-                    }
-
-                    # Loop through all scraped gallery data to find galleries the actor features in
-                    $galleryFolder = Join-Path $scrapedDataDirectory $apiName $studio "gallery"
-                    if (!(Test-Path $galleryFolder)) {
-                        return Write-Host "ERROR: Folder not found - $galleryFolder." -ForegroundColor Red
-                    }
-
-                    $actorGalleries = @()
-                    Get-ChildItem $galleryFolder -Filter *.json | Foreach-Object {
-                        $galleryData = Get-Content $_ -raw | ConvertFrom-Json
-                        if ($galleryData.parent.actors.id -eq $actorJson.id) {
-                            $actorGalleries += $galleryData
-                        }
-                    }
-       
-                    foreach ($sceneData in $actorScenes) {
-                        $studioName = $sceneData.collections[0].name
-                        if ($null -eq $studioName) { $studioName = $studio }
-                        Write-Host `n"Downloading $studio scene $($sceneData.id) - $studioName - $($sceneData.title)" -ForegroundColor Cyan
-                        # Get the gallery data for the specific scene
-                        $galleryID = ($sceneData.children | Where-Object { $_.type -eq "gallery" }).id
-                        $galleryData = $actorGalleries | Where-Object { $_.id -eq $galleryID }
-                        if ($galleryData.count -eq 0) {
-                            Write-Host "WARNING: No gallery data found for scene $($sceneData.id)" -ForegroundColor Yellow
-                        }
-        
-                        Get-AllSceneMedia -galleryData $galleryData -outputDir $downloadDirectory -sceneData $sceneData
-                    }
-                }
+            foreach ($network in $networks) {
+                Get-AyloAllContentByActorIDs -actorIDs $actorIDs -parentStudio $network -pathToUserConfig $pathToUserConfig
             }
         }
-
     }
     
     else { Write-Host "This feature is awaiting development." }
