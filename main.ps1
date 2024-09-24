@@ -90,6 +90,7 @@ function Set-Entry {
 
         # Load the scraper
         . "./apis/aylo/aylo-actions.ps1"
+        . "./apis/aylo/new-aylo-downloader.ps1"
         . "./apis/aylo/new-aylo-scraper.ps1"
 
         if ($contentSelection -eq 1) {

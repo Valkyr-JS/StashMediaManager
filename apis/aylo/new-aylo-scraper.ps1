@@ -71,7 +71,7 @@ function Set-AyloHeaders {
     # Click login
     $loginBtn = Find-SeElement -Driver $Driver -CssSelector "button[type=submit]"
     Invoke-SeClick -Element $loginBtn
-    Find-SeElement -Driver $Driver -Wait -Timeout 8 -Id "root"
+    Find-SeElement -Driver $Driver -Wait -Timeout 15 -Id "root"
 
     # Get new page content
     $html = $Driver.PageSource
@@ -141,7 +141,9 @@ function Get-AyloQueryData {
 
     $params = Set-AyloQueryParameters -actorID $actorID -apiType $apiType -id $contentID -offset $offset -parentStudio $parentStudio -pathToUserConfig $pathToUserConfig
 
-    Write-Host $params.Body
+    if (($null -eq $headers.authorization) -or ($null -eq $headers.instance)) {
+        Set-AyloHeaders -pathToUserConfig $pathToUserConfig
+    }
 
     try { $result = Invoke-RestMethod @params }
     catch {
@@ -180,9 +182,17 @@ function Get-AyloActorJson {
     if (!(Test-Path $outputDir)) { New-Item -ItemType "directory" -Path $outputDir }
     $outputDest = Join-Path $outputDir $filename
     $actorResult | ConvertTo-Json -Depth 32 | Out-File -FilePath $outputDest
+
+    # TODO - Check image hasn't already been downloaded
+    # Download the actor's profile image
+    $imgUrl = $actorResult.images.master_profile."0".lg.url
+    $filename = "$actorID $actorName.jpg"
+    $outputDest = Join-Path $outputDir $filename
+    Invoke-WebRequest -uri $imgUrl -OutFile ( New-Item -Path $outputDest -Force ) 
 }
 
-# Get data for all content related to the given Aylo scene and output it to a JSON file
+# Get data for all content related to the given Aylo scene and output it to a
+# JSON file. Returns the path to the JSON file.
 function Get-AyloSceneJson {
     param (
         [Parameter(Mandatory)][String]$parentStudio,
@@ -235,7 +245,18 @@ function Get-AyloSceneJson {
     $outputDir = Join-Path $userConfig.general.scrapedDataDirectory "aylo" "scenes" $parentStudio
     if (!(Test-Path $outputDir)) { New-Item -ItemType "directory" -Path $outputDir }
     $outputDest = Join-Path $outputDir $filename
+
+    Write-Host "Generating JSON: $filename"
     $sceneResult | ConvertTo-Json -Depth 32 | Out-File -FilePath $outputDest
+
+    if (!(Test-Path $outputDest)) {
+        Write-Host "ERROR: JSON generation failed - $outputDest" -ForegroundColor Red
+        return $null
+    }  
+    else {
+        Write-Host "SUCCESS: JSON generated - $outputDest" -ForegroundColor Green
+        return "$outputDest"
+    }  
 }
 
 # ---------------------------- Get scene IDs by... --------------------------- #
