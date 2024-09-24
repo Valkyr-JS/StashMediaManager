@@ -10,7 +10,8 @@ function Get-AyloSceneAllMedia {
 
     Write-Host `n"Downloading all media for scene $sceneID - $($data.title)." -ForegroundColor Cyan
 
-    $studio = $data.collections[0].name
+    if ($data.collections.count -gt 0) { $studio = $data.collections[0].name }
+    else { $studio = $parentStudio }
 
     # If studio is blank, the studio is also the parent studio
     if ($null -eq $studio) { $studio = $parentStudio }
@@ -18,11 +19,9 @@ function Get-AyloSceneAllMedia {
     # Create the full output directory
     $contentFolder = "$sceneID $title"
     $outputDir = Join-Path $outputDir $parentStudio $studio $contentFolder
-
-    $galleryData = $data.children | Where-Object { $_.type -eq "gallery" }
     
     # Download content
-    Get-AyloSceneGallery -galleryData $galleryData -outputDir $outputDir -sceneData $data
+    Get-AyloSceneGallery -outputDir $outputDir -sceneData $data
     Get-AyloSceneVideo -outputDir $outputDir -sceneData $data
     Get-AyloScenePoster -outputDir $outputDir -sceneData $data
     Get-AyloSceneTrailer -outputDir $outputDir -sceneData $data

@@ -221,7 +221,20 @@ function Get-AyloSceneJson {
     }
 
     $sceneResult = $sceneResult.result[0]
+    $sceneTitle = Get-SanitizedTitle -title $sceneResult.title
     $parentStudio = $sceneResult.brandMeta.displayName
+    if ($sceneResult.collections.count -gt 0) { $studio = $sceneResult.collections[0].name }
+    else { $studio = $parentStudio }
+
+    # Skip creating JSON if the downloaded content already exists
+    $contentFolder = "$sceneID $sceneTitle"
+    $contentDir = Join-Path $userConfig.general.downloadDirectory $parentStudio $studio $contentFolder
+    if (Test-Path -LiteralPath $contentDir) {
+        $contentFile = Get-ChildItem $contentDir -Filter "*.mp4" | Where-Object { $_.BaseName -match $sceneID }
+        if ($contentFile.Length -gt 0) {
+            return Write-Host "Media already exists. Skipping JSON generation for scene ID $sceneID."    
+        }
+    }
 
     # Next fetch the gallery data
     $galleryID = $sceneResult.children | Where-Object { $_.type -eq "gallery" }
@@ -254,7 +267,6 @@ function Get-AyloSceneJson {
     }
 
     # Output the scene JSON file
-    $sceneTitle = Get-SanitizedTitle -title $sceneResult.title
     $filename = "$sceneID $sceneTitle.json"
     $outputDir = Join-Path $userConfig.general.scrapedDataDirectory "aylo" "scenes" $parentStudio
     if (!(Test-Path $outputDir)) { New-Item -ItemType "directory" -Path $outputDir }
@@ -269,7 +281,7 @@ function Get-AyloSceneJson {
     }  
     else {
         Write-Host "SUCCESS: JSON generated - $outputDest" -ForegroundColor Green
-        return $sceneResult
+        return $outputDest
     }  
 }
 
@@ -291,7 +303,9 @@ function Get-AyloSceneIDsByActorID {
         Write-Host "No scenes found with the provided actor ID $actorID." -ForegroundColor Red
     }
     else {
-        Write-Host "$($results.meta.count) scenes found featuring actor ID $actorID."
+        if ($results.meta.count -eq 1) { $sceneWord = "scene" }
+        else { $sceneWord = "scenes" }
+        Write-Host "$($results.meta.count) $sceneWord found featuring actor ID $actorID."
     }
 
     $sceneIDs = @()
