@@ -45,14 +45,19 @@ function Set-Entry {
 
     # AYLO
     if ($operationSelection -eq 1 -and $apiData.name -eq "Aylo") {
-        Write-Host `n"Specify the networks you wish to download from in a space-separated list, e.g. 'bangbros mofos brazzers'."
+        Write-Host `n"Specify the networks you wish to download from in a space-separated list, e.g. 'bangbros mofos brazzers'. Leave blank to scan all networks you have access to."
         Write-Host "Accepted networks are: $($apiData.networks)"
         do {
             $networks = read-host "Networks"
             $networksValid = $true
-            foreach ($s in ($networks -split " ")) {
-                if ($apiData.networks -notcontains $s.Trim()) {
-                    $networksValid = $false
+
+            # Check if the answer is an empty string
+            if ($networks.Length -ne 0) {
+                # If not, check all networks are valid
+                foreach ($s in ($networks -split " ")) {
+                    if ($apiData.networks -notcontains $s.Trim()) {
+                        $networksValid = $false
+                    }
                 }
             }
         }

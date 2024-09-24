@@ -114,6 +114,9 @@ function Set-AyloQueryParameters {
         $body.Add("orderBy", "-dateReleased")
         $body.Add('type', $apiType)
 
+        # Allow all unlocked sites to be queried
+        $body.Add("groupFilter", "unlocked")
+
         if ($actorID) { $body.Add('actorId', $actorID) }
         if ($id) { $body.Add('id', $id) }
         if ($parentStudio) { $body.Add('brand', $parentStudio) }
@@ -206,25 +209,25 @@ function Get-AyloActorJson {
 # JSON file. Returns the path to the JSON file.
 function Get-AyloSceneJson {
     param (
-        [Parameter(Mandatory)][String]$parentStudio,
         [Parameter(Mandatory)][String]$pathToUserConfig,
         [Parameter(Mandatory)][Int]$sceneID
     )
     $userConfig = Get-Content $pathToUserConfig -raw | ConvertFrom-Json
 
     # Attempt to scrape scene data
-    $sceneResult = Get-AyloQueryData -apiType "scene" -contentID $sceneID -parentStudio $parentStudio -pathToUserConfig $pathToUserConfig
+    $sceneResult = Get-AyloQueryData -apiType "scene" -contentID $sceneID -pathToUserConfig $pathToUserConfig
     if ($sceneResult.meta.count -eq 0) {
         return Write-Host "No scene found with the provided ID $sceneID." -ForegroundColor Red
     }
 
     $sceneResult = $sceneResult.result[0]
+    $parentStudio = $sceneResult.brandMeta.displayName
 
     # Next fetch the gallery data
     $galleryID = $sceneResult.children | Where-Object { $_.type -eq "gallery" }
     $galleryID = $galleryID.id
 
-    $galleryResult = Get-AyloQueryData -apiType "gallery" -contentID $galleryID -parentStudio $parentStudio -pathToUserConfig $pathToUserConfig
+    $galleryResult = Get-AyloQueryData -apiType "gallery" -contentID $galleryID -pathToUserConfig $pathToUserConfig
 
     # If gallery data is found, merge it into the scene data
     if ($galleryResult.meta.count -eq 0) {
@@ -266,7 +269,7 @@ function Get-AyloSceneJson {
     }  
     else {
         Write-Host "SUCCESS: JSON generated - $outputDest" -ForegroundColor Green
-        return "$outputDest"
+        return $sceneResult
     }  
 }
 
@@ -280,7 +283,7 @@ function Get-AyloSceneIDsByActorID {
         [String]$parentStudio
     )
 
-    Write-Host `n"Scraping $parentStudio for scenes featuring actor ID $actorID." -ForegroundColor Cyan
+    Write-Host `n"Searching for scenes featuring actor ID $actorID." -ForegroundColor Cyan
 
     $results = Get-AyloQueryData -apiType "scene" -actorID $actorID -parentStudio $parentStudio -pathToUserConfig $pathToUserConfig
     

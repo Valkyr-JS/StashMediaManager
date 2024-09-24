@@ -2,8 +2,8 @@
 function Get-AyloAllContentByActorIDs {
     param(
         [Parameter(Mandatory)][Int[]]$actorIDs,
-        [Parameter(Mandatory)][String]$parentStudio,
-        [Parameter(Mandatory)][String]$pathToUserConfig
+        [Parameter(Mandatory)][String]$pathToUserConfig,
+        [String]$parentStudio
     )
 
     foreach ($actorID in $actorIDs) {
@@ -12,14 +12,13 @@ function Get-AyloAllContentByActorIDs {
         foreach ($sceneID in $sceneIDs) {
             # TODO - Check for existing media - Create the scene JSON file ONLY
             # if the associated scene hasn't already been scraped.
-            $pathToJson = Get-AyloSceneJson -parentStudio $parentStudio -pathToUserConfig $pathToUserConfig -sceneID $sceneID
+            $sceneData = Get-AyloSceneJson -pathToUserConfig $pathToUserConfig -sceneID $sceneID
             
-            if (($null -eq $pathToJson) -or (!(Test-Path $pathToJson))) {
-                return Write-Host "ERROR: scene $sceneID JSON not found - $pathToJson" -ForegroundColor Red
+            if (($null -eq $sceneData)) {
+                return Write-Host "ERROR: scene $sceneID data not accessible." -ForegroundColor Red
             }
             else {
                 $userConfig = Get-Content $pathToUserConfig -raw | ConvertFrom-Json
-                $sceneData = Get-Content $pathToJson -raw | ConvertFrom-Json
                 Get-AyloSceneAllMedia -data $sceneData -outputDir $userConfig.general.downloadDirectory
             }
         }
