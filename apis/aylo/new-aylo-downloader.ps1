@@ -9,7 +9,7 @@ function Get-AyloSceneAllMedia {
     $title = Get-SanitizedTitle -title $data.title
 
     Write-Host `n"Downloading all media for scene $sceneID - $($data.title)." -ForegroundColor Cyan
-    
+
     $studio = $data.collections[0].name
 
     # If studio is blank, the studio is also the parent studio
@@ -22,9 +22,7 @@ function Get-AyloSceneAllMedia {
     $galleryData = $data.children | Where-Object { $_.type -eq "gallery" }
     
     # Download content
-    if ($null -ne $galleryData) {
-        Get-AyloSceneGallery -galleryData $galleryData -outputDir $outputDir -sceneData $data
-    }
+    Get-AyloSceneGallery -galleryData $galleryData -outputDir $outputDir -sceneData $data
     Get-AyloSceneVideo -outputDir $outputDir -sceneData $data
     Get-AyloScenePoster -outputDir $outputDir -sceneData $data
     Get-AyloSceneTrailer -outputDir $outputDir -sceneData $data
@@ -75,13 +73,19 @@ function Get-AyloMediaFile {
 # Download the scene gallery
 function Get-AyloSceneGallery {
     param(
-        $galleryData,
         [Parameter(Mandatory)][string]$outputDir,
         [Parameter(Mandatory)]$sceneData
     )
-    $fileToDownload = $galleryData.galleries | Where-Object { $_.format -eq "download" }
-    $fileToDownload = $fileToDownload[0]
 
+    $galleryData = $sceneData.children | Where-Object { $_.type -eq "gallery" }
+    [array]$files = $galleryData.galleries | Where-Object { $_.format -eq "download" }
+
+    # If the array is empty, return a warning
+    if ($files.count -eq 0) {
+        return Write-Host "No gallery available to download." -ForegroundColor Yellow
+    }
+    
+    $fileToDownload = $files[0]
     $filename = Set-MediaFilename -mediaType "gallery" -extension "zip" -id $galleryData.id -title $sceneData.title
 
     return Get-AyloMediaFile -filename $filename -mediaType "gallery" -outputDir $outputDir -sceneData $sceneData -target $fileToDownload.urls.download
@@ -113,6 +117,11 @@ function Get-AyloSceneTrailer {
     [array]$files = $sceneData.children | Where-Object { $_.type -eq "trailer" }
     $trailerID = $files[0].id
     $files = $files.videos.full.files
+
+    # If the array is empty, return a warning
+    if ($files.count -eq 0) {
+        return Write-Host "No trailer available to download." -ForegroundColor Yellow
+    }
 
     # 1. Prefer AV1 codec
     [array]$filteredFiles = $files | Where-Object { $_.codec -eq "av1" }
