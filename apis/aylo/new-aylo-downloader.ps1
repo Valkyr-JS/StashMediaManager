@@ -8,6 +8,8 @@ function Get-AyloSceneAllMedia {
     $sceneID = $data.id
     $title = Get-SanitizedTitle -title $data.title
 
+    Write-Host `n"Downloading all media for scene $sceneID - $($data.title)." -ForegroundColor Cyan
+    
     $studio = $data.collections[0].name
 
     # If studio is blank, the studio is also the parent studio

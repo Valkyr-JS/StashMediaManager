@@ -183,12 +183,23 @@ function Get-AyloActorJson {
     $outputDest = Join-Path $outputDir $filename
     $actorResult | ConvertTo-Json -Depth 32 | Out-File -FilePath $outputDest
 
-    # TODO - Check image hasn't already been downloaded
     # Download the actor's profile image
     $imgUrl = $actorResult.images.master_profile."0".lg.url
     $filename = "$actorID $actorName.jpg"
     $outputDest = Join-Path $outputDir $filename
-    Invoke-WebRequest -uri $imgUrl -OutFile ( New-Item -Path $outputDest -Force ) 
+    if (Test-Path $outputDest) { 
+        Write-Host "Profile image for actor $actorName (#$actorID) already downloaded."
+    }
+    else {
+        try {
+            Write-Host "Downloading profile image for actor $actorName (#$actorID)."
+            Invoke-WebRequest -uri $imgUrl -OutFile ( New-Item -Path $outputDest -Force ) 
+        }
+        catch {
+            Write-Host "ERROR: Failed to download the profile image for actor $actorName (#$actorID)." -ForegroundColor Red
+        }
+        Write-Host "SUCCESS: Downloaded the profile image for actor $actorName (#$actorID)." -ForegroundColor Green
+    }
 }
 
 # Get data for all content related to the given Aylo scene and output it to a
@@ -269,10 +280,15 @@ function Get-AyloSceneIDsByActorID {
         [String]$parentStudio
     )
 
+    Write-Host `n"Scraping $parentStudio for scenes featuring actor ID $actorID." -ForegroundColor Cyan
+
     $results = Get-AyloQueryData -apiType "scene" -actorID $actorID -parentStudio $parentStudio -pathToUserConfig $pathToUserConfig
     
     if ($results.meta.count -eq 0) {
         Write-Host "No scenes found with the provided actor ID $actorID." -ForegroundColor Red
+    }
+    else {
+        Write-Host "$($results.meta.count) scenes found featuring actor ID $actorID."
     }
 
     $sceneIDs = @()
