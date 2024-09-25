@@ -47,14 +47,18 @@ function Set-AyloHeaders {
 
     # Set login details if required. Login details should be entered at the
     # start of every session and cleared at the very end.
-    do {
-        Set-AyloLoginDetails -pathToUserConfig $pathToUserConfig -setLoginUrl ($userConfig.aylo.masterSite.Length -eq 0)
+    if (($login.username.Length -eq 0) -or
+    ($login.password.Length -eq 0) -or
+    ($login.url.Length -eq 0)) {
+        do {
+            Set-AyloLoginDetails -pathToUserConfig $pathToUserConfig -setLoginUrl ($userConfig.aylo.masterSite.Length -eq 0)
+        }
+        while (
+            ($login.username.Length -eq 0) -or
+            ($login.password.Length -eq 0) -or
+            ($login.url.Length -eq 0)
+        )
     }
-    while (
-        ($login.username.Length -eq 0) -or
-        ($login.password.Length -eq 0) -or
-        ($login.url.Length -eq 0)
-    )
 
     # Open Firefox
     $Driver = Start-SeFirefox -PrivateBrowsing
@@ -221,7 +225,7 @@ function Get-AyloSceneJson {
     # Attempt to scrape scene data
     $sceneResult = Get-AyloQueryData -apiType "scene" -contentID $sceneID -pathToUserConfig $pathToUserConfig
     if ($sceneResult.meta.count -eq 0) {
-        return Write-Host "No scene found with the provided ID $sceneID." -ForegroundColor Red
+        Write-Host "No scene found with the provided ID $sceneID." -ForegroundColor Red
     }
 
     $sceneResult = $sceneResult.result[0]
@@ -231,62 +235,66 @@ function Get-AyloSceneJson {
     else { $studio = $parentStudio }
 
     # Skip creating JSON if the downloaded content already exists
+    $willGenerateJson = $true
     $contentFolder = "$sceneID $sceneTitle"
     $contentDir = Join-Path $userConfig.general.downloadDirectory $parentStudio $studio $contentFolder
     if (Test-Path -LiteralPath $contentDir) {
         $contentFile = Get-ChildItem $contentDir -Filter "*.mp4" | Where-Object { $_.BaseName -match $sceneID }
         if ($contentFile.Length -gt 0) {
-            return Write-Host "Media already exists. Skipping JSON generation for scene ID $sceneID."    
+            Write-Host "Media already exists. Skipping JSON generation for scene ID $sceneID."
+            $willGenerateJson = $false
         }
     }
 
-    # Next fetch the gallery data
-    $galleryID = $sceneResult.children | Where-Object { $_.type -eq "gallery" }
-    $galleryID = $galleryID.id
+    if ($willGenerateJson) {
+        # Next fetch the gallery data
+        $galleryID = $sceneResult.children | Where-Object { $_.type -eq "gallery" }
+        $galleryID = $galleryID.id
 
-    $galleryResult = Get-AyloQueryData -apiType "gallery" -contentID $galleryID -pathToUserConfig $pathToUserConfig
+        $galleryResult = Get-AyloQueryData -apiType "gallery" -contentID $galleryID -pathToUserConfig $pathToUserConfig
 
-    # If gallery data is found, merge it into the scene data
-    if ($galleryResult.meta.count -eq 0) {
-        Write-Host "No gallery found with the provided ID $galleryID." -ForegroundColor Yellow
-    }
-    else {
-        $galleryResult = $galleryResult.result[0]
+        # If gallery data is found, merge it into the scene data
+        if ($galleryResult.meta.count -eq 0) {
+            Write-Host "No gallery found with the provided ID $galleryID." -ForegroundColor Yellow
+        }
+        else {
+            $galleryResult = $galleryResult.result[0]
 
-        # Remove duplicate data to reduce file size
-        $galleryResult.PSObject.Properties.Remove("brand")
-        $galleryResult.PSObject.Properties.Remove("brandMeta")
-        $galleryResult.PSObject.Properties.Remove("parent")
+            # Remove duplicate data to reduce file size
+            $galleryResult.PSObject.Properties.Remove("brand")
+            $galleryResult.PSObject.Properties.Remove("brandMeta")
+            $galleryResult.PSObject.Properties.Remove("parent")
     
-        for ($i = 0; $i -lt $sceneResult.children.count; $i++) {
-            if ($sceneResult.children[$i].type -eq "gallery") {
-                $sceneResult.children[$i] = $galleryResult
+            for ($i = 0; $i -lt $sceneResult.children.count; $i++) {
+                if ($sceneResult.children[$i].type -eq "gallery") {
+                    $sceneResult.children[$i] = $galleryResult
+                }
             }
         }
+
+        # Scrape actors data into separate files if required.
+        foreach ($actor in $sceneResult.actors) {
+            Get-AyloActorJson -actorID $actor.id -pathToUserConfig $pathToUserConfig
+        }
+
+        # Output the scene JSON file
+        $filename = "$sceneID $sceneTitle.json"
+        $outputDir = Join-Path $userConfig.general.scrapedDataDirectory "aylo" "scenes" $parentStudio
+        if (!(Test-Path $outputDir)) { New-Item -ItemType "directory" -Path $outputDir }
+        $outputDest = Join-Path $outputDir $filename
+
+        Write-Host "Generating JSON: $filename"
+        $sceneResult | ConvertTo-Json -Depth 32 | Out-File -FilePath $outputDest
+
+        if (!(Test-Path $outputDest)) {
+            Write-Host "ERROR: JSON generation failed - $outputDest" -ForegroundColor Red
+            return $null
+        }  
+        else {
+            Write-Host "SUCCESS: JSON generated - $outputDest" -ForegroundColor Green
+            return $outputDest
+        }  
     }
-
-    # Scrape actors data into separate files if required.
-    foreach ($actor in $sceneResult.actors) {
-        Get-AyloActorJson -actorID $actor.id -pathToUserConfig $pathToUserConfig
-    }
-
-    # Output the scene JSON file
-    $filename = "$sceneID $sceneTitle.json"
-    $outputDir = Join-Path $userConfig.general.scrapedDataDirectory "aylo" "scenes" $parentStudio
-    if (!(Test-Path $outputDir)) { New-Item -ItemType "directory" -Path $outputDir }
-    $outputDest = Join-Path $outputDir $filename
-
-    Write-Host "Generating JSON: $filename"
-    $sceneResult | ConvertTo-Json -Depth 32 | Out-File -FilePath $outputDest
-
-    if (!(Test-Path $outputDest)) {
-        Write-Host "ERROR: JSON generation failed - $outputDest" -ForegroundColor Red
-        return $null
-    }  
-    else {
-        Write-Host "SUCCESS: JSON generated - $outputDest" -ForegroundColor Green
-        return $outputDest
-    }  
 }
 
 # ---------------------------- Get scene IDs by... --------------------------- #

@@ -11,11 +11,10 @@ function Get-AyloAllContentByActorIDs {
 
         foreach ($sceneID in $sceneIDs) {
             $pathToSceneJson = Get-AyloSceneJson -pathToUserConfig $pathToUserConfig -sceneID $sceneID
-            if ($null -eq $pathToSceneJson) { return }
-            if (!(Test-Path $pathToSceneJson)) {
-                return Write-Host `n"ERROR: scene $sceneID JSON data not found - $pathToSceneJson." -ForegroundColor Red
+            if (($null -ne $pathToSceneJson) -and !(Test-Path $pathToSceneJson)) {
+                Write-Host `n"ERROR: scene $sceneID JSON data not found - $pathToSceneJson." -ForegroundColor Red
             }
-            else {
+            elseif ($null -ne $pathToSceneJson) {
                 $userConfig = Get-Content $pathToUserConfig -raw | ConvertFrom-Json
                 $sceneData = Get-Content $pathToSceneJson -raw | ConvertFrom-Json
                 Get-AyloSceneAllMedia -data $sceneData -assetsDir $userConfig.general.assetsDirectory -outputDir $userConfig.general.downloadDirectory

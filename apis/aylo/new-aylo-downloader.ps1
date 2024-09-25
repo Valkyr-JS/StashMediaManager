@@ -7,8 +7,9 @@ function Get-AyloSceneAllMedia {
     )
     $parentStudio = $data.brandMeta.displayName
     $sceneID = $data.id
+    $sceneTitle = Get-SanitizedTitle -title $data.title
 
-    Write-Host `n"Downloading all media for scene $sceneID - $($data.title)." -ForegroundColor Cyan
+    Write-Host `n"Downloading all media for scene $sceneID - $sceneTitle." -ForegroundColor Cyan
 
     if ($data.collections.count -gt 0) { $studio = $data.collections[0].name }
     else { $studio = $parentStudio }
@@ -19,6 +20,8 @@ function Get-AyloSceneAllMedia {
     # Create the full assets and output directories
     $assetsDir = Join-Path $assetsDir "aylo" "scenes" $parentStudio $studio
     if (!(Test-Path $assetsDir)) { New-Item -ItemType "directory" -Path $assetsDir }
+
+    $contentFolder = "$sceneID $sceneTitle"
     $outputDir = Join-Path $outputDir $parentStudio $studio $contentFolder
     if (!(Test-Path $outputDir)) { New-Item -ItemType "directory" -Path $outputDir }
 
@@ -114,15 +117,15 @@ function Get-AyloSceneTrailer {
         [Parameter(Mandatory)]$sceneData
     )
 
-    # Filter videos to get the optimal file
-    [array]$files = $sceneData.children | Where-Object { $_.type -eq "trailer" }
-    $trailerID = $files[0].id
-    $files = $files.videos.full.files
-
     # If the array is empty, return a warning
+    [array]$files = $sceneData.children | Where-Object { $_.type -eq "trailer" }
     if ($files.count -eq 0) {
         return Write-Host "No trailer available to download." -ForegroundColor Yellow
     }
+
+    # Filter videos to get the optimal file
+    $files = $files.videos.full.files
+    $trailerID = $files[0].id
 
     # 1. Prefer AV1 codec
     [array]$filteredFiles = $files | Where-Object { $_.codec -eq "av1" }
