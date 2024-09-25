@@ -1,12 +1,12 @@
 # Get all media associated with a given Aylo scene ID
 function Get-AyloSceneAllMedia {
     param(
+        [Parameter(Mandatory)][String]$assetsDir,
         [Parameter(Mandatory)][String]$outputDir,
         [Parameter(Mandatory)]$data
     )
     $parentStudio = $data.brandMeta.displayName
     $sceneID = $data.id
-    $title = Get-SanitizedTitle -title $data.title
 
     Write-Host `n"Downloading all media for scene $sceneID - $($data.title)." -ForegroundColor Cyan
 
@@ -16,14 +16,16 @@ function Get-AyloSceneAllMedia {
     # If studio is blank, the studio is also the parent studio
     if ($null -eq $studio) { $studio = $parentStudio }
 
-    # Create the full output directory
-    $contentFolder = "$sceneID $title"
+    # Create the full assets and output directories
+    $assetsDir = Join-Path $assetsDir "aylo" "scenes" $parentStudio $studio
+    if (!(Test-Path $assetsDir)) { New-Item -ItemType "directory" -Path $assetsDir }
     $outputDir = Join-Path $outputDir $parentStudio $studio $contentFolder
-    
+    if (!(Test-Path $outputDir)) { New-Item -ItemType "directory" -Path $outputDir }
+
     # Download content
     Get-AyloSceneGallery -outputDir $outputDir -sceneData $data
     Get-AyloSceneVideo -outputDir $outputDir -sceneData $data
-    Get-AyloScenePoster -outputDir $outputDir -sceneData $data
+    Get-AyloScenePoster -outputDir $assetsDir -sceneData $data
     Get-AyloSceneTrailer -outputDir $outputDir -sceneData $data
 }
 

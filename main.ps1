@@ -87,6 +87,16 @@ function Set-Entry {
             $scrapedDataDirectory = $scrapedDataDirectory.Substring(0, $scrapedDataDirectory.Length - 1)
         }
 
+        if ($userConfig.general.assetsDirectory.Length -eq 0) {
+            $userConfig = Set-ConfigAssetsDirectory -pathToUserConfig $pathToUserConfig
+        }
+
+        # Ensure the assets directory doesn't have a trailing directory delimiter
+        [string]$assetsDirectory = $userConfig.general.assetsDirectory
+        if ($assetsDirectory[-1] -eq $directorydelimiter) {
+            $assetsDirectory = $assetsDirectory.Substring(0, $assetsDirectory.Length - 1)
+        }
+
         # Next, user specifies what to download
         Write-Host `n"What content do you want to download?"
         Write-Host "1. All content from a group of performers"

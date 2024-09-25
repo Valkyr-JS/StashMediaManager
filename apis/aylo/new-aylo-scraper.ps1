@@ -189,14 +189,18 @@ function Get-AyloActorJson {
     # Download the actor's profile image
     $imgUrl = $actorResult.images.master_profile."0".lg.url
     $filename = "$actorID $actorName.jpg"
-    $outputDest = Join-Path $outputDir $filename
-    if (Test-Path $outputDest) { 
+
+    $assetsDir = Join-Path $userConfig.general.assetsDirectory "aylo" "actors"
+    if (!(Test-Path $assetsDir)) { New-Item -ItemType "directory" -Path $assetsDir }
+    
+    $assetsDest = Join-Path $assetsDir $filename
+    if (Test-Path $assetsDest) { 
         Write-Host "Profile image for actor $actorName (#$actorID) already downloaded."
     }
     else {
         try {
             Write-Host "Downloading profile image for actor $actorName (#$actorID)."
-            Invoke-WebRequest -uri $imgUrl -OutFile ( New-Item -Path $outputDest -Force ) 
+            Invoke-WebRequest -uri $imgUrl -OutFile ( New-Item -Path $assetsDest -Force ) 
         }
         catch {
             Write-Host "ERROR: Failed to download the profile image for actor $actorName (#$actorID)." -ForegroundColor Red

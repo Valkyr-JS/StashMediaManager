@@ -3,6 +3,7 @@
     "masterSite": ""
   },
   "general": {
+    "assetsDirectory": "",
     "downloadDirectory": "",
     "scrapedDataDirectory": ""
   }
