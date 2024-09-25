@@ -104,9 +104,9 @@ function Set-Entry {
         while (($contentSelection -notmatch "[1]"))
 
         # Load the scraper
+        . "./apis/aylo/aylo-scraper.ps1"
+        . "./apis/aylo/aylo-downloader.ps1"
         . "./apis/aylo/aylo-actions.ps1"
-        . "./apis/aylo/new-aylo-downloader.ps1"
-        . "./apis/aylo/new-aylo-scraper.ps1"
 
         if ($contentSelection -eq 1) {
             # Next, user specifies actor IDs

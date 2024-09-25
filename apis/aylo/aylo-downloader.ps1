@@ -1,46 +1,39 @@
-. "../../helpers.ps1"
-
-# Global variables
-if ($IsWindows) { $directorydelimiter = '\' }
-else { $directorydelimiter = '/' }
-
-# Get all available scene media
-function Get-AllSceneMedia {
+# Get all media associated with a given Aylo scene ID
+function Get-AyloSceneAllMedia {
     param(
-        $galleryData,
+        [Parameter(Mandatory)][String]$assetsDir,
         [Parameter(Mandatory)][String]$outputDir,
-        [Parameter(Mandatory)]$sceneData
+        [Parameter(Mandatory)]$data
     )
-    $parentStudio = $sceneData.brandMeta.displayName
-    $sceneID = $sceneData.id
-    $title = Get-SanitizedTitle -title $sceneData.title
+    $parentStudio = $data.brandMeta.displayName
+    $sceneID = $data.id
+    $sceneTitle = Get-SanitizedTitle -title $data.title
 
-    $studio = $sceneData.collections[0].name
+    Write-Host `n"Downloading all media for scene $sceneID - $sceneTitle." -ForegroundColor Cyan
+
+    if ($data.collections.count -gt 0) { $studio = $data.collections[0].name }
+    else { $studio = $parentStudio }
 
     # If studio is blank, the studio is also the parent studio
     if ($null -eq $studio) { $studio = $parentStudio }
 
-    # Create the final output directory
-    $contentFolder = "$sceneID $title"
+    # Create the full assets and output directories
+    $assetsDir = Join-Path $assetsDir "aylo" "scenes" $parentStudio $studio
+    if (!(Test-Path $assetsDir)) { New-Item -ItemType "directory" -Path $assetsDir }
 
-    # Check if the final string in outputDir is a backslash, and add one if needed.
-    if ($outputDir.Substring($outputDir.Length - 1) -ne $directorydelimiter) {
-        $outputDir += $directorydelimiter
-    }
+    $contentFolder = "$sceneID $sceneTitle"
+    $outputDir = Join-Path $outputDir $parentStudio $studio $contentFolder
+    if (!(Test-Path $outputDir)) { New-Item -ItemType "directory" -Path $outputDir }
 
-    $outputDir += (($parentStudio, $studio, $contentFolder, "") -join $directorydelimiter)
-
-    # Get downloading in order of expected file size, from smallest to largest
-    Get-ScenePoster -outputDir $outputDir -sceneData $sceneData
-    Get-SceneTrailer -outputDir $outputDir -sceneData $sceneData
-    if ($null -ne $galleryData) {
-        Get-SceneGallery -galleryData $galleryData -outputDir $outputDir -sceneData $sceneData
-    }
-    Get-SceneVideo -outputDir $outputDir -sceneData $sceneData
+    # Download content
+    Get-AyloSceneGallery -outputDir $outputDir -sceneData $data
+    Get-AyloSceneVideo -outputDir $outputDir -sceneData $data
+    Get-AyloScenePoster -outputDir $assetsDir -sceneData $data
+    Get-AyloSceneTrailer -outputDir $outputDir -sceneData $data
 }
 
 # Download a media file into the appropriate directory.
-function Get-MediaFile {
+function Get-AyloMediaFile {
     param(
         [Parameter(Mandatory)][string]$filename,
         [Parameter(Mandatory)]
@@ -82,22 +75,28 @@ function Get-MediaFile {
 }
 
 # Download the scene gallery
-function Get-SceneGallery {
+function Get-AyloSceneGallery {
     param(
-        $galleryData,
         [Parameter(Mandatory)][string]$outputDir,
         [Parameter(Mandatory)]$sceneData
     )
-    $fileToDownload = $galleryData.galleries | Where-Object { $_.format -eq "download" }
-    $fileToDownload = $fileToDownload[0]
 
+    $galleryData = $sceneData.children | Where-Object { $_.type -eq "gallery" }
+    [array]$files = $galleryData.galleries | Where-Object { $_.format -eq "download" }
+
+    # If the array is empty, return a warning
+    if ($files.count -eq 0) {
+        return Write-Host "No gallery available to download." -ForegroundColor Yellow
+    }
+    
+    $fileToDownload = $files[0]
     $filename = Set-MediaFilename -mediaType "gallery" -extension "zip" -id $galleryData.id -title $sceneData.title
 
-    return Get-MediaFile -filename $filename -mediaType "gallery" -outputDir $outputDir -sceneData $sceneData -target $fileToDownload.urls.download
+    return Get-AyloMediaFile -filename $filename -mediaType "gallery" -outputDir $outputDir -sceneData $sceneData -target $fileToDownload.urls.download
 }
 
 # Download the scene poster
-function Get-ScenePoster {
+function Get-AyloScenePoster {
     param(
         [Parameter(Mandatory)][string]$outputDir,
         [Parameter(Mandatory)]$sceneData
@@ -108,20 +107,25 @@ function Get-ScenePoster {
 
     $filename = Set-MediaFilename -mediaType "poster" -extension "webp" -id $sceneData.id -resolution $resolution -title $sceneData.title
 
-    return Get-MediaFile -filename $filename -mediaType "poster" -outputDir $outputDir -sceneData $sceneData -target $fileToDownload.urls.webp
+    return Get-AyloMediaFile -filename $filename -mediaType "poster" -outputDir $outputDir -sceneData $sceneData -target $fileToDownload.urls.webp
 }
 
 # Download the scene trailer
-function Get-SceneTrailer {
+function Get-AyloSceneTrailer {
     param(
         [Parameter(Mandatory)][string]$outputDir,
         [Parameter(Mandatory)]$sceneData
     )
 
+    $trailerData = $sceneData.children | Where-Object { $_.type -eq "trailer" }
+    # If the array is empty, return a warning
+    if ($trailerData.count -eq 0) {
+        return Write-Host "No trailer available to download." -ForegroundColor Yellow
+    }
+    $trailerData = $trailerData[0]
+
     # Filter videos to get the optimal file
-    [array]$files = $sceneData.children | Where-Object { $_.type -eq "trailer" }
-    $trailerID = $files[0].id
-    $files = $files.videos.full.files
+    [array]$files = $trailerData.videos.full.files
 
     # 1. Prefer AV1 codec
     [array]$filteredFiles = $files | Where-Object { $_.codec -eq "av1" }
@@ -129,22 +133,22 @@ function Get-SceneTrailer {
         # For AV1 codec files, get the biggest file
         $filteredFiles = $filteredFiles | Sort-Object -Property "height" -Descending
         $fileToDownload = $filteredFiles[0]
-        $filename = Set-MediaFilename -mediaType "trailer" -extension "mp4" -id $trailerID -resolution $fileToDownload.label -title $sceneData.title
+        $filename = Set-MediaFilename -mediaType "trailer" -extension "mp4" -id $trailerData.id -resolution $fileToDownload.label -title $sceneData.title
 
-        return Get-MediaFile -filename $filename -mediaType "trailer" -outputDir $outputDir -sceneData $sceneData -target $fileToDownload.urls.view
+        return Get-AyloMediaFile -filename $filename -mediaType "trailer" -outputDir $outputDir -sceneData $sceneData -target $fileToDownload.urls.view
     }
 
     # 2. Get the highest resoltion file available
     $filteredFiles = $files
     $filteredFiles = $filteredFiles | Sort-Object -Property "sizeBytes" -Descending
     $fileToDownload = $filteredFiles[0]
-    $filename = Set-MediaFilename -mediaType "trailer" -extension "mp4" -id $trailerID -resolution $fileToDownload.label -title $sceneData.title
+    $filename = Set-MediaFilename -mediaType "trailer" -extension "mp4" -id $trailerData.id -resolution $fileToDownload.label -title $sceneData.title
 
-    return Get-MediaFile -filename $filename -mediaType "trailer" -outputDir $outputDir -sceneData $sceneData -target $fileToDownload.urls.view
+    return Get-AyloMediaFile -filename $filename -mediaType "trailer" -outputDir $outputDir -sceneData $sceneData -target $fileToDownload.urls.view
 }
 
 # Download the preferred scene file
-function Get-SceneVideo {
+function Get-AyloSceneVideo {
     param(
         [Parameter(Mandatory)][string]$outputDir,
         [Parameter(Mandatory)]$sceneData
@@ -166,7 +170,7 @@ function Get-SceneVideo {
         $fileToDownload = $filteredFiles[0]
         $filename = Set-MediaFilename -mediaType "scene" -extension "mp4" -id $sceneData.id -resolution $fileToDownload.label -title $sceneData.title
 
-        return Get-MediaFile -filename $filename -mediaType "scene" -outputDir $outputDir -sceneData $sceneData -target $fileToDownload.urls.download
+        return Get-AyloMediaFile -filename $filename -mediaType "scene" -outputDir $outputDir -sceneData $sceneData -target $fileToDownload.urls.download
     }
 
     # 2. Get the highest resoltion file under 6GB as long as it's at least HD
@@ -190,7 +194,7 @@ function Get-SceneVideo {
         $fileToDownload = $biggestFile
         $filename = Set-MediaFilename -mediaType "scene" -extension "mp4" -id $sceneData.id -resolution $fileToDownload.label -title $sceneData.title
 
-        return Get-MediaFile -filename $filename -mediaType "scene" -outputDir $outputDir -sceneData $sceneData -target $fileToDownload.urls.download
+        return Get-AyloMediaFile -filename $filename -mediaType "scene" -outputDir $outputDir -sceneData $sceneData -target $fileToDownload.urls.download
     }
 
     # 3. Get the HD file if there's one available
@@ -199,7 +203,7 @@ function Get-SceneVideo {
         $fileToDownload = $filteredFiles[0]
         $filename = Set-MediaFilename -mediaType "scene" -extension "mp4" -id $sceneData.id -resolution $fileToDownload.label -title $sceneData.title
 
-        return Get-MediaFile -filename $filename -mediaType "scene" -outputDir $outputDir -sceneData $sceneData -target $fileToDownload.urls.download
+        return Get-AyloMediaFile -filename $filename -mediaType "scene" -outputDir $outputDir -sceneData $sceneData -target $fileToDownload.urls.download
     }
 
     # 4. Just get the biggest file available
@@ -208,5 +212,5 @@ function Get-SceneVideo {
     $fileToDownload = $filteredFiles[0]
     $filename = Set-MediaFilename -mediaType "scene" -extension "mp4" -id $sceneData.id -resolution $fileToDownload.label -title $sceneData.title
 
-    return Get-MediaFile -filename $filename -mediaType "scene" -outputDir $outputDir -sceneData $sceneData -target $fileToDownload.urls.download
+    return Get-AyloMediaFile -filename $filename -mediaType "scene" -outputDir $outputDir -sceneData $sceneData -target $fileToDownload.urls.download
 }
