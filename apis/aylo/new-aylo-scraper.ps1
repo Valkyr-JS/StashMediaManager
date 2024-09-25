@@ -220,6 +220,8 @@ function Get-AyloSceneJson {
         [Parameter(Mandatory)][String]$pathToUserConfig,
         [Parameter(Mandatory)][Int]$sceneID
     )
+    Write-Host `n"Starting scrape for scene ID $sceneID." -ForegroundColor Cyan
+
     $userConfig = Get-Content $pathToUserConfig -raw | ConvertFrom-Json
 
     # Attempt to scrape scene data
