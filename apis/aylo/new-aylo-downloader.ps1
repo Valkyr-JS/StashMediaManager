@@ -117,15 +117,15 @@ function Get-AyloSceneTrailer {
         [Parameter(Mandatory)]$sceneData
     )
 
+    $trailerData = $sceneData.children | Where-Object { $_.type -eq "trailer" }
     # If the array is empty, return a warning
-    [array]$files = $sceneData.children | Where-Object { $_.type -eq "trailer" }
-    if ($files.count -eq 0) {
+    if ($trailerData.count -eq 0) {
         return Write-Host "No trailer available to download." -ForegroundColor Yellow
     }
+    $trailerData = $trailerData[0]
 
     # Filter videos to get the optimal file
-    $files = $files.videos.full.files
-    $trailerID = $files[0].id
+    [array]$files = $trailerData.videos.full.files
 
     # 1. Prefer AV1 codec
     [array]$filteredFiles = $files | Where-Object { $_.codec -eq "av1" }
@@ -133,7 +133,7 @@ function Get-AyloSceneTrailer {
         # For AV1 codec files, get the biggest file
         $filteredFiles = $filteredFiles | Sort-Object -Property "height" -Descending
         $fileToDownload = $filteredFiles[0]
-        $filename = Set-MediaFilename -mediaType "trailer" -extension "mp4" -id $trailerID -resolution $fileToDownload.label -title $sceneData.title
+        $filename = Set-MediaFilename -mediaType "trailer" -extension "mp4" -id $trailerData.id -resolution $fileToDownload.label -title $sceneData.title
 
         return Get-AyloMediaFile -filename $filename -mediaType "trailer" -outputDir $outputDir -sceneData $sceneData -target $fileToDownload.urls.view
     }
@@ -142,7 +142,7 @@ function Get-AyloSceneTrailer {
     $filteredFiles = $files
     $filteredFiles = $filteredFiles | Sort-Object -Property "sizeBytes" -Descending
     $fileToDownload = $filteredFiles[0]
-    $filename = Set-MediaFilename -mediaType "trailer" -extension "mp4" -id $trailerID -resolution $fileToDownload.label -title $sceneData.title
+    $filename = Set-MediaFilename -mediaType "trailer" -extension "mp4" -id $trailerData.id -resolution $fileToDownload.label -title $sceneData.title
 
     return Get-AyloMediaFile -filename $filename -mediaType "trailer" -outputDir $outputDir -sceneData $sceneData -target $fileToDownload.urls.view
 }
