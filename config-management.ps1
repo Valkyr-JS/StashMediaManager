@@ -1,4 +1,21 @@
+$apiData = Get-Content -Raw "$PSScriptRoot/apis/apiData.json" | ConvertFrom-Json
+
 # ---------------------------------- GENERAL --------------------------------- #
+
+# Set the user config value for the assets directory
+function Set-ConfigAssetsDirectory {
+    param(
+        [String]$pathToUserConfig
+    )
+
+    $userConfig = Get-Content $pathToUserConfig -raw | ConvertFrom-Json
+    do { $userInput = read-host "Please enter a valid path to your assets folder" }
+    while (($userInput.Length -eq 0) -or !(Test-Path $userInput))
+
+    $userConfig.general.assetsDirectory = "$userInput"
+    $userConfig | ConvertTo-Json -depth 32 | set-content $pathToUserConfig
+    return $userConfig
+}
 
 # Set the user config value for the download directory
 function Set-ConfigDownloadDirectory {
@@ -32,37 +49,18 @@ function Set-ConfigScrapedDataDirectory {
 
 # ----------------------------------- AYLO ----------------------------------- #
 
-# Set the user config value for aylo.apiKey.
-function Set-ConfigAyloApiKey {
+# Set the user config value for aylo.masterSite
+function Set-ConfigAyloMasterSite {
     param(
         [String]$pathToUserConfig
     )
 
     $userConfig = Get-Content $pathToUserConfig -raw | ConvertFrom-Json
-    $userInput = read-host "Please enter your API key"
-    if ($userInput.Length -eq 0) {
-        Write-Host "WARNING: No key entered." -ForegroundColor Yellow
-        return
-    }
-    $userConfig.aylo.apiKey = "$userInput"
-    $userConfig | ConvertTo-Json -depth 32 | set-content $pathToUserConfig
 
-    return $userConfig
-}
+    do { $userInput = read-host "Which Aylo site do you login through?" }
+    while ($apiData -notcontains $userInput)
 
-# Set the user config value for aylo.authCode.
-function Set-ConfigAyloAuthCode {
-    param(
-        [String]$pathToUserConfig
-    )
-
-    $userConfig = Get-Content $pathToUserConfig -raw | ConvertFrom-Json
-    $userInput = read-host "Please enter your auth code"
-    if ($userInput.Length -eq 0) {
-        Write-Host "WARNING: No code entered." -ForegroundColor Yellow
-        return
-    }
-    $userConfig.aylo.authCode = "$userInput"
+    $userConfig.aylo.masterSite = "$userInput"
     $userConfig | ConvertTo-Json -depth 32 | set-content $pathToUserConfig
 
     return $userConfig

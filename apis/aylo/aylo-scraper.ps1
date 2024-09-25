@@ -1,264 +1,330 @@
-# Get headers to send a request to the Aylo site
-function Get-Headers {
+$login = [PSCustomObject]@{
+    "password" = ""
+    "url"      = ""
+    "username" = ""
+}
+
+$headers = @{
+    "authorization" = $null
+    "dnt"           = "1"
+    "instance"      = $null
+}
+
+# Set the login details for an Aylo site
+function Set-AyloLoginDetails {
     param(
-        [Parameter(Mandatory)][String]$apiKey,
-        [Parameter(Mandatory)][String]$authCode,
-        [Parameter(Mandatory)][string]$studioName
+        [Parameter(Mandatory)][String]$pathToUserConfig,
+        [Boolean]$setLoginUrl = $false
     )
-    
-    # Cannot execute without an API key.
-    if ($apiKey.Length -eq 0) {
-        Write-Host "ERROR: The Aylo API key has not been set. Please update your config." -ForegroundColor Red
-        return
+
+    do { $ayloUsername = read-host "Enter your Aylo username" }
+    while ($ayloUsername.Length -eq 0)
+    $login.username = $ayloUsername
+
+    do { $ayloPassword = read-host "Enter your Aylo password - THIS WILL BE SHOWN ON YOUR SCREEN" }
+    while ($ayloPassword.Length -eq 0)
+    $login.password = $ayloPassword
+
+    $userConfig = Get-Content $pathToUserConfig -raw | ConvertFrom-Json
+    if ($setLoginUrl -or ($userConfig.aylo.masterSite.Length -eq 0)) {
+        Set-ConfigAyloMasterSite -pathToUserConfig $pathToUserConfig
+        $userConfig = Get-Content $pathToUserConfig -raw | ConvertFrom-Json
     }
-      
-    $useragent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.0.0 Safari/537.36"
-    $headers = @{
-        "UserAgent" = "$useragent";
-        "instance"  = "$apiKey";
-    }
-    
-    # Only non-member data is available without an auth code.
-    if ($authCode.Length -eq 0) {
-        Write-Host "WARNING: No auth code provided. Scraping non-member data only." -ForegroundColor Yellow
-    }
-    
-    else {
-        $headers.authorization = "$authCode"
-    }
+    $login.url = "https://site-ma.$($userConfig.aylo.masterSite).com/login"
+}
+
+# Get headers for an Aylo web request
+function Get-AyloHeaders {
     return $headers
 }
 
+# Set the data required for headers in an Aylo web request
+function Set-AyloHeaders {
+    param(
+        [Parameter(Mandatory)][String]$pathToUserConfig
+    )
+    $userConfig = Get-Content $pathToUserConfig -raw | ConvertFrom-Json
+
+    # Set login details if required. Login details should be entered at the
+    # start of every session and cleared at the very end.
+    if (($login.username.Length -eq 0) -or
+    ($login.password.Length -eq 0) -or
+    ($login.url.Length -eq 0)) {
+        do {
+            Set-AyloLoginDetails -pathToUserConfig $pathToUserConfig -setLoginUrl ($userConfig.aylo.masterSite.Length -eq 0)
+        }
+        while (
+            ($login.username.Length -eq 0) -or
+            ($login.password.Length -eq 0) -or
+            ($login.url.Length -eq 0)
+        )
+    }
+
+    # Open Firefox
+    $Driver = Start-SeFirefox -PrivateBrowsing
+    Enter-SeUrl $login.url -Driver $Driver
+
+    # Username
+    $usernameInput = Find-SeElement -Driver $Driver -CssSelector "input[type=text][name=username]"
+    Send-SeKeys -Element $usernameInput -Keys $login.username
+
+    # Password
+    $passwordInput = Find-SeElement -Driver $Driver -CssSelector "input[type=password][name=password]"
+    Send-SeKeys -Element $passwordInput -Keys $login.password
+
+    # Click login
+    $loginBtn = Find-SeElement -Driver $Driver -CssSelector "button[type=submit]"
+    Invoke-SeClick -Element $loginBtn
+    Find-SeElement -Driver $Driver -Wait -Timeout 15 -Id "root"
+
+    # Get new page content
+    $html = $Driver.PageSource
+    $groups = $html | Select-String -Pattern "window.__JUAN.initialState\s+=\s(.+);"
+    $keys = $groups.Matches.groups[1].Value | ConvertFrom-Json -AsHashtable
+    $headers.authorization = $keys.client.authToken
+
+    $groups = $html | Select-String -Pattern "window.__JUAN.rawInstance\s+=\s(.+);"
+    $keys = $groups.Matches.groups[1].Value | ConvertFrom-Json -AsHashtable
+    $headers.instance = $keys.jwt
+
+    # Close the browser
+    $Driver.Close()
+}
+
 # Set the query parameters for the web request
-function Set-QueryParameters {
+function Set-AyloQueryParameters {
     param (
-        [Parameter(Mandatory)][ValidateSet('actorID', 'id')][string]$method,
-        [Parameter(Mandatory)][String]$apiKey,
-        [Parameter(Mandatory)][String]$authCode,
-        [Parameter(Mandatory)][string]$contentType,
-        [Parameter(Mandatory)][string]$studioName,
+        [Parameter(Mandatory)][ValidateSet('actor', 'gallery', 'movie', 'scene')][String]$apiType,
+        [Parameter(Mandatory)][String]$pathToUserConfig,
         [Int]$actorID,
         [Int]$id,
+        [string]$parentStudio,
         [Int]$offset
     )
     
-    $header = Get-Headers -apiKey $apiKey -authCode $authCode -studioName $studioName
+    $header = Get-AyloHeaders -pathToUserConfig $pathToUserConfig
     $body = @{
         limit  = 100
         offset = $offset
     }
 
     # The API call for actors is different from other content types
-    if ($contentType -eq "actor") {
+    if ($apiType -eq "actor") {
         $urlapi = "https://site-api.project1service.com/v1/actors"
+        $body.Add('id', $id)
     }
     else {
         $urlapi = "https://site-api.project1service.com/v2/releases"
         $body.Add("orderBy", "-dateReleased")
-        $body.Add('type', $contentType)
-        $body.Add('brand', $studioName)
-    }
-    
-    if ($method -eq "actorID") {
-        $body.Add("actorId", $actorID)
-    }
-    elseif ($method -eq "id") {
-        $body.Add("id", $id)
+        $body.Add('type', $apiType)
+
+        # Allow all unlocked sites to be queried
+        $body.Add("groupFilter", "unlocked")
+
+        if ($actorID) { $body.Add('actorId', $actorID) }
+        if ($id) { $body.Add('id', $id) }
+        if ($parentStudio) { $body.Add('brand', $parentStudio) }
     }
     
     $params = @{
         "Uri"     = $urlapi
-        "Body"    = $Body
+        "Body"    = $body
         "Headers" = $header
     }
     return $params
 }
 
-# Get the number of pages the data is split into
-function Get-MaxPages ($meta) {
-    $limit = $meta.count
-    if ($meta.count -eq 0) {
-        return 0
-    }
-    $maxpage = $meta.total / $limit
-    $maxpage = [Math]::Ceiling($maxpage)
-    return $maxpage
-}  
 
-# Create the data JSON file for a single content item
-function Set-ContentData {
+# Attempt to fetch the given data from the Aylo API
+function Get-AyloQueryData {
     param(
-        [Parameter(Mandatory)][string]$contentType,
-        [Parameter(Mandatory)][string]$downloadDirectory,
-        [Parameter(Mandatory)][string]$outputDir,
-        [Parameter(Mandatory)]$result,
-        [Parameter(Mandatory)][string]$studioName
+        [Parameter(Mandatory)][ValidateSet('actor', 'gallery', 'movie', 'scene')][String]$apiType,
+        [Parameter(Mandatory)][String]$pathToUserConfig,
+        [Int]$actorID,
+        [Int]$contentID,
+        [Int]$offset,
+        [string]$parentStudio
     )
 
-    # Create the file path
-    $id = $result.id
+    $params = Set-AyloQueryParameters -actorID $actorID -apiType $apiType -id $contentID -offset $offset -parentStudio $parentStudio -pathToUserConfig $pathToUserConfig
 
-    if ($contentType -eq "actor") {
-        $filedir = Join-Path $outputDir $contentType
-        $filename = "$id.json"
-    }
-    else {
-        $sceneID = $id
-        if ($contentType -eq "gallery") { $sceneID = $result.parent.id }
-    
-        $filedir = Join-Path $outputDir $studioName $contentType
-        $title = ($result.title.Split([IO.Path]::GetInvalidFileNameChars()) -join '')
-        $title = $title.replace("  ", " ")
-        $filename = "$id $title.json"
-
-        # Skip if content already exists
-        $subStudio = $result.collections[0].name
-        if ($null -eq $studio) { $studio = $studioName }
-
-        $contentFolder = Join-Path $downloadDirectory $studioName $subStudio "$sceneID $title"
-        if (Test-Path -LiteralPath $contentFolder) {
-            Write-Host (Get-ChildItem $contentFolder | Where-Object { $_.BaseName -match $contentType })
-            $contentFile = Get-ChildItem $contentFolder | Where-Object { $_.BaseName -match $contentType }
-            if ($contentFile.Length -gt 0) {
-                return Write-Host "Media already exists. Skipping $filepath"    
-            }
-        }
+    if (($null -eq $headers.authorization) -or ($null -eq $headers.instance)) {
+        Set-AyloHeaders -pathToUserConfig $pathToUserConfig
     }
 
-    $filepath = Join-Path -Path $filedir -ChildPath $filename
-    if (!(Test-Path $filedir)) { New-Item -ItemType "directory" -Path $filedir } 
-
-    Write-Host "Generating JSON: $filepath"
-    $result | ConvertTo-Json -Depth 32 | Out-File -FilePath $filepath
-
-    if (!(Test-Path $filedir)) { Write-Host "ERROR: JSON generation failed - $filepath" -ForegroundColor Red }  
-    else { Write-Host "SUCCESS: JSON generated - $filepath" -ForegroundColor Green }  
-}
-
-# Get all gallery data items with an ID in a provided array
-function Get-AllGalleryDataByID {
-    param(
-        [Parameter(Mandatory)][Int[]]$ids,
-        [Parameter(Mandatory)][String]$apiKey,
-        [Parameter(Mandatory)][String]$authCode,
-        [Parameter(Mandatory)][string]$studioName
-    )
-
-    $results = New-Object -TypeName System.Collections.ArrayList
-      
-    for ($p = 0; $p -lt $ids.Length; $p++) {
-        Write-Host "Scraping: gallery $($p + 1) of $($ids.Length)"
-        $id = $ids[$p]
-        $params = Set-QueryParameters -apiKey $apiKey -authCode $authCode -contentType "gallery" -id $id -method "id" -offset 0 -studioName $studioName
-        try {
-            $gallery = Invoke-RestMethod @params
-        }
-        catch {
-            Write-Host "ERROR: gallery scrape failed." -ForegroundColor Red
-            Write-Host "$_" -ForegroundColor Red
-        }
-        $results.AddRange($gallery.result)
-    }
-    return $results
-}
-
-# Get all data items featuring a provided actor
-function Get-AllContentDataByActorID {
-    param (
-        [Parameter(Mandatory)][Int]$actorID,
-        [Parameter(Mandatory)][String]$apiKey,
-        [Parameter(Mandatory)][String]$authCode,
-        [Parameter(Mandatory)][string]$contentType,
-        [Parameter(Mandatory)][string]$studioName
-    )
-
-    $results = New-Object -TypeName System.Collections.ArrayList
-    $params = Set-QueryParameters -actorID $actorID -apiKey $apiKey -authCode $authCode -contentType $contentType -method "actorID" -studioName $studioName
-    try {
-        $scenes0 = Invoke-RestMethod @params 
-    }
+    try { $result = Invoke-RestMethod @params }
     catch {
-        Write-Host "ERROR: $contentType scrape failed." -ForegroundColor Red
-        Write-Host "$_" -ForegroundColor Red
-    }
-    $limit = $scenes0.meta.count
-    $maxpage = Get-MaxPages -meta $scenes0.meta
-  
-    if ($maxpage -eq 0) {
-        Write-Host "No content found for this query." -ForegroundColor Yellow
-        return $results
-    }
-  
-    for ($p = 1; $p -le $maxpage; $p++) {
-        $page = $p - 1
-        Write-Host "Scraping: page $p of $maxpage" 
-        $offset = $page * $limit
-        $params = Set-QueryParameters -actorID $actorID -apiKey $apiKey -authCode $authCode -contentType $contentType -method "actorID" -offset $offset -studioName $studioName
-        try {
-            $scenes = Invoke-RestMethod @params
-        }
+        # If initial scrape fails, try fetching new auth keys
+        Write-Host "WARNING: Scene scrape failed. Attempting to fetch new auth keys." -ForegroundColor Yellow
+        Set-AyloHeaders -pathToUserConfig $pathToUserConfig
+        $params = Set-AyloQueryParameters -actorID $actorID -apiType $apiType -id $contentID -offset $offset -parentStudio $parentStudio -pathToUserConfig $pathToUserConfig
+
+        # Retry scrape once with new keys
+        try { $result = Invoke-RestMethod @params }
         catch {
             Write-Host "ERROR: $contentType scrape failed." -ForegroundColor Red
-            Write-Host "$_" -ForegroundColor Red
+            return Write-Host "$_" -ForegroundColor Red
         }
-        $results.AddRange($scenes.result)
     }
-    return $results
+
+    return $result
 }
 
-# Create all data JSON files for content items featuring a provided actor
-function Set-AllContentDataByActorID {
-    param(
-        [Parameter(Mandatory)][Int[]]$actorIDs,
-        [Parameter(Mandatory)][String]$apiKey,
-        [Parameter(Mandatory)][String]$authCode,
-        [Parameter(Mandatory)][string]$downloadDirectory,
-        [Parameter(Mandatory)][string]$outputDir,
-        [Parameter(Mandatory)][string[]]$studioNames
+# Get data for all content related to the given Aylo actor and output it to a JSON file
+function Get-AyloActorJson {
+    param (
+        [Parameter(Mandatory)][Int]$actorID,
+        [Parameter(Mandatory)][String]$pathToUserConfig
     )
-    $contentTypes = @('actor', 'scene')
+    $userConfig = Get-Content $pathToUserConfig -raw | ConvertFrom-Json
 
-    foreach ($actorID in $actorIDs) {
-        foreach ($studioName in $studioNames) {
-            $costarIDs = @()
-            $galleryIDs = @()
-            foreach ($contentType in $contentTypes) {
-                Write-Host "Scraping actor $actorID : $studioName : $contentType"
-                $results = Get-AllContentDataByActorID -actorID $actorID -apiKey $apiKey -authCode $authCode -contentType $contentType -studioName $studioName
-        
-                foreach ($result in $results) {
-                    if ($contentType -eq "scene") {
-                        # Get other actors from the scene scrape so they can be scraped later on
-                        $costarIDs += $result.actors.id
+    # Attempt to scrape actor data
+    $actorResult = Get-AyloQueryData -apiType "actor" -contentID $actorID -pathToUserConfig $pathToUserConfig
+    $actorResult = $actorResult.result[0]
 
-                        # Get gallery IDs from the scene scrape so they can be scraped later on
-                        $galleryData = $result.children | Where-Object { $_.type -eq "gallery" }
-                        if ($galleryData.count -gt 0) {
-                            $galleryIDs += $galleryData[0].id
-                        }
-                    }
+    # Output the actor JSON file
+    $actorName = Get-SanitizedTitle -title $actorResult.name
+    $filename = "$actorID $actorName.json"
+    $outputDir = Join-Path $userConfig.general.scrapedDataDirectory "aylo" "actors"
+    if (!(Test-Path $outputDir)) { New-Item -ItemType "directory" -Path $outputDir }
+    $outputDest = Join-Path $outputDir $filename
+    $actorResult | ConvertTo-Json -Depth 32 | Out-File -FilePath $outputDest
+
+    # Download the actor's profile image
+    $imgUrl = $actorResult.images.master_profile."0".lg.url
+    $filename = "$actorID $actorName.jpg"
+
+    $assetsDir = Join-Path $userConfig.general.assetsDirectory "aylo" "actors"
+    if (!(Test-Path $assetsDir)) { New-Item -ItemType "directory" -Path $assetsDir }
     
-                    Set-ContentData -contentType $contentType -downloadDirectory $downloadDirectory -outputDir $outputDir -result $result -studioName $studioName
-                }
-            }
-            # Scrape costars after other content types have been completed
-            if ($costarIDs.count -gt 0) {
-                $costarIDs = $costarIDs | Select-Object -Unique
-                foreach ($costarID in $costarIDs) {
-                    $results = Get-AllContentDataByActorID -actorID $costarID -apiKey $apiKey -authCode $authCode -contentType "actor" -studioName $studioName
-                    foreach ($result in $results) {
-                        Set-ContentData -contentType "actor" -downloadDirectory $downloadDirectory -outputDir $outputDir -result $result -studioName $studioName
-                    }
-                }
-            }
+    $assetsDest = Join-Path $assetsDir $filename
+    if (Test-Path $assetsDest) { 
+        Write-Host "Profile image for actor $actorName (#$actorID) already downloaded."
+    }
+    else {
+        try {
+            Write-Host "Downloading profile image for actor $actorName (#$actorID)."
+            Invoke-WebRequest -uri $imgUrl -OutFile ( New-Item -Path $assetsDest -Force ) 
+        }
+        catch {
+            Write-Host "ERROR: Failed to download the profile image for actor $actorName (#$actorID)." -ForegroundColor Red
+        }
+        Write-Host "SUCCESS: Downloaded the profile image for actor $actorName (#$actorID)." -ForegroundColor Green
+    }
+}
 
-            # Scrape galleries after other content types have been completed
-            if ($galleryIDs.count -gt 0) {
-                $results = Get-AllGalleryDataByID -apiKey $apiKey -authCode $authCode -ids $galleryIDs -studioName $studioName
-                foreach ($result in $results) {
-                    Set-ContentData -contentType "gallery" -downloadDirectory $downloadDirectory -outputDir $outputDir -result $result -studioName $studioName
+# Get data for all content related to the given Aylo scene and output it to a
+# JSON file. Returns the path to the JSON file.
+function Get-AyloSceneJson {
+    param (
+        [Parameter(Mandatory)][String]$pathToUserConfig,
+        [Parameter(Mandatory)][Int]$sceneID
+    )
+    Write-Host `n"Starting scrape for scene ID $sceneID." -ForegroundColor Cyan
+
+    $userConfig = Get-Content $pathToUserConfig -raw | ConvertFrom-Json
+
+    # Attempt to scrape scene data
+    $sceneResult = Get-AyloQueryData -apiType "scene" -contentID $sceneID -pathToUserConfig $pathToUserConfig
+    if ($sceneResult.meta.count -eq 0) {
+        Write-Host "No scene found with the provided ID $sceneID." -ForegroundColor Red
+    }
+
+    $sceneResult = $sceneResult.result[0]
+    $sceneTitle = Get-SanitizedTitle -title $sceneResult.title
+    $parentStudio = $sceneResult.brandMeta.displayName
+    if ($sceneResult.collections.count -gt 0) { $studio = $sceneResult.collections[0].name }
+    else { $studio = $parentStudio }
+
+    # Skip creating JSON if the downloaded content already exists
+    $willGenerateJson = $true
+    $contentFolder = "$sceneID $sceneTitle"
+    $contentDir = Join-Path $userConfig.general.downloadDirectory $parentStudio $studio $contentFolder
+    if (Test-Path -LiteralPath $contentDir) {
+        $contentFile = Get-ChildItem $contentDir -Filter "*.mp4" | Where-Object { $_.BaseName -match $sceneID }
+        if ($contentFile.Length -gt 0) {
+            Write-Host "Media already exists. Skipping JSON generation for scene ID $sceneID."
+            $willGenerateJson = $false
+        }
+    }
+
+    if ($willGenerateJson) {
+        # Next fetch the gallery data
+        $galleryID = $sceneResult.children | Where-Object { $_.type -eq "gallery" }
+        $galleryID = $galleryID.id
+
+        $galleryResult = Get-AyloQueryData -apiType "gallery" -contentID $galleryID -pathToUserConfig $pathToUserConfig
+
+        # If gallery data is found, merge it into the scene data
+        if ($galleryResult.meta.count -eq 0) {
+            Write-Host "No gallery found with the provided ID $galleryID." -ForegroundColor Yellow
+        }
+        else {
+            $galleryResult = $galleryResult.result[0]
+
+            # Remove duplicate data to reduce file size
+            $galleryResult.PSObject.Properties.Remove("brand")
+            $galleryResult.PSObject.Properties.Remove("brandMeta")
+            $galleryResult.PSObject.Properties.Remove("parent")
+    
+            for ($i = 0; $i -lt $sceneResult.children.count; $i++) {
+                if ($sceneResult.children[$i].type -eq "gallery") {
+                    $sceneResult.children[$i] = $galleryResult
                 }
             }
         }
+
+        # Scrape actors data into separate files if required.
+        foreach ($actor in $sceneResult.actors) {
+            Get-AyloActorJson -actorID $actor.id -pathToUserConfig $pathToUserConfig
+        }
+
+        # Output the scene JSON file
+        $filename = "$sceneID $sceneTitle.json"
+        $outputDir = Join-Path $userConfig.general.scrapedDataDirectory "aylo" "scenes" $parentStudio
+        if (!(Test-Path $outputDir)) { New-Item -ItemType "directory" -Path $outputDir }
+        $outputDest = Join-Path $outputDir $filename
+
+        Write-Host "Generating JSON: $filename"
+        $sceneResult | ConvertTo-Json -Depth 32 | Out-File -FilePath $outputDest
+
+        if (!(Test-Path $outputDest)) {
+            Write-Host "ERROR: JSON generation failed - $outputDest" -ForegroundColor Red
+            return $null
+        }  
+        else {
+            Write-Host "SUCCESS: JSON generated - $outputDest" -ForegroundColor Green
+            return $outputDest
+        }  
     }
+}
+
+# ---------------------------- Get scene IDs by... --------------------------- #
+
+# Get IDs for scene featuring the provided actor's ID
+function Get-AyloSceneIDsByActorID {
+    param (
+        [Parameter(Mandatory)][Int]$actorID,
+        [Parameter(Mandatory)][String]$pathToUserConfig,
+        [String]$parentStudio
+    )
+
+    Write-Host `n"Searching for scenes featuring actor ID $actorID." -ForegroundColor Cyan
+
+    $results = Get-AyloQueryData -apiType "scene" -actorID $actorID -parentStudio $parentStudio -pathToUserConfig $pathToUserConfig
+    
+    if ($results.meta.count -eq 0) {
+        Write-Host "No scenes found with the provided actor ID $actorID." -ForegroundColor Red
+    }
+    else {
+        if ($results.meta.count -eq 1) { $sceneWord = "scene" }
+        else { $sceneWord = "scenes" }
+        Write-Host "$($results.meta.count) $sceneWord found featuring actor ID $actorID."
+    }
+
+    $sceneIDs = @()
+    foreach ($scene in $results.result) {
+        $sceneIDs += $scene.id
+    }
+    return $sceneIDs
 }

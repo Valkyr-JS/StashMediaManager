@@ -1,9 +1,9 @@
 {
   "aylo": {
-    "apiKey": "",
-    "authCode": ""
+    "masterSite": ""
   },
   "general": {
+    "assetsDirectory": "",
     "downloadDirectory": "",
     "scrapedDataDirectory": ""
   }
