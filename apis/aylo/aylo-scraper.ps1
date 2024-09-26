@@ -75,7 +75,7 @@ function Set-AyloHeaders {
     # Click login
     $loginBtn = Find-SeElement -Driver $Driver -CssSelector "button[type=submit]"
     Invoke-SeClick -Element $loginBtn
-    Find-SeElement -Driver $Driver -Wait -Timeout 15 -Id "root"
+    Find-SeElement -Driver $Driver -Wait -Timeout 20 -Id "root"
 
     # Get new page content
     $html = $Driver.PageSource
@@ -94,10 +94,11 @@ function Set-AyloHeaders {
 # Set the query parameters for the web request
 function Set-AyloQueryParameters {
     param (
-        [Parameter(Mandatory)][ValidateSet('actor', 'gallery', 'movie', 'scene')][String]$apiType,
+        [Parameter(Mandatory)][ValidateSet('actor', 'gallery', 'movie', 'scene', 'serie')][String]$apiType,
         [Parameter(Mandatory)][String]$pathToUserConfig,
         [Int]$actorID,
         [Int]$id,
+        [Int]$parentId,
         [string]$parentStudio,
         [Int]$offset
     )
@@ -123,6 +124,7 @@ function Set-AyloQueryParameters {
 
         if ($actorID) { $body.Add('actorId', $actorID) }
         if ($id) { $body.Add('id', $id) }
+        if ($parentId) { $body.Add('parentId', $parentId) }
         if ($parentStudio) { $body.Add('brand', $parentStudio) }
     }
     
@@ -143,10 +145,11 @@ function Get-AyloQueryData {
         [Int]$actorID,
         [Int]$contentID,
         [Int]$offset,
+        [Int]$parentId,
         [string]$parentStudio
     )
 
-    $params = Set-AyloQueryParameters -actorID $actorID -apiType $apiType -id $contentID -offset $offset -parentStudio $parentStudio -pathToUserConfig $pathToUserConfig
+    $params = Set-AyloQueryParameters -actorID $actorID -apiType $apiType -id $contentID -offset $offset -parentId $parentId -parentStudio $parentStudio -pathToUserConfig $pathToUserConfig
 
     if (($null -eq $headers.authorization) -or ($null -eq $headers.instance)) {
         Set-AyloHeaders -pathToUserConfig $pathToUserConfig
@@ -157,7 +160,7 @@ function Get-AyloQueryData {
         # If initial scrape fails, try fetching new auth keys
         Write-Host "WARNING: Scene scrape failed. Attempting to fetch new auth keys." -ForegroundColor Yellow
         Set-AyloHeaders -pathToUserConfig $pathToUserConfig
-        $params = Set-AyloQueryParameters -actorID $actorID -apiType $apiType -id $contentID -offset $offset -parentStudio $parentStudio -pathToUserConfig $pathToUserConfig
+        $params = Set-AyloQueryParameters -actorID $actorID -apiType $apiType -id $contentID -offset $offset -parentId $parentId -parentStudio $parentStudio -pathToUserConfig $pathToUserConfig
 
         # Retry scrape once with new keys
         try { $result = Invoke-RestMethod @params }
@@ -281,7 +284,7 @@ function Get-AyloSceneJson {
 
         # If the scene is part of a series, scrape series data
         if ($sceneResult.parent -and $sceneResult.parent.type -eq "serie") {
-            Get-AyloSeriesJson -pathToUserConfig $pathToUserConfig -seriesID $sceneResult.parent.id
+            $null = Get-AyloSeriesJson -pathToUserConfig $pathToUserConfig -seriesID $sceneResult.parent.id
         }
 
         # Output the scene JSON file
@@ -317,7 +320,7 @@ function Get-AyloSeriesJson {
     # Attempt to scrape series data
     $seriesResult = Get-AyloQueryData -apiType "serie" -contentID $seriesID -pathToUserConfig $pathToUserConfig
     if ($seriesResult.meta.count -eq 0) {
-        Write-Host "No series found with the ID $seriesID." -ForegroundColor Red
+        return Write-Host "No series found with the ID $seriesID." -ForegroundColor Red
     }
 
     $seriesResult = $seriesResult.result[0]
@@ -345,7 +348,7 @@ function Get-AyloSeriesJson {
 
 # ---------------------------- Get scene IDs by... --------------------------- #
 
-# Get IDs for scene featuring the provided actor's ID
+# Get IDs for scenes featuring the provided actor's ID
 function Get-AyloSceneIDsByActorID {
     param (
         [Parameter(Mandatory)][Int]$actorID,
@@ -364,6 +367,34 @@ function Get-AyloSceneIDsByActorID {
         if ($results.meta.count -eq 1) { $sceneWord = "scene" }
         else { $sceneWord = "scenes" }
         Write-Host "$($results.meta.count) $sceneWord found featuring actor ID $actorID."
+    }
+
+    $sceneIDs = @()
+    foreach ($scene in $results.result) {
+        $sceneIDs += $scene.id
+    }
+    return $sceneIDs
+}
+
+
+# Get IDs for scenes featured in the provided series ID
+function Get-AyloSceneIDsBySeriesID {
+    param (
+        [Parameter(Mandatory)][Int]$seriesID,
+        [Parameter(Mandatory)][String]$pathToUserConfig
+    )
+
+    Write-Host `n"Searching for scenes featured in series ID $seriesID." -ForegroundColor Cyan
+
+    $results = Get-AyloQueryData -apiType "scene" -parentId $seriesID -pathToUserConfig $pathToUserConfig
+    
+    if ($results.meta.count -eq 0) {
+        Write-Host "No scenes found with the provided series ID $seriesID." -ForegroundColor Red
+    }
+    else {
+        if ($results.meta.count -eq 1) { $sceneWord = "scene" }
+        else { $sceneWord = "scenes" }
+        Write-Host "$($results.meta.count) $sceneWord found featuring series ID $seriesID."
     }
 
     $sceneIDs = @()

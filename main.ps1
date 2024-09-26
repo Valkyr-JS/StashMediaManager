@@ -100,8 +100,9 @@ function Set-Entry {
         # Next, user specifies what to download
         Write-Host `n"What content do you want to download?"
         Write-Host "1. All content from a group of performers"
-        do { $contentSelection = read-host "Enter your selection (1)" }
-        while (($contentSelection -notmatch "[1]"))
+        Write-Host "2. All content from a series"
+        do { $contentSelection = read-host "Enter your selection (1-2)" }
+        while (($contentSelection -notmatch "[1-2]"))
 
         # Load the scraper
         . "./apis/aylo/aylo-scraper.ps1"
@@ -113,11 +114,18 @@ function Set-Entry {
             Write-Host `n"Specify all performer IDs you wish to download in a space-separated list, e.g. '123 2534 1563'."
             $actorIDs = read-host "Performer IDs"
             $actorIDs = $actorIDs -split (" ")
-            Write-Host $networks
 
             foreach ($network in $networks) {
                 Get-AyloAllContentByActorIDs -actorIDs $actorIDs -parentStudio $network -pathToUserConfig $pathToUserConfig
             }
+        }
+        elseif ($contentSelection -eq 2) {
+            # Next, user specifies series IDs
+            Write-Host `n"Specify all series IDs you wish to download in a space-separated list, e.g. '123 2534 1563'."
+            $seriesIDs = read-host "Series IDs"
+            $seriesIDs = $seriesIDs -split (" ")
+
+            Get-AyloAllContentBySeriesID -pathToUserConfig $pathToUserConfig -seriesIDs $seriesIDs
         }
     }
     
