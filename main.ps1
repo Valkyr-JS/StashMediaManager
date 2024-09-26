@@ -105,7 +105,7 @@ function Set-Entry {
         do { $contentSelection = read-host "Enter your selection (1-2)" }
         while (($contentSelection -notmatch "[1-2]"))
 
-        # Load the scraper
+        # Load the required files
         . "./apis/aylo/aylo-scraper.ps1"
         . "./apis/aylo/aylo-downloader.ps1"
         . "./apis/aylo/aylo-actions.ps1"
@@ -133,41 +133,10 @@ function Set-Entry {
     # ------------------------------- Aylo : Stash ------------------------------- #
 
     if ($operationSelection -eq 2 -and $apiData.name -eq "Aylo") {
-        # Ensure the URL to the Stash instance has been setup
-        if ($userConfig.aylo.stashUrl.Length -eq 0) {
-            $userConfig = Set-ConfigAyloStashURL -pathToUserConfig $pathToUserConfig
-        }
-
-        # Ensure that the Stash instance can be connected to
-        do {
-            $StashGQL_Query = 'query version{version{version}}'
-            $stashURL = $userConfig.aylo.stashUrl
-            $stashGQL_URL = $stashURL
-            if ($stashURL[-1] -ne "/") { $stashGQL_URL += "/" }
-            $stashGQL_URL += "graphql"
-    
-            Write-Host "Attempting to connect to Stash at $stashURL"
-            try {
-                $stashVersion = Invoke-GraphQLQuery -Query $StashGQL_Query -Uri $stashGQL_URL
-            }
-            catch {
-                write-host "ERROR: Could not connect to Stash at $stashURL" -ForegroundColor Red
-                $userConfig = Set-ConfigAyloStashURL -pathToUserConfig $pathToUserConfig
-            }
-        }
-        while ($null -eq $stashVersion)
-
-        $stashVersion = $stashVersion.data.version.version
-        Write-Host "Connected to Stash at $stashURL ($stashVersion)" -ForegroundColor Green
-
-        # Ensure the Stash URL doesn't have a trailing forward slash
-        [string]$stashUrl = $userConfig.aylo.stashUrl
-        if ($stashUrl[-1] -eq "/") { $stashUrl = $stashUrl.Substring(0, $stashUrl.Length - 1) }
-
-        # TODO - Ask if a backup of the Stash database should be created.
+        # Load the required files
+        . "./apis/aylo/aylo-json-to-meta-stash.ps1"
         
-
-        # TODO - Scrape all tags
+        Set-AyloJsonToMetaStash -pathToUserConfig $pathToUserConfig
     }
     
     else { Write-Host "This feature is awaiting development." }
