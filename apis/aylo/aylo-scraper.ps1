@@ -138,7 +138,7 @@ function Set-AyloQueryParameters {
 # Attempt to fetch the given data from the Aylo API
 function Get-AyloQueryData {
     param(
-        [Parameter(Mandatory)][ValidateSet('actor', 'gallery', 'movie', 'scene')][String]$apiType,
+        [Parameter(Mandatory)][ValidateSet('actor', 'gallery', 'movie', 'scene', 'serie')][String]$apiType,
         [Parameter(Mandatory)][String]$pathToUserConfig,
         [Int]$actorID,
         [Int]$contentID,
@@ -279,6 +279,11 @@ function Get-AyloSceneJson {
             Get-AyloActorJson -actorID $actor.id -pathToUserConfig $pathToUserConfig
         }
 
+        # If the scene is part of a series, scrape series data
+        if ($sceneResult.parent -and $sceneResult.parent.type -eq "serie") {
+            Get-AyloSeriesJson -pathToUserConfig $pathToUserConfig -seriesID $sceneResult.parent.id
+        }
+
         # Output the scene JSON file
         $filename = "$sceneID $sceneTitle.json"
         $outputDir = Join-Path $userConfig.general.scrapedDataDirectory "aylo" "scenes" $parentStudio
@@ -297,6 +302,45 @@ function Get-AyloSceneJson {
             return $outputDest
         }  
     }
+}
+
+# Get data for all content related to the given Aylo series and output it to a JSON file.
+function Get-AyloSeriesJson {
+    param(
+        [Parameter(Mandatory)][String]$pathToUserConfig,
+        [Parameter(Mandatory)][Int]$seriesID
+    )
+    Write-Host `n"Starting scrape for series ID $seriesID." -ForegroundColor Cyan
+    
+    $userConfig = Get-Content $pathToUserConfig -raw | ConvertFrom-Json
+
+    # Attempt to scrape series data
+    $seriesResult = Get-AyloQueryData -apiType "serie" -contentID $seriesID -pathToUserConfig $pathToUserConfig
+    if ($seriesResult.meta.count -eq 0) {
+        Write-Host "No series found with the ID $seriesID." -ForegroundColor Red
+    }
+
+    $seriesResult = $seriesResult.result[0]
+    $seriesTitle = Get-SanitizedTitle -title $seriesResult.title
+    $parentStudio = $seriesResult.brandMeta.displayName
+
+    # Output the series JSON file
+    $filename = "$seriesID $seriesTitle.json"
+    $outputDir = Join-Path $userConfig.general.scrapedDataDirectory "aylo" "series" $parentStudio
+    if (!(Test-Path $outputDir)) { New-Item -ItemType "directory" -Path $outputDir }
+    $outputDest = Join-Path $outputDir $filename
+    
+    Write-Host "Generating JSON: $filename"
+    $seriesResult | ConvertTo-Json -Depth 32 | Out-File -FilePath $outputDest
+    
+    if (!(Test-Path $outputDest)) {
+        Write-Host "ERROR: JSON generation failed - $outputDest" -ForegroundColor Red
+        return $null
+    }  
+    else {
+        Write-Host "SUCCESS: JSON generated - $outputDest" -ForegroundColor Green
+        return $outputDest
+    }  
 }
 
 # ---------------------------- Get scene IDs by... --------------------------- #
