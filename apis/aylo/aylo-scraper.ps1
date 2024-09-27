@@ -190,32 +190,19 @@ function Get-AyloActorJson {
     # Output the actor JSON file
     $actorName = Get-SanitizedTitle -title $actorResult.name
     $filename = "$actorID $actorName.json"
-    $outputDir = Join-Path $userConfig.general.scrapedDataDirectory "aylo" "actors"
+    $outputDir = Join-Path $userConfig.general.scrapedDataDirectory "aylo" "actor"
     if (!(Test-Path $outputDir)) { New-Item -ItemType "directory" -Path $outputDir }
     $outputDest = Join-Path $outputDir $filename
     $actorResult | ConvertTo-Json -Depth 32 | Out-File -FilePath $outputDest
 
-    # Download the actor's profile image
-    $imgUrl = $actorResult.images.master_profile."0".lg.url
-    $filename = "$actorID $actorName.jpg"
-
-    $assetsDir = Join-Path $userConfig.general.assetsDirectory "aylo" "actors"
-    if (!(Test-Path $assetsDir)) { New-Item -ItemType "directory" -Path $assetsDir }
-    
-    $assetsDest = Join-Path $assetsDir $filename
-    if (Test-Path $assetsDest) { 
-        Write-Host "Profile image for actor $actorName (#$actorID) already downloaded."
-    }
+    if (!(Test-Path $outputDest)) {
+        Write-Host "ERROR: actor JSON generation failed - $outputDest" -ForegroundColor Red
+        return $null
+    }  
     else {
-        try {
-            Write-Host "Downloading profile image for actor $actorName (#$actorID)."
-            Invoke-WebRequest -uri $imgUrl -OutFile ( New-Item -Path $assetsDest -Force ) 
-        }
-        catch {
-            Write-Host "ERROR: Failed to download the profile image for actor $actorName (#$actorID)." -ForegroundColor Red
-        }
-        Write-Host "SUCCESS: Downloaded the profile image for actor $actorName (#$actorID)." -ForegroundColor Green
-    }
+        Write-Host "SUCCESS: actor JSON generated - $outputDest" -ForegroundColor Green
+        return Get-Item $outputDest
+    }  
 }
 
 # Get data for a piece of content
@@ -271,7 +258,7 @@ function Get-AyloJson {
         }  
         else {
             Write-Host "SUCCESS: $apiType JSON generated - $outputDest" -ForegroundColor Green
-            return $outputDest
+            return Get-Item $outputDest
         }  
     }
 }
@@ -325,7 +312,7 @@ function Get-AyloAllJson {
     )
     # Generate the scene JSON first, and use it to create the rest
     $pathToSceneJson = Get-AyloSceneJson -pathToUserConfig $pathToUserConfig -sceneID $sceneID
-    $sceneData = Get-Content $pathToSceneJson -raw | ConvertFrom-Json
+    $sceneData = Get-Content $pathToSceneJson.FullName -raw | ConvertFrom-Json
 
     # Galleries
     [array]$galleries = $sceneData.children | Where-Object { $_.type -eq "gallery" }
@@ -347,7 +334,7 @@ function Get-AyloAllJson {
     # Series
     if ($sceneData.parent -and $sceneData.parent.type -eq "serie") {
         $pathToSeriesJson = Get-AyloSeriesJson -pathToUserConfig $pathToUserConfig -seriesID $sceneData.parent.id
-        $seriesData = Get-Content $pathToSeriesJson -raw | ConvertFrom-Json
+        $seriesData = Get-Content $pathToSeriesJson.FullName -raw | ConvertFrom-Json
         
         # Series galleries
         [array]$galleries = $seriesData.children | Where-Object { $_.type -eq "gallery" }
