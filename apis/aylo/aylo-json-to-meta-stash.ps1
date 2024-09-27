@@ -56,7 +56,7 @@ function Set-AyloJsonToMetaStash {
 
     }
     
-    # Ask if a backup of the Stash database should be created.
+    # --------------------------- Ask for Stash backup --------------------------- #
     
     do {
         $backupConfirmation = Read-Host `n"Would you like to make a backup of your Stash Database first? [Y/N]"
@@ -75,6 +75,53 @@ function Set-AyloJsonToMetaStash {
         Write-Host "SUCCESS: Backup created" -ForegroundColor Green
     }
     else { Write-Host "Backup will not be created." }
+
+    # Get all JSON files
+    $dataDir = Join-Path $userConfig.general.scrapedDataDirectory "aylo"
+    $actorsDir = Join-Path $dataDir "actors"
+    $actorsData = Get-ChildItem $actorsDir -Filter "*.json"
+
+    # Logging values - for use in the end report
+    $numNewTags = 0
+    $numNewParentTags = 0
+
+    # ---------------------------------------------------------------------------- #
+    #                                  Scrape tags                                 #
+    # ---------------------------------------------------------------------------- #
+
+    $tagsData = @()
+    $parentTagsNames = @()
+
+    # Loop through each set of actor data
+    foreach ($actor in $actorsData) {
+        $actor = Get-Content $actor -raw | ConvertFrom-Json
+
+        # Get any tags that haven't been found yet
+        $newTags = $actor.tags | Where-Object { $_.id -notin $tagsData.id }
+        
+        foreach ($newTag in $newTags) {
+            # Add the tag to the array
+            $tagsData += $newTag
+
+            # Check if the category has been found yet, and add it if it hasn't
+            if ($newTag.category -notin $parentTagsNames -and $newTag.category.Length -gt 0) {
+                $parentTagsNames += $newTag.category
+            }
+        }
+    }
     
-    # TODO - Scrape all tags
+    Write-Host `n"============= TAGS ==============" -ForegroundColor Yellow
+    foreach ($tag in $tagsData) {
+        Write-Host "* $($tag.id) $($tag.name)"
+    }
+    
+    Write-Host `n"========== PARENT TAGS ==========" -ForegroundColor Yellow
+    foreach ($tagName in $parentTagsNames) {
+        Write-Host "* $tagName"
+    }
+
+    # TODO - Create new parent tags if they don't already exist
+
+
+    # TODO - Create new tags if they don't already exist
 }
