@@ -17,7 +17,7 @@ function Get-AyloSceneAllMedia {
         return Join-Path $root "aylo" $apiType $parentStudio $studio
     }
 
-    Write-Host `n"Downloading all media for scene $($sceneData.id) - $($sceneData.title)." -ForegroundColor Cyan
+    Write-Host `n"Downloading all media for scene #$($sceneData.id) - $($sceneData.title)." -ForegroundColor Cyan
 
     $parentStudio = $sceneData.brandMeta.displayName
     if ($sceneData.collections.count -gt 0) { $studio = $sceneData.collections[0].name }
@@ -26,7 +26,7 @@ function Get-AyloSceneAllMedia {
     # Galleries
     [array]$galleries = $sceneData.children | Where-Object { $_.type -eq "gallery" }
     if ($galleries.count -eq 0) {
-        return Write-Host "No gallery available to download." -ForegroundColor Yellow
+        Write-Host "No gallery available to download." -ForegroundColor Yellow
     }
     else {
         foreach ($gID in $galleries.id) {
@@ -41,7 +41,7 @@ function Get-AyloSceneAllMedia {
     # Trailers
     [array]$trailers = $sceneData.children | Where-Object { $_.type -eq "trailer" }
     if ($trailers.count -eq 0) {
-        return Write-Host "No trailer available to download." -ForegroundColor Yellow
+        Write-Host "No trailer available to download." -ForegroundColor Yellow
     }
     else {
         foreach ($tID in $trailers.id) {
@@ -56,13 +56,13 @@ function Get-AyloSceneAllMedia {
 
     # Series
     if ($sceneData.parent -and $sceneData.parent.type -eq "serie") {
-        $pathToSeriesJson = Get-ChildItem (Get-AyloPath -apiType "serie" -root $dataDir) | Where-Object { $_.BaseName -match $sceneData.parent.id }
+        $pathToSeriesJson = Get-ChildItem (Join-Path $dataDir "aylo" "serie" $parentStudio $parentStudio) | Where-Object { $_.BaseName -match $sceneData.parent.id }
         $seriesData = Get-Content $pathToSeriesJson -raw | ConvertFrom-Json
 
         # Series galleries
         [array]$seriesGalleries = $seriesData.children | Where-Object { $_.type -eq "gallery" }
         if ($seriesGalleries.count -eq 0) {
-            return Write-Host "No series gallery available to download." -ForegroundColor Yellow
+            Write-Host "No series gallery available to download." -ForegroundColor Yellow
         }
         else {
             foreach ($gID in $seriesGalleries.id) {
@@ -77,7 +77,7 @@ function Get-AyloSceneAllMedia {
         # Series trailers
         [array]$seriesTrailers = $seriesData.children | Where-Object { $_.type -eq "trailer" }
         if ($seriesTrailers.count -eq 0) {
-            return Write-Host "No series trailer available to download." -ForegroundColor Yellow
+            Write-Host "No series trailer available to download." -ForegroundColor Yellow
         }
         else {
             foreach ($tID in $seriesTrailers.id) {
