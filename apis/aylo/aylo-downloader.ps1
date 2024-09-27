@@ -3,19 +3,16 @@ function Get-AyloSceneAllMedia {
     param(
         [Parameter(Mandatory)][String]$assetsDir,
         [Parameter(Mandatory)][String]$outputDir,
-        [Parameter(Mandatory)]$data
+        [Parameter(Mandatory)]$sceneData
     )
-    $parentStudio = $data.brandMeta.displayName
-    $sceneID = $data.id
-    $sceneTitle = Get-SanitizedTitle -title $data.title
+    $sceneID = $sceneData.id
+    $sceneTitle = Get-SanitizedTitle -title $sceneData.title
+    $parentStudio = $sceneData.brandMeta.displayName
 
     Write-Host `n"Downloading all media for scene $sceneID - $sceneTitle." -ForegroundColor Cyan
 
-    if ($data.collections.count -gt 0) { $studio = $data.collections[0].name }
+    if ($sceneData.collections.count -gt 0) { $studio = $sceneData.collections[0].name }
     else { $studio = $parentStudio }
-
-    # If studio is blank, the studio is also the parent studio
-    if ($null -eq $studio) { $studio = $parentStudio }
 
     # Create the full assets and output directories
     $assetsDir = Join-Path $assetsDir "aylo" "scenes" $parentStudio $studio
@@ -26,10 +23,10 @@ function Get-AyloSceneAllMedia {
     if (!(Test-Path $outputDir)) { New-Item -ItemType "directory" -Path $outputDir }
 
     # Download content
-    Get-AyloSceneGallery -outputDir $outputDir -sceneData $data
-    Get-AyloSceneVideo -outputDir $outputDir -sceneData $data
-    Get-AyloScenePoster -outputDir $assetsDir -sceneData $data
-    Get-AyloSceneTrailer -outputDir $outputDir -sceneData $data
+    Get-AyloSceneGallery -outputDir $outputDir -sceneData $sceneData
+    Get-AyloSceneVideo -outputDir $outputDir -sceneData $sceneData
+    Get-AyloScenePoster -outputDir $assetsDir -sceneData $sceneData
+    Get-AyloSceneTrailer -outputDir $outputDir -sceneData $sceneData
 }
 
 # Download a media file into the appropriate directory.
