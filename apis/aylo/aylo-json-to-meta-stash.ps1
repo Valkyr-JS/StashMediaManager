@@ -86,7 +86,7 @@ function Set-AyloJsonToMetaStash {
     #                                  PERFORMERS                                  #
     # ---------------------------------------------------------------------------- #
     
-    $actorsDir = Join-Path $dataDir "actors"
+    $actorsDir = Join-Path $dataDir "actor"
     $actorsData = Get-ChildItem $actorsDir -Filter "*.json"
 
     # ------------------------------ Performer tags ------------------------------ #
@@ -135,6 +135,7 @@ function Set-AyloJsonToMetaStash {
                 }'
                 $StashGQL_QueryVariables = '{
                     "input": {
+                        "ignore_auto_tag": true,
                         "name": "[Category] '+ $tagName + '"
                     }
                 }' 
@@ -143,9 +144,75 @@ function Set-AyloJsonToMetaStash {
                 $numNewParentTags++
             }
         }
+
+        # Create new tags if they don't already exist
+        foreach ($tag in $newTags) {
+            # Query Stash to see if the tag exists
+            $StashGQL_Query = 'query FindTags($tag_filter: TagFilterType) {
+                findTags(tag_filter: $tag_filter) {
+                    tags { id }
+                }
+            }'
+            $StashGQL_QueryVariables = '{
+                "tag_filter": {
+                    "name": {
+                        "value": "'+ $tag.name + '",
+                        "modifier": "EQUALS"
+                    }
+                }
+            }' 
+    
+            $existingTag = Invoke-StashGQLQuery -query $StashGQL_Query -variables $StashGQL_QueryVariables
+
+            # If no data is found, create the new tag
+            if ($existingTag.data.findTags.tags.count -eq 0) {
+                # Get the parent tag ID
+                $StashGQL_Query = 'query FindTags($tag_filter: TagFilterType) {
+                    findTags(tag_filter: $tag_filter) {
+                        tags { id }
+                    }
+                }'
+                $StashGQL_QueryVariables = '{
+                    "tag_filter": {
+                        "name": {
+                            "value": "[Category] '+ $tag.category + '",
+                            "modifier": "EQUALS"
+                        }
+                    }
+                }' 
+    
+                # Only search for the parent tag if it is not an empty string.
+                if ($tag.category.Length -gt 0) {
+                    $parentTag = Invoke-StashGQLQuery -query $StashGQL_Query -variables $StashGQL_QueryVariables
+                    
+                    if ($parentTag.data.findTags.tags.count -eq 0) {
+                        Write-Host "Parent tag '$($tag.category)' not found." -ForegroundColor Yellow
+                    }
+                    else { $parentTagID = $parentTag[0].data.findTags.tags[0].id }
+                }
+
+                if ($existingTag.data.findTags.tags.count -eq 0) {
+                    if ($parentTagID) { $parentIDField = ', "parent_ids": ' + $parentTagID + '' }
+
+                    $StashGQL_Query = 'mutation CreateTag($input: TagCreateInput!) {
+                                tagCreate(input: $input) {
+                                    aliases
+                                    name
+                                }
+                            }'
+                    $StashGQL_QueryVariables = '{
+                                "input": {
+                                    "aliases": "'+ $tag.id + '",
+                                    "ignore_auto_tag": true,
+                                    "name": "'+ $tag.name + '"
+                                    '+ $parentIDField + '
+                                }
+                            }' 
+                    $null = Invoke-StashGQLQuery -query $StashGQL_Query -variables $StashGQL_QueryVariables
+                    Write-Host "SUCCESS: Created tag $($tag.name)." -ForegroundColor Green
+                    $numNewTags++
+                }
+            }
+        }
     }
-
-
-
-    # TODO - Create new tags if they don't already exist
 }
