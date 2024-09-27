@@ -14,11 +14,10 @@ function Get-AyloAllContentByActorIDs {
             if (($null -ne $pathToSceneJson) -and !(Test-Path $pathToSceneJson)) {
                 Write-Host `n"ERROR: scene $sceneID JSON data not found - $pathToSceneJson." -ForegroundColor Red
             }
-            # elseif ($null -ne $pathToSceneJson) {
-            #     $userConfig = Get-Content $pathToUserConfig -raw | ConvertFrom-Json
-            #     $sceneData = Get-Content $pathToSceneJson -raw | ConvertFrom-Json
-            #     Get-AyloSceneAllMedia -data $sceneData -assetsDir $userConfig.general.assetsDirectory -outputDir $userConfig.general.downloadDirectory
-            # }
+            elseif ($null -ne $pathToSceneJson) {
+                $sceneData = Get-Content $pathToSceneJson -raw | ConvertFrom-Json
+                Get-AyloSceneAllMedia -sceneData $sceneData -pathToUserConfig $pathToUserConfig
+            }
         }
     }
 }

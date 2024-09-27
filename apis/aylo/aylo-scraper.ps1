@@ -181,6 +181,8 @@ function Get-AyloActorJson {
     )
     $userConfig = Get-Content $pathToUserConfig -raw | ConvertFrom-Json
 
+    Write-Host `n"Starting scrape for actor #$actorID." -ForegroundColor Cyan
+    
     # Attempt to scrape actor data
     $actorResult = Get-AyloQueryData -apiType "actor" -contentID $actorID -pathToUserConfig $pathToUserConfig
     $actorResult = $actorResult.result[0]
@@ -359,6 +361,7 @@ function Get-AyloAllJson {
             $null = Get-AyloTrailerJson -pathToUserConfig $pathToUserConfig -trailerID $tID
         }
     }
+    return $pathToSceneJson
 }
 
 # ---------------------------- Get scene IDs by... --------------------------- #

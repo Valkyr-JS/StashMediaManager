@@ -20,10 +20,10 @@ function Set-MediaFilename {
     # Sanitise the title string
     $title = Get-SanitizedTitle -title $title
 
-    $filename = "$id $title [$mediaType" 
+    $filename = "$id $title [$mediaType]" 
     if ($mediaType -eq "poster" -or $mediaType -eq "scene" -or $mediaType -eq "trailer") {
-        $filename += " $resolution"
+        $filename += " [$resolution]"
     }
-    $filename += "].$extension"
+    $filename += ".$extension"
     return $filename
 }
