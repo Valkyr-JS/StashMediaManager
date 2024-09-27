@@ -120,7 +120,45 @@ function Set-AyloJsonToMetaStash {
         Write-Host "* $tagName"
     }
 
-    # TODO - Create new parent tags if they don't already exist
+    # Create new parent tags if they don't already exist
+    foreach ($tagName in $parentTagsNames) {
+        # Query Stash to see if the tag exists
+        $StashGQL_Query = 'query FindTags($tag_filter: TagFilterType) {
+            findTags(tag_filter: $tag_filter) {
+                tags {
+                    id
+                }
+            }
+        }'
+        $StashGQL_QueryVariables = '{
+            "tag_filter": {
+              "name": {
+                "value": "[Category] '+ $tagName + '",
+                "modifier": "EQUALS"
+              }
+            }
+        }' 
+    
+        $existingTag = Invoke-StashGQLQuery -query $StashGQL_Query -variables $StashGQL_QueryVariables
+
+        # If no data is found, create the new parent tag
+        if ($existingTag.data.findTags.tags.count -eq 0) {
+            $StashGQL_Query = 'mutation CreateTag($input: TagCreateInput!) {
+                tagCreate(input: $input) {
+                    name
+                }
+            }'
+            $StashGQL_QueryVariables = '{
+                "input": {
+                    "name": "[Category] '+ $tagName + '"
+                }
+            }' 
+            $null = Invoke-StashGQLQuery -query $StashGQL_Query -variables $StashGQL_QueryVariables
+            Write-Host "SUCCESS: Created parent tag $tagName." -ForegroundColor Green
+            $numNewParentTags++
+        }
+        else { Write-Host "Parent tag $tagName already exists in the Stash database." }
+    }
 
 
     # TODO - Create new tags if they don't already exist
