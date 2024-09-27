@@ -76,89 +76,75 @@ function Set-AyloJsonToMetaStash {
     }
     else { Write-Host "Backup will not be created." }
 
-    # Get all JSON files
     $dataDir = Join-Path $userConfig.general.scrapedDataDirectory "aylo"
-    $actorsDir = Join-Path $dataDir "actors"
-    $actorsData = Get-ChildItem $actorsDir -Filter "*.json"
 
     # Logging values - for use in the end report
     $numNewTags = 0
     $numNewParentTags = 0
 
     # ---------------------------------------------------------------------------- #
-    #                                  Scrape tags                                 #
+    #                                  PERFORMERS                                  #
     # ---------------------------------------------------------------------------- #
+    
+    $actorsDir = Join-Path $dataDir "actors"
+    $actorsData = Get-ChildItem $actorsDir -Filter "*.json"
 
-    $tagsData = @()
-    $parentTagsNames = @()
+    # ------------------------------ Performer tags ------------------------------ #
 
     # Loop through each set of actor data
     foreach ($actor in $actorsData) {
         $actor = Get-Content $actor -raw | ConvertFrom-Json
 
+        $newTags = @()
+        $newParentNames = @()
+    
         # Get any tags that haven't been found yet
-        $newTags = $actor.tags | Where-Object { $_.id -notin $tagsData.id }
-        
-        foreach ($newTag in $newTags) {
+        foreach ($tag in $actor.tags | Where-Object { $_.id -notin $newTags.id }) {
             # Add the tag to the array
-            $tagsData += $newTag
+            $newTags += $tag
 
             # Check if the category has been found yet, and add it if it hasn't
-            if ($newTag.category -notin $parentTagsNames -and $newTag.category.Length -gt 0) {
-                $parentTagsNames += $newTag.category
+            if ($tag.category -notin $newParentNames -and $tag.category.Length -gt 0) {
+                $newParentNames += $tag.category
             }
         }
-    }
-    
-    Write-Host `n"============= TAGS ==============" -ForegroundColor Yellow
-    foreach ($tag in $tagsData) {
-        Write-Host "* $($tag.id) $($tag.name)"
-    }
-    
-    Write-Host `n"========== PARENT TAGS ==========" -ForegroundColor Yellow
-    foreach ($tagName in $parentTagsNames) {
-        Write-Host "* $tagName"
-    }
 
-    # Create new parent tags if they don't already exist
-    foreach ($tagName in $parentTagsNames) {
-        # Query Stash to see if the tag exists
-        $StashGQL_Query = 'query FindTags($tag_filter: TagFilterType) {
-            findTags(tag_filter: $tag_filter) {
-                tags {
-                    id
-                }
-            }
-        }'
-        $StashGQL_QueryVariables = '{
-            "tag_filter": {
-              "name": {
-                "value": "[Category] '+ $tagName + '",
-                "modifier": "EQUALS"
-              }
-            }
-        }' 
-    
-        $existingTag = Invoke-StashGQLQuery -query $StashGQL_Query -variables $StashGQL_QueryVariables
-
-        # If no data is found, create the new parent tag
-        if ($existingTag.data.findTags.tags.count -eq 0) {
-            $StashGQL_Query = 'mutation CreateTag($input: TagCreateInput!) {
-                tagCreate(input: $input) {
-                    name
+        # Create new parent tags if they don't already exist
+        foreach ($tagName in $newParentNames) {
+            # Query Stash to see if the tag exists
+            $StashGQL_Query = 'query FindTags($tag_filter: TagFilterType) {
+                findTags(tag_filter: $tag_filter) {
+                    tags { id }
                 }
             }'
             $StashGQL_QueryVariables = '{
-                "input": {
-                    "name": "[Category] '+ $tagName + '"
+                "tag_filter": {
+                    "name": {
+                        "value": "[Category] '+ $tagName + '",
+                        "modifier": "EQUALS"
+                    }
                 }
             }' 
-            $null = Invoke-StashGQLQuery -query $StashGQL_Query -variables $StashGQL_QueryVariables
-            Write-Host "SUCCESS: Created parent tag $tagName." -ForegroundColor Green
-            $numNewParentTags++
+    
+            $existingTag = Invoke-StashGQLQuery -query $StashGQL_Query -variables $StashGQL_QueryVariables
+
+            # If no data is found, create the new parent tag
+            if ($existingTag.data.findTags.tags.count -eq 0) {
+                $StashGQL_Query = 'mutation CreateTag($input: TagCreateInput!) {
+                    tagCreate(input: $input) { name }
+                }'
+                $StashGQL_QueryVariables = '{
+                    "input": {
+                        "name": "[Category] '+ $tagName + '"
+                    }
+                }' 
+                $null = Invoke-StashGQLQuery -query $StashGQL_Query -variables $StashGQL_QueryVariables
+                Write-Host "SUCCESS: Created parent tag $tagName." -ForegroundColor Green
+                $numNewParentTags++
+            }
         }
-        else { Write-Host "Parent tag $tagName already exists in the Stash database." }
     }
+
 
 
     # TODO - Create new tags if they don't already exist
