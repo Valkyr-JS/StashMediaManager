@@ -231,35 +231,37 @@ function Get-AyloJson {
     $contentDir = Join-Path $userConfig.general.downloadDirectory $subDir
 
     # Skip creating JSON if the downloaded content already exists
-    $willScrape = $true
     if (Test-Path -LiteralPath $contentDir) {
-        $contentFile = Get-ChildItem $contentDir | Where-Object { $_.BaseName -match $contentID }
+        $contentFile = Get-ChildItem $contentDir | Where-Object { $_.BaseName -match "^$contentID\s" }
         if ($contentFile.Length -gt 0) {
             Write-Host "Media already exists. Skipping JSON generation for $apiType #$contentID."
-            $willScrape = $false
+
+            # Return the path to the existing JSON file
+            $title = Get-SanitizedTitle -title $result.title
+            $filename = "$contentID $title.json"
+            $pathToExistingJson = Join-Path $userConfig.general.scrapedDataDirectory $subDir $filename
+            return $pathToExistingJson
         }
     }
 
-    if ($willScrape) {
-        # Output the JSON file
-        $title = Get-SanitizedTitle -title $result.title
-        $filename = "$contentID $title.json"
-        $outputDir = Join-Path $userConfig.general.scrapedDataDirectory $subDir
-        if (!(Test-Path $outputDir)) { New-Item -ItemType "directory" -Path $outputDir }
-        $outputDest = Join-Path $outputDir $filename
+    # Output the JSON file
+    $title = Get-SanitizedTitle -title $result.title
+    $filename = "$contentID $title.json"
+    $outputDir = Join-Path $userConfig.general.scrapedDataDirectory $subDir
+    if (!(Test-Path $outputDir)) { New-Item -ItemType "directory" -Path $outputDir }
+    $outputDest = Join-Path $outputDir $filename
 
-        Write-Host "Generating JSON: $filename"
-        $result | ConvertTo-Json -Depth 32 | Out-File -FilePath $outputDest
+    Write-Host "Generating JSON: $filename"
+    $result | ConvertTo-Json -Depth 32 | Out-File -FilePath $outputDest
 
-        if (!(Test-Path $outputDest)) {
-            Write-Host "ERROR: $apiType JSON generation failed - $outputDest" -ForegroundColor Red
-            return $null
-        }  
-        else {
-            Write-Host "SUCCESS: $apiType JSON generated - $outputDest" -ForegroundColor Green
-            return $outputDest
-        }  
-    }
+    if (!(Test-Path $outputDest)) {
+        Write-Host "ERROR: $apiType JSON generation failed - $outputDest" -ForegroundColor Red
+        return $null
+    }  
+    else {
+        Write-Host "SUCCESS: $apiType JSON generated - $outputDest" -ForegroundColor Green
+        return $outputDest
+    }  
 }
 
 # Get data for content related to the given Aylo gallery and output it to a JSON

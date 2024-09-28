@@ -9,6 +9,12 @@ function Get-AyloSceneAllMedia {
     $dataDir = $userConfig.general.scrapedDataDirectory
     $downloadDir = $userConfig.general.downloadDirectory
 
+    $parentStudio = $sceneData.brandMeta.displayName
+    if ($sceneData.collections.count -gt 0) { $studio = $sceneData.collections[0].name }
+    else { $studio = $parentStudio }
+    
+    Write-Host `n"Downloading all media for scene #$($sceneData.id) - $($sceneData.title)." -ForegroundColor Cyan
+
     function Get-AyloPath {
         param(
             [Parameter(Mandatory)][ValidateSet('actor', 'gallery', 'movie', 'scene', 'serie', 'trailer')][String]$apiType,
@@ -20,16 +26,11 @@ function Get-AyloSceneAllMedia {
     function Get-AyloSeriesPath {
         param(
             [Parameter(Mandatory)][ValidateSet('actor', 'gallery', 'movie', 'scene', 'serie', 'trailer')][String]$apiType,
-            [Parameter(Mandatory)][String]$root
+            [Parameter(Mandatory)][String]$root,
+            [Parameter(Mandatory)][String]$studio
         )
-        return Join-Path $root "aylo" $apiType $parentStudio $parentStudio
+        return Join-Path $root "aylo" $apiType $parentStudio $studio
     }
-
-    Write-Host `n"Downloading all media for scene #$($sceneData.id) - $($sceneData.title)." -ForegroundColor Cyan
-
-    $parentStudio = $sceneData.brandMeta.displayName
-    if ($sceneData.collections.count -gt 0) { $studio = $sceneData.collections[0].name }
-    else { $studio = $parentStudio }
 
     # Galleries
     [array]$galleries = $sceneData.children | Where-Object { $_.type -eq "gallery" }
@@ -38,7 +39,7 @@ function Get-AyloSceneAllMedia {
     }
     else {
         foreach ($gID in $galleries.id) {
-            $pathToGalleryJson = Get-ChildItem (Get-AyloPath -apiType "gallery" -root $dataDir) | Where-Object { $_.BaseName -match $gID }
+            $pathToGalleryJson = Get-ChildItem (Get-AyloPath -apiType "gallery" -root $dataDir) | Where-Object { $_.BaseName -match "^$gID\s" }
             $galleryData = Get-Content $pathToGalleryJson -raw | ConvertFrom-Json
             $outputDir = Get-AyloPath -apiType "gallery" -root $downloadDir
     
@@ -53,7 +54,7 @@ function Get-AyloSceneAllMedia {
     }
     else {
         foreach ($tID in $trailers.id) {
-            $pathToTrailerJson = Get-ChildItem (Get-AyloPath -apiType "trailer" -root $dataDir) | Where-Object { $_.BaseName -match $tID }
+            $pathToTrailerJson = Get-ChildItem (Get-AyloPath -apiType "trailer" -root $dataDir) | Where-Object { $_.BaseName -match "^$tID\s" }
             $trailerData = Get-Content $pathToTrailerJson -raw | ConvertFrom-Json
             $outputDir = Get-AyloPath -apiType "trailer" -root $downloadDir
     
@@ -64,7 +65,13 @@ function Get-AyloSceneAllMedia {
 
     # Series
     if ($sceneData.parent -and $sceneData.parent.type -eq "serie") {
-        $pathToSeriesJson = Get-ChildItem (Get-AyloSeriesPath -apiType "serie" -root $dataDir) | Where-Object { $_.BaseName -match $sceneData.parent.id }
+        $seriesData = $sceneData.parent
+        if ($seriesData.collections.count -gt 0) {
+            $seriesStudio = $seriesData.collections[0].name
+        }
+        else { $seriesStudio = $parentStudio }
+    
+        $pathToSeriesJson = Get-ChildItem (Get-AyloSeriesPath -apiType "serie" -root $dataDir -studio $seriesStudio) | Where-Object { $_.BaseName -match "^$($seriesData.id)\s" }
         $seriesData = Get-Content $pathToSeriesJson -raw | ConvertFrom-Json
 
         # Series galleries
@@ -74,9 +81,9 @@ function Get-AyloSceneAllMedia {
         }
         else {
             foreach ($gID in $seriesGalleries.id) {
-                $pathToGalleryJson = Get-ChildItem (Get-AyloSeriesPath -apiType "gallery" -root $dataDir) | Where-Object { $_.BaseName -match $gID }
+                $pathToGalleryJson = Get-ChildItem (Get-AyloSeriesPath -apiType "gallery" -root $dataDir -studio $seriesStudio) | Where-Object { $_.BaseName -match "^$gID\s" }
                 $galleryData = Get-Content $pathToGalleryJson -raw | ConvertFrom-Json
-                $outputDir = Get-AyloSeriesPath -apiType "gallery" -root $downloadDir
+                $outputDir = Get-AyloSeriesPath -apiType "gallery" -root $downloadDir -studio $seriesStudio
         
                 $null = Get-AyloSceneGallery -galleryData $galleryData -outputDir $outputDir
             }
@@ -89,19 +96,24 @@ function Get-AyloSceneAllMedia {
         }
         else {
             foreach ($tID in $seriesTrailers.id) {
-                $pathToTrailerJson = Get-ChildItem (Get-AyloSeriesPath -apiType "trailer" -root $dataDir) | Where-Object { $_.BaseName -match $tID }
+                $pathToTrailerJson = Get-ChildItem (Get-AyloSeriesPath -apiType "trailer" -root $dataDir -studio $seriesStudio) | Where-Object { $_.BaseName -match "^$tID\s" }
                 $trailerData = Get-Content $pathToTrailerJson -raw | ConvertFrom-Json
-                $outputDir = Get-AyloSeriesPath -apiType "trailer" -root $downloadDir
+                $outputDir = Get-AyloSeriesPath -apiType "trailer" -root $downloadDir -studio $seriesStudio
         
                 $null = Get-AyloSceneTrailer -trailerData $trailerData -outputDir $outputDir
             }
         }
+
+        # Series poster
+        $outputDir = Get-AyloSeriesPath -apiType "serie" -root $assetsDir -studio $seriesStudio
+        $null = Get-AyloMediaPoster -outputDir $outputDir -sceneData $seriesData
+
     }
     else { Write-Host "Scene #$($sceneData.id) is not part of a series." -ForegroundColor Yellow }
 
     # Actors
     foreach ($aID in $sceneData.actors.id) {
-        $pathToActorJson = Get-ChildItem (Join-Path $dataDir "aylo" "actor") | Where-Object { $_.BaseName -match $aID }
+        $pathToActorJson = Get-ChildItem (Join-Path $dataDir "aylo" "actor") | Where-Object { $_.BaseName -match "^$aID\s" }
         $actorData = Get-Content $pathToActorJson -raw | ConvertFrom-Json
         $outputDir = Join-Path $assetsDir "aylo" "actor"
 
@@ -109,10 +121,11 @@ function Get-AyloSceneAllMedia {
     }
 
 
-    # Scene
+    # Scene poster
     $outputDir = Get-AyloPath -apiType "scene" -root $assetsDir
     $null = Get-AyloMediaPoster -outputDir $outputDir -sceneData $sceneData
 
+    # Scene
     $outputDir = Get-AyloPath -apiType "scene" -root $downloadDir
     $null = Get-AyloSceneVideo -outputDir $outputDir -sceneData $sceneData
 }
