@@ -1,3 +1,14 @@
+# Get a gigabyte value in bytes
+function Get-GigabytesToBytes {
+    param (
+        [Parameter(Mandatory)][Int]$gb
+    )
+    $mb = $gb * 1024
+    $kb = $mb * 1024
+    $b = $kb * 1024
+    return $b
+}
+
 # Sanitize a string that is being used as a title.
 function Get-SanitizedTitle {
     param(

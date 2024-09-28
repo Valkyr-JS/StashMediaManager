@@ -266,8 +266,8 @@ function Get-AyloSceneVideo {
         return Get-AyloMediaFile -filename $filename -mediaType "scene" -outputDir $outputDir -target $fileToDownload.urls.download
     }
 
-    # 2. Get the highest resoltion file under 6GB as long as it's at least HD
-    $sizeLimitBytes = 6442450944
+    # 2. Get the highest resolution file under 8GB as long as it's at least HD
+    $sizeLimitBytes = Get-GigabytesToBytes -gb 8
     $filteredFiles = $files | Where-Object { $_.sizeBytes -le $sizeLimitBytes }
 
     # Not all non-AV1 codec items have width and height properties. Get the height from the label if needed, and find the highest resolution file
