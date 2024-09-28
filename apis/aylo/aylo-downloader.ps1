@@ -17,6 +17,14 @@ function Get-AyloSceneAllMedia {
         return Join-Path $root "aylo" $apiType $parentStudio $studio
     }
 
+    function Get-AyloSeriesPath {
+        param(
+            [Parameter(Mandatory)][ValidateSet('actor', 'gallery', 'movie', 'scene', 'serie', 'trailer')][String]$apiType,
+            [Parameter(Mandatory)][String]$root
+        )
+        return Join-Path $root "aylo" $apiType $parentStudio $parentStudio
+    }
+
     Write-Host `n"Downloading all media for scene #$($sceneData.id) - $($sceneData.title)." -ForegroundColor Cyan
 
     $parentStudio = $sceneData.brandMeta.displayName
@@ -56,7 +64,7 @@ function Get-AyloSceneAllMedia {
 
     # Series
     if ($sceneData.parent -and $sceneData.parent.type -eq "serie") {
-        $pathToSeriesJson = Get-ChildItem (Join-Path $dataDir "aylo" "serie" $parentStudio $parentStudio) | Where-Object { $_.BaseName -match $sceneData.parent.id }
+        $pathToSeriesJson = Get-ChildItem (Get-AyloSeriesPath -apiType "serie" -root $dataDir) | Where-Object { $_.BaseName -match $sceneData.parent.id }
         $seriesData = Get-Content $pathToSeriesJson -raw | ConvertFrom-Json
 
         # Series galleries
@@ -66,9 +74,9 @@ function Get-AyloSceneAllMedia {
         }
         else {
             foreach ($gID in $seriesGalleries.id) {
-                $pathToGalleryJson = Get-ChildItem (Get-AyloPath -apiType "gallery" -root $dataDir) | Where-Object { $_.BaseName -match $gID }
+                $pathToGalleryJson = Get-ChildItem (Get-AyloSeriesPath -apiType "gallery" -root $dataDir) | Where-Object { $_.BaseName -match $gID }
                 $galleryData = Get-Content $pathToGalleryJson -raw | ConvertFrom-Json
-                $outputDir = Get-AyloPath -apiType "gallery" -root $downloadDir
+                $outputDir = Get-AyloSeriesPath -apiType "gallery" -root $downloadDir
         
                 $null = Get-AyloSceneGallery -galleryData $galleryData -outputDir $outputDir
             }
@@ -81,9 +89,9 @@ function Get-AyloSceneAllMedia {
         }
         else {
             foreach ($tID in $seriesTrailers.id) {
-                $pathToTrailerJson = Get-ChildItem (Get-AyloPath -apiType "trailer" -root $dataDir) | Where-Object { $_.BaseName -match $tID }
+                $pathToTrailerJson = Get-ChildItem (Get-AyloSeriesPath -apiType "trailer" -root $dataDir) | Where-Object { $_.BaseName -match $tID }
                 $trailerData = Get-Content $pathToTrailerJson -raw | ConvertFrom-Json
-                $outputDir = Get-AyloPath -apiType "trailer" -root $downloadDir
+                $outputDir = Get-AyloSeriesPath -apiType "trailer" -root $downloadDir
         
                 $null = Get-AyloSceneTrailer -trailerData $trailerData -outputDir $outputDir
             }
@@ -201,7 +209,7 @@ function Get-AyloSceneTrailer {
         # For AV1 codec files, get the biggest file
         $filteredFiles = $filteredFiles | Sort-Object -Property "height" -Descending
         $fileToDownload = $filteredFiles[0]
-        $filename = Set-MediaFilename -mediaType "trailer" -extension "mp4" -id $trailerData.id -resolution $fileToDownload.label -title $sceneData.title
+        $filename = Set-MediaFilename -mediaType "trailer" -extension "mp4" -id $trailerData.id -resolution $fileToDownload.label -title $trailerData.title
 
         return Get-AyloMediaFile -filename $filename -mediaType "trailer" -outputDir $outputDir -target $fileToDownload.urls.view
     }
@@ -210,7 +218,7 @@ function Get-AyloSceneTrailer {
     $filteredFiles = $files
     $filteredFiles = $filteredFiles | Sort-Object -Property "sizeBytes" -Descending
     $fileToDownload = $filteredFiles[0]
-    $filename = Set-MediaFilename -mediaType "trailer" -extension "mp4" -id $trailerData.id -resolution $fileToDownload.label -title $sceneData.title
+    $filename = Set-MediaFilename -mediaType "trailer" -extension "mp4" -id $trailerData.id -resolution $fileToDownload.label -title $trailerData.title
 
     return Get-AyloMediaFile -filename $filename -mediaType "trailer" -outputDir $outputDir -target $fileToDownload.urls.view
 }
@@ -289,6 +297,7 @@ function Get-AyloActorAssets {
         [Parameter(Mandatory)]$actorData,
         [Parameter(Mandatory)][string]$assetsDir
     )
+    $actorID = $actorData.id
     $actorName = $actorData.name
 
     # Download the actor's profile image

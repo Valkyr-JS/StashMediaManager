@@ -75,7 +75,7 @@ function Set-AyloHeaders {
     # Click login
     $loginBtn = Find-SeElement -Driver $Driver -CssSelector "button[type=submit]"
     Invoke-SeClick -Element $loginBtn
-    Find-SeElement -Driver $Driver -Wait -Timeout 20 -Id "root"
+    Find-SeElement -Driver $Driver -Wait -By XPath "//*[text()='Continue to Members Area']"
 
     # Get new page content
     $html = $Driver.PageSource
@@ -201,7 +201,7 @@ function Get-AyloActorJson {
     }  
     else {
         Write-Host "SUCCESS: actor JSON generated - $outputDest" -ForegroundColor Green
-        return Get-Item $outputDest
+        return $outputDest
     }  
 }
 
@@ -237,7 +237,6 @@ function Get-AyloJson {
         if ($contentFile.Length -gt 0) {
             Write-Host "Media already exists. Skipping JSON generation for $apiType #$contentID."
             $willScrape = $false
-            break
         }
     }
 
@@ -258,7 +257,7 @@ function Get-AyloJson {
         }  
         else {
             Write-Host "SUCCESS: $apiType JSON generated - $outputDest" -ForegroundColor Green
-            return Get-Item $outputDest
+            return $outputDest
         }  
     }
 }
@@ -312,7 +311,7 @@ function Get-AyloAllJson {
     )
     # Generate the scene JSON first, and use it to create the rest
     $pathToSceneJson = Get-AyloSceneJson -pathToUserConfig $pathToUserConfig -sceneID $sceneID
-    $sceneData = Get-Content $pathToSceneJson.FullName -raw | ConvertFrom-Json
+    $sceneData = Get-Content $pathToSceneJson -raw | ConvertFrom-Json
 
     # Galleries
     [array]$galleries = $sceneData.children | Where-Object { $_.type -eq "gallery" }
@@ -334,7 +333,7 @@ function Get-AyloAllJson {
     # Series
     if ($sceneData.parent -and $sceneData.parent.type -eq "serie") {
         $pathToSeriesJson = Get-AyloSeriesJson -pathToUserConfig $pathToUserConfig -seriesID $sceneData.parent.id
-        $seriesData = Get-Content $pathToSeriesJson.FullName -raw | ConvertFrom-Json
+        $seriesData = Get-Content $pathToSeriesJson -raw | ConvertFrom-Json
         
         # Series galleries
         [array]$galleries = $seriesData.children | Where-Object { $_.type -eq "gallery" }
