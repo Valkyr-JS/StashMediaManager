@@ -97,6 +97,7 @@ function Get-AyloSceneAllMedia {
             }
         }
     }
+    else { Write-Host "Scene #$($sceneData.id) is not part of a series." -ForegroundColor Yellow }
 
     # Actors
     foreach ($aID in $sceneData.actors.id) {
@@ -109,6 +110,9 @@ function Get-AyloSceneAllMedia {
 
 
     # Scene
+    $outputDir = Get-AyloPath -apiType "scene" -root $assetsDir
+    $null = Get-AyloMediaPoster -outputDir $outputDir -sceneData $sceneData
+
     $outputDir = Get-AyloPath -apiType "scene" -root $downloadDir
     $null = Get-AyloSceneVideo -outputDir $outputDir -sceneData $sceneData
 }
@@ -175,7 +179,7 @@ function Get-AyloSceneGallery {
 }
 
 # Download the scene poster
-function Get-AyloScenePoster {
+function Get-AyloMediaPoster {
     param(
         [Parameter(Mandatory)][string]$outputDir,
         [Parameter(Mandatory)]$sceneData
