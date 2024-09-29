@@ -166,6 +166,51 @@ function Set-AyloJsonToMetaStash {
     
             $existingTag = Invoke-StashGQLQuery -query $StashGQL_Query -variables $StashGQL_QueryVariables
 
+            # If no data is found, also check to see if the tag exists under a
+            # different ID.
+            if ($existingTag.data.findTags.tags.count -eq 0) {
+                $StashGQL_Query = 'query FindTags($tag_filter: TagFilterType) {
+                    findTags(tag_filter: $tag_filter) {
+                        tags {
+                            aliases
+                            id
+                        }
+                    }
+                }'
+                $StashGQL_QueryVariables = '{
+                    "tag_filter": {
+                        "name": {
+                            "value": "'+ $tag.name + '",
+                            "modifier": "EQUALS"
+                        }
+                    }
+                }'
+
+                $existingTag = Invoke-StashGQLQuery -query $StashGQL_Query -variables $StashGQL_QueryVariables
+
+                # If a matching tag name is found, update it with the new alias
+                if ($existingTag.data.findTags.tags.count -gt 0) {
+                    $tagAliases = $existingTag.data.findTags.tags[0].aliases
+                    $tagAliases += $tag.id
+                    $tagAliases = ConvertTo-Json $tagAliases -depth 32
+                    Write-Host "Existing tag ID $($existingTag.data.findTags.tags[0].id)"
+                    Write-Host "All tag IDs $($tagAliases)"
+
+                    $StashGQL_Query = 'mutation UpdateTag($input: TagUpdateInput!) {
+                        tagUpdate(input: $input) {
+                            id
+                        }
+                    }'
+                    $StashGQL_QueryVariables = '{
+                        "input": {
+                            "id": '+ $existingTag.data.findTags.tags[0].id + ',
+                            "aliases": '+ $tagAliases + '
+                        }
+                    }'
+                    $null = Invoke-StashGQLQuery -query $StashGQL_Query -variables $StashGQL_QueryVariables
+                }
+            }
+
             # If no data is found, create the new tag
             if ($existingTag.data.findTags.tags.count -eq 0) {
                 # Get the parent tag ID
@@ -219,7 +264,7 @@ function Set-AyloJsonToMetaStash {
 
         # -------------------------------- Performers -------------------------------- #
 
-        # Query Stash to see if the performer exists. Aliases include the
+        # Query Stash to see if the performer exists. Disambiguation is the
         # performer ID, which we use to query.
         $StashGQL_Query = 'query FindPerformers($performer_filter: PerformerFilterType) {
             findPerformers(performer_filter: $performer_filter) {
@@ -228,7 +273,7 @@ function Set-AyloJsonToMetaStash {
         }'
         $StashGQL_QueryVariables = '{
             "performer_filter": {
-                "aliases": {
+                "disambiguation": {
                     "value": "'+ $actor.id + '",
                     "modifier": "EQUALS"
                 }
@@ -237,8 +282,22 @@ function Set-AyloJsonToMetaStash {
 
         $existingActor = Invoke-StashGQLQuery -query $StashGQL_Query -variables $StashGQL_QueryVariables
 
-        # If no data is found, create the new tag
+        # If no data is found, create the new performer
         if ($existingActor.data.findPerformers.performers.count -eq 0) {
+
+            # Format alias list
+            [array]$alias_list = @()
+            if ($actor.aliases.count -gt 0) {
+                foreach ($alias in $aliases) {
+                    # Add each valid alias to the list
+                    if ($alias.Trim().Length -gt 0) {
+                        $alias_list += "$($alias.Trim())"
+                    }
+                }
+            }
+
+            # Convert the list into JSON
+            $alias_list = ConvertTo-Json $alias_list -depth 32
 
             # Format birthdate
             $birthdate = ""
@@ -260,6 +319,51 @@ function Set-AyloJsonToMetaStash {
             if ($gender -eq "trans") { $gender = "TRANSGENDER_FEMALE" }
             $gender = $gender.ToUpper()
 
+            # Format height (inches > cm)
+            $height_cm = $null
+            if ($actor.height) {
+                $height_cm = [math]::Round($actor.height * 2.54)
+                $height_cm = '"height_cm": ' + $height_cm + ','
+            }
+
+            # Format measurements
+            $measurements = ""
+            if ($actor.measurements) {
+                $measurements = $actor.measurements.Trim()
+                $measurements = '"measurements": "' + $measurements + '",'
+            }
+
+            # Format weight (lbs > kg)
+            $weight = $null
+            if ($actor.weight) {
+                $weight = [math]::Round($actor.weight / 2.2046226218)
+                $weight = '"weight": ' + $weight + ''
+            }
+
+            # Get tags
+            $actorTagIDs = @()
+            foreach ($tagID in $actor.tags.id) {
+                # Query Stash to see if the tag exists. Aliases include the tag ID,
+                # which we use to query.
+                $StashGQL_Query = 'query FindTags($tag_filter: TagFilterType) {
+                    findTags(tag_filter: $tag_filter) {
+                        tags { id }
+                    }
+                }'
+                $StashGQL_QueryVariables = '{
+                    "tag_filter": {
+                        "aliases": {
+                            "value": "'+ $tagID + '",
+                            "modifier": "EQUALS"
+                        }
+                    }
+                }' 
+    
+                $result = Invoke-StashGQLQuery -query $StashGQL_Query -variables $StashGQL_QueryVariables
+                $actorTagIDs += $result.data.findTags.tags.id
+            }
+            $actorTagIDs = ConvertTo-Json $actorTagIDs -depth 32
+
             $StashGQL_Query = 'mutation CreatePerformer($input: PerformerCreateInput!) {
                 performerCreate(input: $input) {
                     id
@@ -267,13 +371,18 @@ function Set-AyloJsonToMetaStash {
             }'
             $StashGQL_QueryVariables = '{
                 "input": {
-                    "alias_list": ["'+ $actor.id + '"],
+                    "alias_list": '+ $alias_list + ',
                     '+ $birthdate + '
                     '+ $details + '
+                    "disambiguation": "'+ $actor.id + '",
                     "gender": "'+ $gender + '",
+                    '+ $height_cm + '
                     "ignore_auto_tag": true,
                     "image": "'+ $actor.images.profile."0".lg.url + '",
-                    "name": "'+ $actor.name + '"
+                    '+ $measurements + '
+                    "name": "'+ $actor.name + '",
+                    "tag_ids": '+ $actorTagIDs + ',
+                    '+ $weight + '
                 }
             }' 
 
