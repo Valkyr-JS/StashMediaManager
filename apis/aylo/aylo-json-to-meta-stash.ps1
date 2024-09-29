@@ -119,7 +119,7 @@ function Set-AyloJsonToMetaStash {
             }'
             $StashGQL_QueryVariables = '{
                 "tag_filter": {
-                    "name": {
+                    "aliases": {
                         "value": "[Category] '+ $tagName + '",
                         "modifier": "EQUALS"
                     }
@@ -147,7 +147,7 @@ function Set-AyloJsonToMetaStash {
 
         # Create new tags if they don't already exist
         foreach ($tag in $newTags) {
-            # Query Stash to see if the tag exists
+            # Query Stash to see if the tag exists. Aliases include the tag ID, which we use to query.
             $StashGQL_Query = 'query FindTags($tag_filter: TagFilterType) {
                 findTags(tag_filter: $tag_filter) {
                     tags { id }
@@ -155,8 +155,8 @@ function Set-AyloJsonToMetaStash {
             }'
             $StashGQL_QueryVariables = '{
                 "tag_filter": {
-                    "name": {
-                        "value": "'+ $tag.name + '",
+                    "aliases": {
+                        "value": "'+ $tag.id + '",
                         "modifier": "EQUALS"
                     }
                 }
@@ -188,7 +188,7 @@ function Set-AyloJsonToMetaStash {
                     if ($parentTag.data.findTags.tags.count -eq 0) {
                         Write-Host "Parent tag '$($tag.category)' not found." -ForegroundColor Yellow
                     }
-                    else { $parentTagID = $parentTag[0].data.findTags.tags[0].id }
+                    else { $parentTagID = $parentTag.data.findTags.tags[0].id }
                 }
 
                 if ($existingTag.data.findTags.tags.count -eq 0) {
