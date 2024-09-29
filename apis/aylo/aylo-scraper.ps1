@@ -75,7 +75,7 @@ function Set-AyloHeaders {
     # Click login
     $loginBtn = Find-SeElement -Driver $Driver -CssSelector "button[type=submit]"
     Invoke-SeClick -Element $loginBtn
-    Find-SeElement -Driver $Driver -Wait -Timeout 20 -Id "root"
+    Find-SeElement -Driver $Driver -Wait -By XPath "//*[text()='Continue to Members Area']"
 
     # Get new page content
     $html = $Driver.PageSource
@@ -94,7 +94,7 @@ function Set-AyloHeaders {
 # Set the query parameters for the web request
 function Set-AyloQueryParameters {
     param (
-        [Parameter(Mandatory)][ValidateSet('actor', 'gallery', 'movie', 'scene', 'serie')][String]$apiType,
+        [Parameter(Mandatory)][ValidateSet('actor', 'gallery', 'movie', 'scene', 'serie', 'trailer')][String]$apiType,
         [Parameter(Mandatory)][String]$pathToUserConfig,
         [Int]$actorID,
         [Int]$id,
@@ -140,7 +140,7 @@ function Set-AyloQueryParameters {
 # Attempt to fetch the given data from the Aylo API
 function Get-AyloQueryData {
     param(
-        [Parameter(Mandatory)][ValidateSet('actor', 'gallery', 'movie', 'scene', 'serie')][String]$apiType,
+        [Parameter(Mandatory)][ValidateSet('actor', 'gallery', 'movie', 'scene', 'serie', 'trailer')][String]$apiType,
         [Parameter(Mandatory)][String]$pathToUserConfig,
         [Int]$actorID,
         [Int]$contentID,
@@ -181,6 +181,8 @@ function Get-AyloActorJson {
     )
     $userConfig = Get-Content $pathToUserConfig -raw | ConvertFrom-Json
 
+    Write-Host `n"Starting scrape for actor #$actorID." -ForegroundColor Cyan
+    
     # Attempt to scrape actor data
     $actorResult = Get-AyloQueryData -apiType "actor" -contentID $actorID -pathToUserConfig $pathToUserConfig
     $actorResult = $actorResult.result[0]
@@ -188,162 +190,166 @@ function Get-AyloActorJson {
     # Output the actor JSON file
     $actorName = Get-SanitizedTitle -title $actorResult.name
     $filename = "$actorID $actorName.json"
-    $outputDir = Join-Path $userConfig.general.scrapedDataDirectory "aylo" "actors"
+    $outputDir = Join-Path $userConfig.general.scrapedDataDirectory "aylo" "actor"
     if (!(Test-Path $outputDir)) { New-Item -ItemType "directory" -Path $outputDir }
     $outputDest = Join-Path $outputDir $filename
     $actorResult | ConvertTo-Json -Depth 32 | Out-File -FilePath $outputDest
 
-    # Download the actor's profile image
-    $imgUrl = $actorResult.images.master_profile."0".lg.url
-    $filename = "$actorID $actorName.jpg"
-
-    $assetsDir = Join-Path $userConfig.general.assetsDirectory "aylo" "actors"
-    if (!(Test-Path $assetsDir)) { New-Item -ItemType "directory" -Path $assetsDir }
-    
-    $assetsDest = Join-Path $assetsDir $filename
-    if (Test-Path $assetsDest) { 
-        Write-Host "Profile image for actor $actorName (#$actorID) already downloaded."
-    }
+    if (!(Test-Path $outputDest)) {
+        Write-Host "ERROR: actor JSON generation failed - $outputDest" -ForegroundColor Red
+        return $null
+    }  
     else {
-        try {
-            Write-Host "Downloading profile image for actor $actorName (#$actorID)."
-            Invoke-WebRequest -uri $imgUrl -OutFile ( New-Item -Path $assetsDest -Force ) 
-        }
-        catch {
-            Write-Host "ERROR: Failed to download the profile image for actor $actorName (#$actorID)." -ForegroundColor Red
-        }
-        Write-Host "SUCCESS: Downloaded the profile image for actor $actorName (#$actorID)." -ForegroundColor Green
-    }
+        Write-Host "SUCCESS: actor JSON generated - $outputDest" -ForegroundColor Green
+        return $outputDest
+    }  
 }
 
-# Get data for all content related to the given Aylo scene and output it to a
-# JSON file. Returns the path to the JSON file.
+# Get data for a piece of content
+function Get-AyloJson {
+    param (
+        [Parameter(Mandatory)][ValidateSet('actor', 'gallery', 'movie', 'scene', 'serie', 'trailer')][String]$apiType,
+        [Parameter(Mandatory)][Int]$contentID,
+        [Parameter(Mandatory)][String]$pathToUserConfig
+    )
+    Write-Host `n"Starting scrape for $apiType #$contentID." -ForegroundColor Cyan
+
+    $userConfig = Get-Content $pathToUserConfig -raw | ConvertFrom-Json
+
+    # Attempt to scrape content data
+    $result = Get-AyloQueryData -apiType $apiType -contentID $contentID -pathToUserConfig $pathToUserConfig
+    if ($result.meta.count -eq 0) {
+        Write-Host "No $apiType found with ID $contentID." -ForegroundColor Red
+    }
+
+    $result = $result.result[0]
+    $parentStudio = $result.brandMeta.displayName
+    if ($result.collections.count -gt 0) { $studio = $result.collections[0].name }
+    else { $studio = $parentStudio }
+
+    $subDir = Join-Path "aylo" $apiType $parentStudio $studio
+    $contentDir = Join-Path $userConfig.general.downloadDirectory $subDir
+
+    # Skip creating JSON if the downloaded content already exists
+    if (Test-Path -LiteralPath $contentDir) {
+        $contentFile = Get-ChildItem $contentDir | Where-Object { $_.BaseName -match "^$contentID\s" }
+        if ($contentFile.Length -gt 0) {
+            Write-Host "Media already exists. Skipping JSON generation for $apiType #$contentID."
+
+            # Return the path to the existing JSON file
+            $title = Get-SanitizedTitle -title $result.title
+            $filename = "$contentID $title.json"
+            $pathToExistingJson = Join-Path $userConfig.general.scrapedDataDirectory $subDir $filename
+            return $pathToExistingJson
+        }
+    }
+
+    # Output the JSON file
+    $title = Get-SanitizedTitle -title $result.title
+    $filename = "$contentID $title.json"
+    $outputDir = Join-Path $userConfig.general.scrapedDataDirectory $subDir
+    if (!(Test-Path $outputDir)) { New-Item -ItemType "directory" -Path $outputDir }
+    $outputDest = Join-Path $outputDir $filename
+
+    Write-Host "Generating JSON: $filename"
+    $result | ConvertTo-Json -Depth 32 | Out-File -FilePath $outputDest
+
+    if (!(Test-Path $outputDest)) {
+        Write-Host "ERROR: $apiType JSON generation failed - $outputDest" -ForegroundColor Red
+        return $null
+    }  
+    else {
+        Write-Host "SUCCESS: $apiType JSON generated - $outputDest" -ForegroundColor Green
+        return $outputDest
+    }  
+}
+
+# Get data for content related to the given Aylo gallery and output it to a JSON
+# file. Returns the path to the JSON file.
+function Get-AyloGalleryJson {
+    param (
+        [Parameter(Mandatory)][Int]$galleryID,
+        [Parameter(Mandatory)][String]$pathToUserConfig
+    )
+    Get-AyloJson -apiType "gallery" -contentID $galleryID -pathToUserConfig $pathToUserConfig
+}
+
+# Get data for content related to the given Aylo scene and output it to a JSON
+# file. Returns the path to the JSON file.
 function Get-AyloSceneJson {
     param (
         [Parameter(Mandatory)][String]$pathToUserConfig,
         [Parameter(Mandatory)][Int]$sceneID
     )
-    Write-Host `n"Starting scrape for scene ID $sceneID." -ForegroundColor Cyan
-
-    $userConfig = Get-Content $pathToUserConfig -raw | ConvertFrom-Json
-
-    # Attempt to scrape scene data
-    $sceneResult = Get-AyloQueryData -apiType "scene" -contentID $sceneID -pathToUserConfig $pathToUserConfig
-    if ($sceneResult.meta.count -eq 0) {
-        Write-Host "No scene found with the provided ID $sceneID." -ForegroundColor Red
-    }
-
-    $sceneResult = $sceneResult.result[0]
-    $sceneTitle = Get-SanitizedTitle -title $sceneResult.title
-    $parentStudio = $sceneResult.brandMeta.displayName
-    if ($sceneResult.collections.count -gt 0) { $studio = $sceneResult.collections[0].name }
-    else { $studio = $parentStudio }
-
-    # Skip creating JSON if the downloaded content already exists
-    $willGenerateJson = $true
-    $contentFolder = "$sceneID $sceneTitle"
-    $contentDir = Join-Path $userConfig.general.downloadDirectory $parentStudio $studio $contentFolder
-    if (Test-Path -LiteralPath $contentDir) {
-        $contentFile = Get-ChildItem $contentDir -Filter "*.mp4" | Where-Object { $_.BaseName -match $sceneID }
-        if ($contentFile.Length -gt 0) {
-            Write-Host "Media already exists. Skipping JSON generation for scene ID $sceneID."
-            $willGenerateJson = $false
-        }
-    }
-
-    if ($willGenerateJson) {
-        # Next fetch the gallery data
-        $galleryID = $sceneResult.children | Where-Object { $_.type -eq "gallery" }
-        $galleryID = $galleryID.id
-
-        $galleryResult = Get-AyloQueryData -apiType "gallery" -contentID $galleryID -pathToUserConfig $pathToUserConfig
-
-        # If gallery data is found, merge it into the scene data
-        if ($galleryResult.meta.count -eq 0) {
-            Write-Host "No gallery found with the provided ID $galleryID." -ForegroundColor Yellow
-        }
-        else {
-            $galleryResult = $galleryResult.result[0]
-
-            # Remove duplicate data to reduce file size
-            $galleryResult.PSObject.Properties.Remove("brand")
-            $galleryResult.PSObject.Properties.Remove("brandMeta")
-            $galleryResult.PSObject.Properties.Remove("parent")
-    
-            for ($i = 0; $i -lt $sceneResult.children.count; $i++) {
-                if ($sceneResult.children[$i].type -eq "gallery") {
-                    $sceneResult.children[$i] = $galleryResult
-                }
-            }
-        }
-
-        # Scrape actors data into separate files if required.
-        foreach ($actor in $sceneResult.actors) {
-            Get-AyloActorJson -actorID $actor.id -pathToUserConfig $pathToUserConfig
-        }
-
-        # If the scene is part of a series, scrape series data
-        if ($sceneResult.parent -and $sceneResult.parent.type -eq "serie") {
-            $null = Get-AyloSeriesJson -pathToUserConfig $pathToUserConfig -seriesID $sceneResult.parent.id
-        }
-
-        # Output the scene JSON file
-        $filename = "$sceneID $sceneTitle.json"
-        $outputDir = Join-Path $userConfig.general.scrapedDataDirectory "aylo" "scenes" $parentStudio
-        if (!(Test-Path $outputDir)) { New-Item -ItemType "directory" -Path $outputDir }
-        $outputDest = Join-Path $outputDir $filename
-
-        Write-Host "Generating JSON: $filename"
-        $sceneResult | ConvertTo-Json -Depth 32 | Out-File -FilePath $outputDest
-
-        if (!(Test-Path $outputDest)) {
-            Write-Host "ERROR: JSON generation failed - $outputDest" -ForegroundColor Red
-            return $null
-        }  
-        else {
-            Write-Host "SUCCESS: JSON generated - $outputDest" -ForegroundColor Green
-            return $outputDest
-        }  
-    }
+    Get-AyloJson -apiType "scene" -contentID $sceneID -pathToUserConfig $pathToUserConfig
 }
 
-# Get data for all content related to the given Aylo series and output it to a JSON file.
+# Get data for content related to the given Aylo series and output it to a JSON
+# file. Returns the path to the JSON file.
 function Get-AyloSeriesJson {
     param(
         [Parameter(Mandatory)][String]$pathToUserConfig,
         [Parameter(Mandatory)][Int]$seriesID
     )
-    Write-Host `n"Starting scrape for series ID $seriesID." -ForegroundColor Cyan
-    
-    $userConfig = Get-Content $pathToUserConfig -raw | ConvertFrom-Json
+    Get-AyloJson -apiType "serie" -contentID $seriesID -pathToUserConfig $pathToUserConfig
+}
 
-    # Attempt to scrape series data
-    $seriesResult = Get-AyloQueryData -apiType "serie" -contentID $seriesID -pathToUserConfig $pathToUserConfig
-    if ($seriesResult.meta.count -eq 0) {
-        return Write-Host "No series found with the ID $seriesID." -ForegroundColor Red
+# Get data for content related to the given Aylo trailer and output it to a JSON
+# file. Returns the path to the JSON file.
+function Get-AyloTrailerJson {
+    param (
+        [Parameter(Mandatory)][String]$pathToUserConfig,
+        [Parameter(Mandatory)][Int]$trailerID
+    )
+    Get-AyloJson -apiType "trailer" -contentID $trailerID -pathToUserConfig $pathToUserConfig
+}
+
+# Get data for all content related to the given Aylo scene and output it to JSON
+# files. Returns the path to the scene JSON file.
+function Get-AyloAllJson {
+    param(
+        [Parameter(Mandatory)][String]$pathToUserConfig,
+        [Parameter(Mandatory)][Int]$sceneID
+    )
+    # Generate the scene JSON first, and use it to create the rest
+    $pathToSceneJson = Get-AyloSceneJson -pathToUserConfig $pathToUserConfig -sceneID $sceneID
+    $sceneData = Get-Content $pathToSceneJson -raw | ConvertFrom-Json
+
+    # Galleries
+    [array]$galleries = $sceneData.children | Where-Object { $_.type -eq "gallery" }
+    foreach ($gID in $galleries.id) {
+        $null = Get-AyloGalleryJson -pathToUserConfig $pathToUserConfig -galleryID $gID
     }
 
-    $seriesResult = $seriesResult.result[0]
-    $seriesTitle = Get-SanitizedTitle -title $seriesResult.title
-    $parentStudio = $seriesResult.brandMeta.displayName
+    # Trailers
+    [array]$trailers = $sceneData.children | Where-Object { $_.type -eq "trailer" }
+    foreach ($tID in $trailers.id) {
+        $null = Get-AyloTrailerJson -pathToUserConfig $pathToUserConfig -trailerID $tID
+    }
 
-    # Output the series JSON file
-    $filename = "$seriesID $seriesTitle.json"
-    $outputDir = Join-Path $userConfig.general.scrapedDataDirectory "aylo" "series" $parentStudio
-    if (!(Test-Path $outputDir)) { New-Item -ItemType "directory" -Path $outputDir }
-    $outputDest = Join-Path $outputDir $filename
+    # Actors
+    foreach ($aID in $sceneData.actors.id) {
+        $null = Get-AyloActorJson -actorID $aID -pathToUserConfig $pathToUserConfig
+    }
     
-    Write-Host "Generating JSON: $filename"
-    $seriesResult | ConvertTo-Json -Depth 32 | Out-File -FilePath $outputDest
-    
-    if (!(Test-Path $outputDest)) {
-        Write-Host "ERROR: JSON generation failed - $outputDest" -ForegroundColor Red
-        return $null
-    }  
-    else {
-        Write-Host "SUCCESS: JSON generated - $outputDest" -ForegroundColor Green
-        return $outputDest
-    }  
+    # Series
+    if ($sceneData.parent -and $sceneData.parent.type -eq "serie") {
+        $pathToSeriesJson = Get-AyloSeriesJson -pathToUserConfig $pathToUserConfig -seriesID $sceneData.parent.id
+        $seriesData = Get-Content $pathToSeriesJson -raw | ConvertFrom-Json
+        
+        # Series galleries
+        [array]$galleries = $seriesData.children | Where-Object { $_.type -eq "gallery" }
+        foreach ($gID in $galleries.id) {
+            $null = Get-AyloGalleryJson -pathToUserConfig $pathToUserConfig -galleryID $gID
+        }
+
+        # Series trailers
+        [array]$trailers = $seriesData.children | Where-Object { $_.type -eq "trailer" }
+        foreach ($tID in $trailers.id) {
+            $null = Get-AyloTrailerJson -pathToUserConfig $pathToUserConfig -trailerID $tID
+        }
+    }
+    return $pathToSceneJson
 }
 
 # ---------------------------- Get scene IDs by... --------------------------- #
