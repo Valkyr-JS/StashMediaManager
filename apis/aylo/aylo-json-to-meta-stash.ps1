@@ -81,6 +81,7 @@ function Set-AyloJsonToMetaStash {
     # Logging values - for use in the end report
     $numNewTags = 0
     $numNewParentTags = 0
+    $numNewPerformers = 0
 
     # ---------------------------------------------------------------------------- #
     #                                  PERFORMERS                                  #
@@ -89,11 +90,11 @@ function Set-AyloJsonToMetaStash {
     $actorsDir = Join-Path $dataDir "actor"
     $actorsData = Get-ChildItem $actorsDir -Filter "*.json"
 
-    # ------------------------------ Performer tags ------------------------------ #
-
     # Loop through each set of actor data
     foreach ($actor in $actorsData) {
         $actor = Get-Content $actor -raw | ConvertFrom-Json
+
+        # ------------------------------ Performer tags ------------------------------ #
 
         $newTags = @()
         $newParentNames = @()
@@ -147,7 +148,8 @@ function Set-AyloJsonToMetaStash {
 
         # Create new tags if they don't already exist
         foreach ($tag in $newTags) {
-            # Query Stash to see if the tag exists. Aliases include the tag ID, which we use to query.
+            # Query Stash to see if the tag exists. Aliases include the tag ID,
+            # which we use to query.
             $StashGQL_Query = 'query FindTags($tag_filter: TagFilterType) {
                 findTags(tag_filter: $tag_filter) {
                     tags { id }
@@ -213,6 +215,71 @@ function Set-AyloJsonToMetaStash {
                     $numNewTags++
                 }
             }
+        }
+
+        # -------------------------------- Performers -------------------------------- #
+
+        # Query Stash to see if the performer exists. Aliases include the
+        # performer ID, which we use to query.
+        $StashGQL_Query = 'query FindPerformers($performer_filter: PerformerFilterType) {
+            findPerformers(performer_filter: $performer_filter) {
+                performers { id }
+            }
+        }'
+        $StashGQL_QueryVariables = '{
+            "performer_filter": {
+                "aliases": {
+                    "value": "'+ $actor.id + '",
+                    "modifier": "EQUALS"
+                }
+            }
+        }' 
+
+        $existingActor = Invoke-StashGQLQuery -query $StashGQL_Query -variables $StashGQL_QueryVariables
+
+        # If no data is found, create the new tag
+        if ($existingActor.data.findPerformers.performers.count -eq 0) {
+
+            # Format birthdate
+            $birthdate = ""
+            if ($actor.birthday) {
+                $birthdate = Get-Date $actor.birthday -format "yyyy-MM-dd"
+                $birthdate = '"birthdate": "' + $birthdate + '",'
+            }
+
+            # Format details
+            $details = ""
+            if ($actor.bio) {
+                # Need to escape the quotation marks in JSON.
+                $details = $actor.bio.replace('"', '\"')
+                $details = '"details": "' + $details + '",'
+            }
+
+            # Format gender
+            $gender = $actor.gender
+            if ($gender -eq "trans") { $gender = "TRANSGENDER_FEMALE" }
+            $gender = $gender.ToUpper()
+
+            $StashGQL_Query = 'mutation CreatePerformer($input: PerformerCreateInput!) {
+                performerCreate(input: $input) {
+                    id
+                }
+            }'
+            $StashGQL_QueryVariables = '{
+                "input": {
+                    "alias_list": ["'+ $actor.id + '"],
+                    '+ $birthdate + '
+                    '+ $details + '
+                    "gender": "'+ $gender + '",
+                    "ignore_auto_tag": true,
+                    "image": "'+ $actor.images.profile."0".lg.url + '",
+                    "name": "'+ $actor.name + '"
+                }
+            }' 
+
+            $null = Invoke-StashGQLQuery -query $StashGQL_Query -variables $StashGQL_QueryVariables
+            Write-Host "SUCCESS: Created tag $($tag.name)." -ForegroundColor Green
+            $numNewPerformers++
         }
     }
 }
