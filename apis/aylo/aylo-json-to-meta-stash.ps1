@@ -96,15 +96,11 @@ function Set-AyloJsonToMetaStash {
 
         # ------------------------------ Performer tags ------------------------------ #
 
-        $newTags = @()
+        $newTags = $actor.tags
         $newParentNames = @()
     
-        # Get any tags that haven't been found yet
-        foreach ($tag in $actor.tags | Where-Object { $_.id -notin $newTags.id }) {
-            # Add the tag to the array
-            $newTags += $tag
-
-            # Check if the category has been found yet, and add it if it hasn't
+        # Get unique parent tags
+        foreach ($tag in $newTags) {
             if ($tag.category -notin $newParentNames -and $tag.category.Length -gt 0) {
                 $newParentNames += $tag.category
             }
@@ -120,7 +116,7 @@ function Set-AyloJsonToMetaStash {
             }'
             $StashGQL_QueryVariables = '{
                 "tag_filter": {
-                    "aliases": {
+                    "name": {
                         "value": "[Category] '+ $tagName + '",
                         "modifier": "EQUALS"
                     }
@@ -171,10 +167,7 @@ function Set-AyloJsonToMetaStash {
             if ($existingTag.data.findTags.tags.count -eq 0) {
                 $StashGQL_Query = 'query FindTags($tag_filter: TagFilterType) {
                     findTags(tag_filter: $tag_filter) {
-                        tags {
-                            aliases
-                            id
-                        }
+                        tags { id }
                     }
                 }'
                 $StashGQL_QueryVariables = '{
@@ -193,13 +186,9 @@ function Set-AyloJsonToMetaStash {
                     $tagAliases = $existingTag.data.findTags.tags[0].aliases
                     $tagAliases += $tag.id
                     $tagAliases = ConvertTo-Json $tagAliases -depth 32
-                    Write-Host "Existing tag ID $($existingTag.data.findTags.tags[0].id)"
-                    Write-Host "All tag IDs $($tagAliases)"
 
                     $StashGQL_Query = 'mutation UpdateTag($input: TagUpdateInput!) {
-                        tagUpdate(input: $input) {
-                            id
-                        }
+                        tagUpdate(input: $input) { id }
                     }'
                     $StashGQL_QueryVariables = '{
                         "input": {
@@ -207,7 +196,7 @@ function Set-AyloJsonToMetaStash {
                             "aliases": '+ $tagAliases + '
                         }
                     }'
-                    $null = Invoke-StashGQLQuery -query $StashGQL_Query -variables $StashGQL_QueryVariables
+                    $existingTag = Invoke-StashGQLQuery -query $StashGQL_Query -variables $StashGQL_QueryVariables
                 }
             }
 
@@ -238,27 +227,26 @@ function Set-AyloJsonToMetaStash {
                     else { $parentTagID = $parentTag.data.findTags.tags[0].id }
                 }
 
-                if ($existingTag.data.findTags.tags.count -eq 0) {
-                    if ($parentTagID) { $parentIDField = ', "parent_ids": ' + $parentTagID + '' }
+                # Create the tag
+                if ($parentTagID) { $parentIDField = ', "parent_ids": ' + $parentTagID + '' }
 
-                    $StashGQL_Query = 'mutation CreateTag($input: TagCreateInput!) {
-                                tagCreate(input: $input) {
-                                    aliases
-                                    name
-                                }
-                            }'
-                    $StashGQL_QueryVariables = '{
-                                "input": {
-                                    "aliases": "'+ $tag.id + '",
-                                    "ignore_auto_tag": true,
-                                    "name": "'+ $tag.name + '"
-                                    '+ $parentIDField + '
-                                }
-                            }' 
-                    $null = Invoke-StashGQLQuery -query $StashGQL_Query -variables $StashGQL_QueryVariables
-                    Write-Host "SUCCESS: Created tag $($tag.name)." -ForegroundColor Green
-                    $numNewTags++
-                }
+                $StashGQL_Query = 'mutation CreateTag($input: TagCreateInput!) {
+                    tagCreate(input: $input) {
+                        aliases
+                        name
+                    }
+                }'
+                $StashGQL_QueryVariables = '{
+                    "input": {
+                        "aliases": "'+ $tag.id + '",
+                        "ignore_auto_tag": true,
+                        "name": "'+ $tag.name + '"
+                        '+ $parentIDField + '
+                    }
+                }' 
+                $null = Invoke-StashGQLQuery -query $StashGQL_Query -variables $StashGQL_QueryVariables
+                Write-Host "SUCCESS: Created tag $($tag.name)." -ForegroundColor Green
+                $numNewTags++
             }
         }
 
@@ -387,7 +375,7 @@ function Set-AyloJsonToMetaStash {
             }' 
 
             $null = Invoke-StashGQLQuery -query $StashGQL_Query -variables $StashGQL_QueryVariables
-            Write-Host "SUCCESS: Created tag $($tag.name)." -ForegroundColor Green
+            Write-Host "SUCCESS: Created performer $($actor.name)." -ForegroundColor Green
             $numNewPerformers++
         }
     }
