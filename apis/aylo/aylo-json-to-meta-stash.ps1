@@ -102,7 +102,7 @@ function Set-AyloJsonToMetaStash {
         # Get unique parent tags
         foreach ($tag in $newTags) {
             if ($tag.category -notin $newParentNames -and $tag.category.Length -gt 0) {
-                $newParentNames += $tag.category
+                $newParentNames += $tag.category.Trim()
             }
         }
 
@@ -167,13 +167,16 @@ function Set-AyloJsonToMetaStash {
             if ($existingTag.data.findTags.tags.count -eq 0) {
                 $StashGQL_Query = 'query FindTags($tag_filter: TagFilterType) {
                     findTags(tag_filter: $tag_filter) {
-                        tags { id }
+                        tags {
+                            aliases
+                            id
+                        }
                     }
                 }'
                 $StashGQL_QueryVariables = '{
                     "tag_filter": {
                         "name": {
-                            "value": "'+ $tag.name + '",
+                            "value": "'+ $tag.name.Trim() + '",
                             "modifier": "EQUALS"
                         }
                     }
@@ -211,7 +214,7 @@ function Set-AyloJsonToMetaStash {
                 $StashGQL_QueryVariables = '{
                     "tag_filter": {
                         "name": {
-                            "value": "[Category] '+ $tag.category + '",
+                            "value": "[Category] '+ $tag.category.Trim() + '",
                             "modifier": "EQUALS"
                         }
                     }
@@ -240,7 +243,7 @@ function Set-AyloJsonToMetaStash {
                     "input": {
                         "aliases": "'+ $tag.id + '",
                         "ignore_auto_tag": true,
-                        "name": "'+ $tag.name + '"
+                        "name": "'+ $tag.name.Trim() + '"
                         '+ $parentIDField + '
                     }
                 }' 
@@ -314,11 +317,27 @@ function Set-AyloJsonToMetaStash {
                 $height_cm = '"height_cm": ' + $height_cm + ','
             }
 
-            # Format measurements
+            # Format measurements - value is mostly gender dependent but this is
+            # inconsistent.
             $measurements = ""
             if ($actor.measurements) {
                 $measurements = $actor.measurements.Trim()
-                $measurements = '"measurements": "' + $measurements + '",'
+                if ($gender -like "FEMALE" -or $measurements -match "-") {
+                    $measurements = '"measurements": "' + $measurements + '",'
+                }
+                else {
+                    # Remove any unit from the string
+                    $measurements = $measurements -replace "[^0-9]", ""
+
+                    # Check if the value is a number, and if not don't use it
+                    if ($measurements.Length -gt 0) {
+                        # Convert inches to cm
+                        $measurements = [Int]$measurements
+                        $measurements = $measurements * 2.54
+                        $measurements = '"penis_length": ' + $measurements + ','
+                    }
+                    else { $measurements = "" }
+                }
             }
 
             # Format weight (lbs > kg)
@@ -368,7 +387,7 @@ function Set-AyloJsonToMetaStash {
                     "ignore_auto_tag": true,
                     "image": "'+ $actor.images.profile."0".lg.url + '",
                     '+ $measurements + '
-                    "name": "'+ $actor.name + '",
+                    "name": "'+ $actor.name.Trim() + '",
                     "tag_ids": '+ $actorTagIDs + ',
                     '+ $weight + '
                 }
