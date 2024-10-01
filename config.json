@@ -1,6 +1,7 @@
 {
   "aylo": {
-    "masterSite": ""
+    "masterSite": "",
+    "stashUrl": ""
   },
   "general": {
     "assetsDirectory": "",

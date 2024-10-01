@@ -1,4 +1,7 @@
+. "./config-management.ps1"
 . "./helpers.ps1"
+. "./stash/performers.ps1"
+. "./stash/tags.ps1"
 
 # ? Dev variables
 $useDevConfig = $true
@@ -43,7 +46,8 @@ function Set-Entry {
     do { $operationSelection = read-host "Enter your selection (1-2)" }
     while (($operationSelection -notmatch "[1-2]"))
 
-    # AYLO
+    # ------------------------------ Aylo : Download ----------------------------- #
+
     if ($operationSelection -eq 1 -and $apiData.name -eq "Aylo") {
         Write-Host `n"Specify the networks you wish to download from in a space-separated list, e.g. 'bangbros mofos brazzers'. Leave blank to scan all networks you have access to."
         Write-Host "Accepted networks are: $($apiData.networks)"
@@ -66,7 +70,6 @@ function Set-Entry {
         $networks = $networks -split (" ")
 
         # Update the config if needed
-        . "./config-management.ps1"
         if ($userConfig.general.downloadDirectory.Length -eq 0) {
             $userConfig = Set-ConfigDownloadDirectory -pathToUserConfig $pathToUserConfig
         }
@@ -104,7 +107,7 @@ function Set-Entry {
         do { $contentSelection = read-host "Enter your selection (1-2)" }
         while (($contentSelection -notmatch "[1-2]"))
 
-        # Load the scraper
+        # Load the required files
         . "./apis/aylo/aylo-scraper.ps1"
         . "./apis/aylo/aylo-downloader.ps1"
         . "./apis/aylo/aylo-actions.ps1"
@@ -127,6 +130,15 @@ function Set-Entry {
 
             Get-AyloAllContentBySeriesID -pathToUserConfig $pathToUserConfig -seriesIDs $seriesIDs
         }
+    }
+
+    # ------------------------------- Aylo : Stash ------------------------------- #
+
+    if ($operationSelection -eq 2 -and $apiData.name -eq "Aylo") {
+        # Load the required files
+        . "./apis/aylo/aylo-json-to-meta-stash.ps1"
+        
+        Set-AyloJsonToMetaStash -pathToUserConfig $pathToUserConfig
     }
     
     else { Write-Host "This feature is awaiting development." }
