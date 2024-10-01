@@ -108,22 +108,7 @@ function Set-AyloJsonToMetaStash {
 
         # Create new parent tags if they don't already exist
         foreach ($tagName in $newParentNames) {
-            # Query Stash to see if the tag exists
-            $StashGQL_Query = 'query FindTags($tag_filter: TagFilterType) {
-                findTags(tag_filter: $tag_filter) {
-                    tags { id }
-                }
-            }'
-            $StashGQL_QueryVariables = '{
-                "tag_filter": {
-                    "name": {
-                        "value": "[Category] '+ $tagName + '",
-                        "modifier": "EQUALS"
-                    }
-                }
-            }' 
-    
-            $existingTag = Invoke-StashGQLQuery -query $StashGQL_Query -variables $StashGQL_QueryVariables
+            $existingTag = Get-StashTagByName "[Category] $tagName"
 
             # If no data is found, create the new parent tag
             if ($existingTag.data.findTags.tags.count -eq 0) {
@@ -136,8 +121,7 @@ function Set-AyloJsonToMetaStash {
                         "name": "[Category] '+ $tagName + '"
                     }
                 }' 
-                $null = Invoke-StashGQLQuery -query $StashGQL_Query -variables $StashGQL_QueryVariables
-                Write-Host "SUCCESS: Created parent tag $tagName." -ForegroundColor Green
+                $null = Set-StashTag -name "[Category] $tagName"
                 $numNewParentTags++
             }
         }
@@ -145,111 +129,36 @@ function Set-AyloJsonToMetaStash {
         # Create new tags if they don't already exist
         foreach ($tag in $newTags) {
             # Query Stash to see if the tag exists. Aliases include the tag ID,
-            # which we use to query.
-            $StashGQL_Query = 'query FindTags($tag_filter: TagFilterType) {
-                findTags(tag_filter: $tag_filter) {
-                    tags { id }
-                }
-            }'
-            $StashGQL_QueryVariables = '{
-                "tag_filter": {
-                    "aliases": {
-                        "value": "'+ $tag.id + '",
-                        "modifier": "EQUALS"
-                    }
-                }
-            }' 
-    
-            $existingTag = Invoke-StashGQLQuery -query $StashGQL_Query -variables $StashGQL_QueryVariables
+            # which we use to query.    
+            $existingTag = Get-StashTagByAlias -alias $tag.id
 
             # If no data is found, also check to see if the tag exists under a
             # different ID.
             if ($existingTag.data.findTags.tags.count -eq 0) {
-                $StashGQL_Query = 'query FindTags($tag_filter: TagFilterType) {
-                    findTags(tag_filter: $tag_filter) {
-                        tags {
-                            aliases
-                            id
-                        }
-                    }
-                }'
-                $StashGQL_QueryVariables = '{
-                    "tag_filter": {
-                        "name": {
-                            "value": "'+ $tag.name.Trim() + '",
-                            "modifier": "EQUALS"
-                        }
-                    }
-                }'
-
-                $existingTag = Invoke-StashGQLQuery -query $StashGQL_Query -variables $StashGQL_QueryVariables
+                $existingTag = Get-StashTagByName -name $tag.name.Trim()
 
                 # If a matching tag name is found, update it with the new alias
                 if ($existingTag.data.findTags.tags.count -gt 0) {
                     $tagAliases = $existingTag.data.findTags.tags[0].aliases
                     $tagAliases += $tag.id
-                    $tagAliases = ConvertTo-Json $tagAliases -depth 32
 
-                    $StashGQL_Query = 'mutation UpdateTag($input: TagUpdateInput!) {
-                        tagUpdate(input: $input) { id }
-                    }'
-                    $StashGQL_QueryVariables = '{
-                        "input": {
-                            "id": '+ $existingTag.data.findTags.tags[0].id + ',
-                            "aliases": '+ $tagAliases + '
-                        }
-                    }'
-                    $existingTag = Invoke-StashGQLQuery -query $StashGQL_Query -variables $StashGQL_QueryVariables
-                }
-            }
-
-            # If no data is found, create the new tag
-            if ($existingTag.data.findTags.tags.count -eq 0) {
-                # Get the parent tag ID
-                $StashGQL_Query = 'query FindTags($tag_filter: TagFilterType) {
-                    findTags(tag_filter: $tag_filter) {
-                        tags { id }
-                    }
-                }'
-                $StashGQL_QueryVariables = '{
-                    "tag_filter": {
-                        "name": {
-                            "value": "[Category] '+ $tag.category.Trim() + '",
-                            "modifier": "EQUALS"
-                        }
-                    }
-                }' 
-    
-                # Only search for the parent tag if it is not an empty string.
-                if ($tag.category.Length -gt 0) {
-                    $parentTag = Invoke-StashGQLQuery -query $StashGQL_Query -variables $StashGQL_QueryVariables
-                    
-                    if ($parentTag.data.findTags.tags.count -eq 0) {
-                        Write-Host "Parent tag '$($tag.category)' not found." -ForegroundColor Yellow
-                    }
-                    else { $parentTagID = $parentTag.data.findTags.tags[0].id }
+                    $existingTag = Set-StashTagUpdate -id $existingTag.data.findTags.tags[0].id -aliases $tagAliases
                 }
 
-                # Create the tag
-                if ($parentTagID) { $parentIDField = ', "parent_ids": ' + $parentTagID + '' }
+                # If no data is found, create the new tag
+                else {
+                    # Get the parent tag ID if there is one
+                    if ($tag.category.Trim().Length -gt 0) {
+                        $parentTag = Get-StashTagByName -name "[Category] $($tag.category.Trim())"
+                        if ($parentTag.data.findTags.tags.count -gt 0) {
+                            $parentTagID = $parentTag.data.findTags.tags[0].id
+                        }
+                    }
 
-                $StashGQL_Query = 'mutation CreateTag($input: TagCreateInput!) {
-                    tagCreate(input: $input) {
-                        aliases
-                        name
-                    }
-                }'
-                $StashGQL_QueryVariables = '{
-                    "input": {
-                        "aliases": "'+ $tag.id + '",
-                        "ignore_auto_tag": true,
-                        "name": "'+ $tag.name.Trim() + '"
-                        '+ $parentIDField + '
-                    }
-                }' 
-                $null = Invoke-StashGQLQuery -query $StashGQL_Query -variables $StashGQL_QueryVariables
-                Write-Host "SUCCESS: Created tag $($tag.name)." -ForegroundColor Green
-                $numNewTags++
+                    # Create the tag
+                    $null = Set-StashTag -name $tag.name.Trim() -aliases @($tag.id) -parent_ids $parentTagID
+                    $numNewTags++
+                }
             }
         }
 
@@ -350,23 +259,7 @@ function Set-AyloJsonToMetaStash {
             # Get tags
             $actorTagIDs = @()
             foreach ($tagID in $actor.tags.id) {
-                # Query Stash to see if the tag exists. Aliases include the tag ID,
-                # which we use to query.
-                $StashGQL_Query = 'query FindTags($tag_filter: TagFilterType) {
-                    findTags(tag_filter: $tag_filter) {
-                        tags { id }
-                    }
-                }'
-                $StashGQL_QueryVariables = '{
-                    "tag_filter": {
-                        "aliases": {
-                            "value": "'+ $tagID + '",
-                            "modifier": "EQUALS"
-                        }
-                    }
-                }' 
-    
-                $result = Invoke-StashGQLQuery -query $StashGQL_Query -variables $StashGQL_QueryVariables
+                $result = Get-StashTagByAlias -alias $tagID
                 $actorTagIDs += $result.data.findTags.tags.id
             }
             $actorTagIDs = ConvertTo-Json $actorTagIDs -depth 32
