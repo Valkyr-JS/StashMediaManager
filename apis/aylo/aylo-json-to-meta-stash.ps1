@@ -112,15 +112,6 @@ function Set-AyloJsonToMetaStash {
 
             # If no data is found, create the new parent tag
             if ($existingTag.data.findTags.tags.count -eq 0) {
-                $StashGQL_Query = 'mutation CreateTag($input: TagCreateInput!) {
-                    tagCreate(input: $input) { name }
-                }'
-                $StashGQL_QueryVariables = '{
-                    "input": {
-                        "ignore_auto_tag": true,
-                        "name": "[Category] '+ $tagName + '"
-                    }
-                }' 
                 $null = Set-StashTag -name "[Category] $tagName"
                 $numNewParentTags++
             }
@@ -166,21 +157,7 @@ function Set-AyloJsonToMetaStash {
 
         # Query Stash to see if the performer exists. Disambiguation is the
         # performer ID, which we use to query.
-        $StashGQL_Query = 'query FindPerformers($performer_filter: PerformerFilterType) {
-            findPerformers(performer_filter: $performer_filter) {
-                performers { id }
-            }
-        }'
-        $StashGQL_QueryVariables = '{
-            "performer_filter": {
-                "disambiguation": {
-                    "value": "'+ $actor.id + '",
-                    "modifier": "EQUALS"
-                }
-            }
-        }' 
-
-        $existingActor = Invoke-StashGQLQuery -query $StashGQL_Query -variables $StashGQL_QueryVariables
+        $existingActor = Get-StashPerformerByDisambiguation $actor.id
 
         # If no data is found, create the new performer
         if ($existingActor.data.findPerformers.performers.count -eq 0) {
@@ -196,64 +173,30 @@ function Set-AyloJsonToMetaStash {
                 }
             }
 
-            # Convert the list into JSON
-            $alias_list = ConvertTo-Json $alias_list -depth 32
-
-            # Format birthdate
-            $birthdate = ""
-            if ($actor.birthday) {
-                $birthdate = Get-Date $actor.birthday -format "yyyy-MM-dd"
-                $birthdate = '"birthdate": "' + $birthdate + '",'
-            }
-
-            # Format details
-            $details = ""
-            if ($actor.bio) {
-                # Need to escape the quotation marks in JSON.
-                $details = $actor.bio.replace('"', '\"')
-                $details = '"details": "' + $details + '",'
-            }
-
             # Format gender
             $gender = $actor.gender
             if ($gender -eq "trans") { $gender = "TRANSGENDER_FEMALE" }
             $gender = $gender.ToUpper()
 
-            # Format height (inches > cm)
-            $height_cm = $null
-            if ($actor.height) {
-                $height_cm = [math]::Round($actor.height * 2.54)
-                $height_cm = '"height_cm": ' + $height_cm + ','
-            }
-
-            # Format measurements - value is mostly gender dependent but this is
-            # inconsistent.
-            $measurements = ""
+            # Format measurements / penis length - value is mostly gender
+            # dependent but this is inconsistent.
+            $measurements = $null
+            $penis_length = $null
+            $measurementsAsPlength = $gender -like "FEMALE" -or $measurements -match "-"
             if ($actor.measurements) {
-                $measurements = $actor.measurements.Trim()
-                if ($gender -like "FEMALE" -or $measurements -match "-") {
-                    $measurements = '"measurements": "' + $measurements + '",'
+                if ($measurementsAsPlength) {
+                    $measurements = $actor.measurements
                 }
                 else {
                     # Remove any unit from the string
-                    $measurements = $measurements -replace "[^0-9]", ""
+                    $penis_length = $actor.measurements -replace "[^0-9]", ""
 
                     # Check if the value is a number, and if not don't use it
-                    if ($measurements.Length -gt 0) {
+                    if ($penis_length) {
                         # Convert inches to cm
-                        $measurements = [Int]$measurements
-                        $measurements = $measurements * 2.54
-                        $measurements = '"penis_length": ' + $measurements + ','
+                        $penis_length = Get-InchesToCm ([Int]$penis_length)
                     }
-                    else { $measurements = "" }
                 }
-            }
-
-            # Format weight (lbs > kg)
-            $weight = $null
-            if ($actor.weight) {
-                $weight = [math]::Round($actor.weight / 2.2046226218)
-                $weight = '"weight": ' + $weight + ''
             }
 
             # Get tags
@@ -262,32 +205,8 @@ function Set-AyloJsonToMetaStash {
                 $result = Get-StashTagByAlias -alias $tagID
                 $actorTagIDs += $result.data.findTags.tags.id
             }
-            $actorTagIDs = ConvertTo-Json $actorTagIDs -depth 32
 
-            $StashGQL_Query = 'mutation CreatePerformer($input: PerformerCreateInput!) {
-                performerCreate(input: $input) {
-                    id
-                }
-            }'
-            $StashGQL_QueryVariables = '{
-                "input": {
-                    "alias_list": '+ $alias_list + ',
-                    '+ $birthdate + '
-                    '+ $details + '
-                    "disambiguation": "'+ $actor.id + '",
-                    "gender": "'+ $gender + '",
-                    '+ $height_cm + '
-                    "ignore_auto_tag": true,
-                    "image": "'+ $actor.images.profile."0".lg.url + '",
-                    '+ $measurements + '
-                    "name": "'+ $actor.name.Trim() + '",
-                    "tag_ids": '+ $actorTagIDs + ',
-                    '+ $weight + '
-                }
-            }' 
-
-            $null = Invoke-StashGQLQuery -query $StashGQL_Query -variables $StashGQL_QueryVariables
-            Write-Host "SUCCESS: Created performer $($actor.name)." -ForegroundColor Green
+            $null = Set-StashPerformer -disambiguation $actor.id -name $actor.name -gender $gender -alias_list $alias_list -birthdate $actor.birthday -details $actor.bio -height_cm ([math]::Round((Get-InchesToCm $actor.height))) -image "$($actor.images.profile."0".lg.url)" -measurements $measurements -penis_length $penis_length -weight ([math]::Round((Get-LbsToKilos $actor.weight))) -tag_ids $actorTagIDs
             $numNewPerformers++
         }
     }

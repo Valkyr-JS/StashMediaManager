@@ -9,6 +9,22 @@ function Get-GigabytesToBytes {
     return $b
 }
 
+# Get an inches value in centimetres, unrounded
+function Get-InchesToCm {
+    param (
+        [Parameter(Mandatory)][Int]$inches
+    )
+    return $inches * 2.54
+}
+
+# Get a lbs value in kg, unrounded
+function Get-LbsToKilos {
+    param (
+        [Parameter(Mandatory)][Int]$lbs
+    )
+    return $lbs * 2.54 / 2.2046226218
+}
+
 # Sanitize a string that is being used as a title.
 function Get-SanitizedTitle {
     param(
