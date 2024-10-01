@@ -62,7 +62,7 @@ function Set-StashTag {
         $aliases = '"aliases": ' + $aliases + ','
     }
 
-    if ($parent_ids -and $aliases.Count) {
+    if ($parent_ids -and $parent_ids.Count) {
         $parent_ids = ConvertTo-Json $parent_ids -depth 32
         $parent_ids = '"parent_ids": ' + $parent_ids + ','
     }
@@ -88,6 +88,7 @@ function Set-StashTag {
     }'
 
     $result = Invoke-StashGQLQuery -query $StashGQL_Query -variables $StashGQL_QueryVariables
+    Write-Host $result.errors
     $newTag = $result.data.tagCreate
     Write-Host "SUCCESS: Created tag $($newTag.name) (Stash ID $($newTag.id))." -ForegroundColor Green
     return $result

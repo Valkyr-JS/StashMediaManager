@@ -149,11 +149,11 @@ function Set-AyloJsonToMetaStash {
             # Get tags
             $actorTagIDs = @()
             foreach ($tagID in $actor.tags.id) {
-                $result = Get-StashTagByAlias -alias $tagID
+                $result = Get-StashTagByAlias -alias "aylo-$tagID"
                 $actorTagIDs += $result.data.findTags.tags.id
             }
 
-            $null = Set-StashPerformer -disambiguation $actor.id -name $actor.name -gender $gender -alias_list $alias_list -birthdate $actor.birthday -details $actor.bio -height_cm ([math]::Round((Get-InchesToCm $actor.height))) -image "$($actor.images.profile."0".lg.url)" -measurements $measurements -penis_length $penis_length -weight ([math]::Round((Get-LbsToKilos $actor.weight))) -tag_ids $actorTagIDs
+            $null = Set-StashPerformer -disambiguation $actor.id -name $actor.name -gender $gender -alias_list $alias_list -birthdate $actor.birthday -details $actor.bio -height_cm ([math]::Round((Get-InchesToCm $actor.height))) -image $actor.images.profile."0".lg.url -measurements $measurements -penis_length $penis_length -weight ([math]::Round((Get-LbsToKilos $actor.weight))) -tag_ids $actorTagIDs
         }
     }
 
@@ -167,6 +167,7 @@ function Set-AyloJsonToMetaStash {
 
     foreach ($scene in $scenesData) {
         $scene = Get-Content $scene -raw | ConvertFrom-Json
+        Write-Host `n"Starting update for $($scene.title)" -ForegroundColor Cyan
 
         # -------------------------------- Scene tags -------------------------------- #
 
@@ -182,17 +183,35 @@ function Set-AyloJsonToMetaStash {
         # ---------------------------------- Scenes ---------------------------------- #
 
         # Query Stash to see if the scene already exists and data has been added.
-        $existingScene = Get-StashSceneByCode $scene.id
+        # $existingScene = Get-StashSceneByCode $scene.id
 
         # If no data is found, query Stash to see if the scene exists but hasn't
         # had data added yet.
+        # if ($existingScene.data.findScenes.scenes.count -eq 0) {
+        $existingScene = Get-StashSceneByIdInPath $scene.id
         if ($existingScene.data.findScenes.scenes.count -eq 0) {
-            $existingScene = Get-StashSceneByIdInPath $scene.id
+            Write-Host "Scene $($scene.title) not found in Stash." -ForegroundColor Yellow
+        }
+        else {
+            # Get performers
+            $performerIDs = @()
+            foreach ($id in $scene.actors.id) {
+                $result = Get-StashPerformerByDisambiguation -disambiguation $id
+                $performerIDs += $result.data.findPerformers.performers.id
+            }
+
+            # Get tags
+            $tagIDs = @()
+            foreach ($id in $scene.tags.id) {
+                $result = Get-StashTagByAlias -alias "aylo-$id"
+                $tagIDs += $result.data.findTags.tags.id
+            }
 
             # Update the found scene
-            
+            $null = Set-StashSceneUpdate -id $existingScene.data.findScenes.scenes.id -code $scene.id -cover_image $scene.images.poster."0".xx.url -details $scene.description -performer_ids $performerIDs -tag_ids $tagIDs -title $scene.title -date $scene.dateReleased
         }
     }
+    # }
 }
 
 # ---------------------------------------------------------------------------- #
@@ -206,7 +225,7 @@ function Get-ParentTagsFromTagsList {
     )
     $parentTagNames = @()
     foreach ($tag in $tagList) {
-        if ($tag.category -notin $newParentNames -and $tag.category.Length -gt 0) {
+        if ($tag.category -notin $parentTagNames -and $tag.category.Length -gt 0) {
             $parentTagNames += $tag.category.Trim()
         }
     }
@@ -235,8 +254,8 @@ function Set-TagsFromTagList {
     )
     foreach ($tag in $tagList) {
         # Query Stash to see if the tag exists. Aliases include the tag ID,
-        # which we use to query.    
-        $existingTag = Get-StashTagByAlias -alias $tag.id
+        # which we use to query. Make sure to include the "aylo-" prefix.
+        $existingTag = Get-StashTagByAlias -alias "aylo-$($tag.id)"
         
         # If no data is found, also check to see if the tag exists under a
         # different ID.
@@ -246,7 +265,7 @@ function Set-TagsFromTagList {
             # If a matching tag name is found, update it with the new alias
             if ($existingTag.data.findTags.tags.count -gt 0) {
                 $tagAliases = $existingTag.data.findTags.tags[0].aliases
-                $tagAliases += $tag.id
+                $tagAliases += "aylo-$($tag.id)"
         
                 $existingTag = Set-StashTagUpdate -id $existingTag.data.findTags.tags[0].id -aliases $tagAliases
             }
@@ -261,9 +280,13 @@ function Set-TagsFromTagList {
                         $parentTagID = $parentTag.data.findTags.tags[0].id
                     }
                 }
+
+                # Add the "aylo-" prefix to the alias for the Aylo tag.
+                $aliases = @()
+                $aliases += "aylo-$($tag.id)"
         
                 # Create the tag
-                $null = Set-StashTag -name $tag.name.Trim() -aliases @($tag.id) -parent_ids $parentTagID
+                $null = Set-StashTag -name $tag.name.Trim() -aliases $aliases -parent_ids $parentTagID
             }
         }
     }
