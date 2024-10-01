@@ -1,6 +1,8 @@
 . "./config-management.ps1"
 . "./helpers.ps1"
+
 . "./stash/performers.ps1"
+. "./stash/scenes.ps1"
 . "./stash/tags.ps1"
 
 # ? Dev variables

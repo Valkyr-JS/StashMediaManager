@@ -178,6 +178,20 @@ function Set-AyloJsonToMetaStash {
 
         # Create new tags if they don't already exist
         if ($newTags.Count) { $null = Set-TagsFromTagList -tagList $newTags }
+
+        # ---------------------------------- Scenes ---------------------------------- #
+
+        # Query Stash to see if the scene already exists and data has been added.
+        $existingScene = Get-StashSceneByCode $scene.id
+
+        # If no data is found, query Stash to see if the scene exists but hasn't
+        # had data added yet.
+        if ($existingScene.data.findScenes.scenes.count -eq 0) {
+            $existingScene = Get-StashSceneByIdInPath $scene.id
+
+            # Update the found scene
+            
+        }
     }
 }
 
