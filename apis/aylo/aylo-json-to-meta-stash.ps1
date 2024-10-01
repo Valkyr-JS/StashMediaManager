@@ -78,11 +78,6 @@ function Set-AyloJsonToMetaStash {
 
     $dataDir = Join-Path $userConfig.general.scrapedDataDirectory "aylo"
 
-    # Logging values - for use in the end report
-    $numNewTags = 0
-    $numNewParentTags = 0
-    $numNewPerformers = 0
-
     # ---------------------------------------------------------------------------- #
     #                                  PERFORMERS                                  #
     # ---------------------------------------------------------------------------- #
@@ -96,62 +91,14 @@ function Set-AyloJsonToMetaStash {
 
         # ------------------------------ Performer tags ------------------------------ #
 
-        $newTags = $actor.tags
-        $newParentNames = @()
-    
-        # Get unique parent tags
-        foreach ($tag in $newTags) {
-            if ($tag.category -notin $newParentNames -and $tag.category.Length -gt 0) {
-                $newParentNames += $tag.category.Trim()
-            }
-        }
+        [array]$newTags = $actor.tags
+        [array]$newParentNames = Get-ParentTagsFromTagsList -tagList $actor.tags
 
         # Create new parent tags if they don't already exist
-        foreach ($tagName in $newParentNames) {
-            $existingTag = Get-StashTagByName "[Category] $tagName"
-
-            # If no data is found, create the new parent tag
-            if ($existingTag.data.findTags.tags.count -eq 0) {
-                $null = Set-StashTag -name "[Category] $tagName"
-                $numNewParentTags++
-            }
-        }
+        if ($newParentNames.Count) { $null = Set-ParentTagsFromTagNameList -tagList $newParentNames }
 
         # Create new tags if they don't already exist
-        foreach ($tag in $newTags) {
-            # Query Stash to see if the tag exists. Aliases include the tag ID,
-            # which we use to query.    
-            $existingTag = Get-StashTagByAlias -alias $tag.id
-
-            # If no data is found, also check to see if the tag exists under a
-            # different ID.
-            if ($existingTag.data.findTags.tags.count -eq 0) {
-                $existingTag = Get-StashTagByName -name $tag.name.Trim()
-
-                # If a matching tag name is found, update it with the new alias
-                if ($existingTag.data.findTags.tags.count -gt 0) {
-                    $tagAliases = $existingTag.data.findTags.tags[0].aliases
-                    $tagAliases += $tag.id
-
-                    $existingTag = Set-StashTagUpdate -id $existingTag.data.findTags.tags[0].id -aliases $tagAliases
-                }
-
-                # If no data is found, create the new tag
-                else {
-                    # Get the parent tag ID if there is one
-                    if ($tag.category.Trim().Length -gt 0) {
-                        $parentTag = Get-StashTagByName -name "[Category] $($tag.category.Trim())"
-                        if ($parentTag.data.findTags.tags.count -gt 0) {
-                            $parentTagID = $parentTag.data.findTags.tags[0].id
-                        }
-                    }
-
-                    # Create the tag
-                    $null = Set-StashTag -name $tag.name.Trim() -aliases @($tag.id) -parent_ids $parentTagID
-                    $numNewTags++
-                }
-            }
-        }
+        if ($newTags.Count) { $null = Set-TagsFromTagList -tagList $newTags }
 
         # -------------------------------- Performers -------------------------------- #
 
@@ -207,7 +154,103 @@ function Set-AyloJsonToMetaStash {
             }
 
             $null = Set-StashPerformer -disambiguation $actor.id -name $actor.name -gender $gender -alias_list $alias_list -birthdate $actor.birthday -details $actor.bio -height_cm ([math]::Round((Get-InchesToCm $actor.height))) -image "$($actor.images.profile."0".lg.url)" -measurements $measurements -penis_length $penis_length -weight ([math]::Round((Get-LbsToKilos $actor.weight))) -tag_ids $actorTagIDs
-            $numNewPerformers++
+        }
+    }
+
+    # ---------------------------------------------------------------------------- #
+    #                                    Scenes                                    #
+    # ---------------------------------------------------------------------------- #
+
+
+    $scenesDir = Join-Path $dataDir "scene"
+    $scenesData = Get-ChildItem -Path $scenesDir -Recurse -File -Filter "*.json"
+
+    foreach ($scene in $scenesData) {
+        $scene = Get-Content $scene -raw | ConvertFrom-Json
+
+        # -------------------------------- Scene tags -------------------------------- #
+
+        [array]$newTags = $scene.tags
+        [array]$newParentNames = Get-ParentTagsFromTagsList -tagList $scene.tags
+
+        # Create new parent tags if they don't already exist
+        if ($newParentNames.Count) { $null = Set-ParentTagsFromTagNameList -tagList $newParentNames }
+
+        # Create new tags if they don't already exist
+        if ($newTags.Count) { $null = Set-TagsFromTagList -tagList $newTags }
+    }
+}
+
+# ---------------------------------------------------------------------------- #
+#                                 Aylo helpers                                 #
+# ---------------------------------------------------------------------------- #
+
+# Get all Aylo parent tag names from a list of Aylo tags
+function Get-ParentTagsFromTagsList {
+    param(
+        [Parameter(Mandatory)]$tagList
+    )
+    $parentTagNames = @()
+    foreach ($tag in $tagList) {
+        if ($tag.category -notin $newParentNames -and $tag.category.Length -gt 0) {
+            $parentTagNames += $tag.category.Trim()
+        }
+    }
+    return $parentTagNames
+}
+
+# Create Stash tags from a list of Aylo parent tags names
+function Set-ParentTagsFromTagNameList {
+    param (
+        [Parameter(Mandatory)][String[]]$tagList
+    )
+    foreach ($tagName in $tagList) {
+        $existingTag = Get-StashTagByName "[Category] $tagName"
+
+        # If no data is found, create the new parent tag
+        if ($existingTag.data.findTags.tags.count -eq 0) {
+            $null = Set-StashTag -name "[Category] $tagName"
+        }
+    }
+}
+
+# Create Stash tags from a list of Aylo parent tags
+function Set-TagsFromTagList {
+    param (
+        [Parameter(Mandatory)]$tagList
+    )
+    foreach ($tag in $tagList) {
+        # Query Stash to see if the tag exists. Aliases include the tag ID,
+        # which we use to query.    
+        $existingTag = Get-StashTagByAlias -alias $tag.id
+        
+        # If no data is found, also check to see if the tag exists under a
+        # different ID.
+        if ($existingTag.data.findTags.tags.count -eq 0) {
+            $existingTag = Get-StashTagByName -name $tag.name.Trim()
+        
+            # If a matching tag name is found, update it with the new alias
+            if ($existingTag.data.findTags.tags.count -gt 0) {
+                $tagAliases = $existingTag.data.findTags.tags[0].aliases
+                $tagAliases += $tag.id
+        
+                $existingTag = Set-StashTagUpdate -id $existingTag.data.findTags.tags[0].id -aliases $tagAliases
+            }
+        
+            # If no data is found, create the new tag
+            else {
+                $parentTagID = $null
+                # Get the parent tag ID if there is one
+                if ($tag.category.Trim().Length -gt 0) {
+                    $parentTag = Get-StashTagByName -name "[Category] $($tag.category.Trim())"
+                    if ($parentTag.data.findTags.tags.count -gt 0) {
+                        $parentTagID = $parentTag.data.findTags.tags[0].id
+                    }
+                }
+        
+                # Create the tag
+                $null = Set-StashTag -name $tag.name.Trim() -aliases @($tag.id) -parent_ids $parentTagID
+            }
         }
     }
 }
