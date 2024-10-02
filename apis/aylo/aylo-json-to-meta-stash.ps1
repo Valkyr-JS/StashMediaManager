@@ -142,32 +142,41 @@ function Set-AyloJsonToMetaStash {
             $stashStudio = $null
             $stashParentStudioID = $null
 
-            # TODO - Fix cases where the parent studio is also the studio
-
             # Get the studio data from the manually-scraped collections file
             $studioData = Get-ChildItem -Path $collectionsDataDir -Filter "*.json" | Where-Object { $_.BaseName -match $sceneData.brand }
             $studioData = Get-Content $studioData -raw | ConvertFrom-Json
-            $studioData = $studioData.result | Where-Object { $_.name -eq $sceneData.collections[0].name }
+
+            if ($sceneData.collections.count -eq 0) {
+                # Use a studio with the same name as the parent, without the "(network)" suffix.
+                $studioData = @{
+                    "brand"     = $sceneData.brand
+                    "brandMeta" = $sceneData.brandMeta
+                    "name"      = $sceneData.brandMeta.displayName
+                }
+            }
+            else {
+                $studioData = $studioData.result | Where-Object { $_.name -eq $sceneData.collections[0].name }
+            }
 
             # Check if the studio is already in Stash
             $stashStudio = Get-StashStudioByName $studioData.name
             if ($stashStudio.data.findStudios.studios.count -eq 0) {
                 # Check if the parent studio is already in Stash
-                $stashParentStudio = Get-StashStudioByName $studioData.brandMeta.displayName
+                $stashParentStudio = Get-StashStudioByName "$($studioData.brandMeta.displayName) (network)"
 
                 if ($stashParentStudio.data.findStudios.studios.count -eq 0) { 
                     # Create the parent studio if it doesn't exist
-                    $aliases = @($studioData.brandMeta.shortName)
                     $url = "https://www." + $studioData.brand + ".com/"
 
-                    $stashParentStudio = Set-StashStudio -name $studioData.brandMeta.displayName -aliases @aliases -url $url
+                    $stashParentStudio = Set-StashStudio -name "$($studioData.brandMeta.displayName) (network)" -url $url
                     $stashParentStudioID = $stashParentStudio.data.studioCreate.id
                 }
                 else {
                     $stashParentStudioID = $stashParentStudio.data.findStudios.studios[0].id
                 }
 
-                $aliases = @($studioData.shortName)
+                $aliases = @()
+                if ($studioData.shortName) { $aliases = @($studioData.shortName) }
 
                 $details = $null
                 if ($studioData.description) { $details = $studioData.description }
