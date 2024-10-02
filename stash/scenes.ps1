@@ -61,6 +61,7 @@ function Set-StashSceneUpdate {
         [String]$details,
         [String[]]$performer_ids,
         [String[]]$tag_ids,
+        [String[]]$urls,
         [String]$title,
         $date
     )
@@ -90,6 +91,11 @@ function Set-StashSceneUpdate {
 
     if ($title) { $title = '"title": "' + $title + '",' }
 
+    if ($urls.count) {
+        $urls = ConvertTo-Json $urls -depth 32
+        $urls = '"urls": ' + $urls + ','
+    }
+
     $StashGQL_Query = 'mutation UpdateScene($input: SceneUpdateInput!) {
         sceneUpdate(input: $input) {
             code
@@ -115,6 +121,7 @@ function Set-StashSceneUpdate {
             '+ $performer_ids + '
             '+ $tag_ids + '
             '+ $title + '
+            '+ $urls + '
             "id": "'+ $id + '"
         }
     }'

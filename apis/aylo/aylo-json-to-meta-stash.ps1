@@ -152,8 +152,29 @@ function Set-AyloJsonToMetaStash {
                 $tagIDs += $result.data.findTags.tags.id
             }
 
+            # ----------------------------------- URLs ----------------------------------- #
+
+            [array]$urls = @()
+
+            # Non-members URL
+            $slug = $sceneData.title -replace "ï¿½", "i-" # Fix for some corrupted titles in BB.
+            $slug = $slug -replace "[^\w\s-]", "" # Remove all characters that aren't letters, numbers, spaces, or hyphens
+            $slug = $slug -replace " ", "-" # Replace spaces with hyphens
+            $slug = Get-TextWithoutDiacritics $slug # Simplify diacritics
+            $slug = $slug.ToLower()
+
+            # The page uses either .com/scene/... or .com/video/... depending on the site.
+            $mediaName = "video"
+            $mediaSceneBrands = @("realitykings", "twistys")
+            if ($mediaSceneBrands -contains $sceneData.brand) { $mediaName = "scene" }
+
+            $publicUrl = "https://www." + $sceneData.brand + ".com/" + $mediaName + "/" + $sceneData.id + "/"
+            $publicUrl += $slug
+
+            $urls += $publicUrl
+
             # Update the scene
-            $null = Set-StashSceneUpdate -id $stashScene.id -code $sceneData.id -cover_image $sceneData.images.poster."0".xx.url -details $sceneData.description -performer_ids $performerIDs -tag_ids $tagIDs -title $sceneData.title -date $sceneData.dateReleased
+            $null = Set-StashSceneUpdate -id $stashScene.id -code $sceneData.id -cover_image $sceneData.images.poster."0".xx.url -details $sceneData.description -performer_ids $performerIDs -tag_ids $tagIDs -title $sceneData.title -urls $urls -date $sceneData.dateReleased
             $metaScenesUpdated++
         }
     }

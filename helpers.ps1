@@ -55,6 +55,7 @@ function Set-MediaFilename {
     return $filename
 }
 
+# Create the filename for an asset
 function Set-AssetFilename {
     param(
         [Parameter(Mandatory)][String]$assetType,
@@ -68,4 +69,25 @@ function Set-AssetFilename {
 
     $filename = "$id $title [$assetType].$extension"
     return $filename
+}
+
+# Convert text with diacretics - e.g. accented characters - into simple character text
+function Get-TextWithoutDiacritics {
+    param (
+        [System.String]$text
+    )
+    if ([System.String]::IsNullOrEmpty($text)) {
+        return $text;
+    }
+
+    $Normalized = $text.Normalize([System.Text.NormalizationForm]::FormD)
+    $NewString = New-Object -TypeName System.Text.StringBuilder
+
+    $normalized.ToCharArray() | ForEach-Object {
+        if ([Globalization.CharUnicodeInfo]::GetUnicodeCategory($psitem) -ne [Globalization.UnicodeCategory]::NonSpacingMark) {
+            [void]$NewString.Append($psitem)
+        }
+    }
+
+    return $NewString.ToString()
 }
