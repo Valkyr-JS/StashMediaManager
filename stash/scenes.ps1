@@ -60,6 +60,7 @@ function Set-StashSceneUpdate {
         [String]$cover_image,
         [String]$details,
         [String[]]$performer_ids,
+        [String]$studio_id,
         [String[]]$tag_ids,
         [String[]]$urls,
         [String]$title,
@@ -83,6 +84,8 @@ function Set-StashSceneUpdate {
         $performer_ids = ConvertTo-Json $performer_ids -depth 32
         $performer_ids = '"performer_ids": ' + $performer_ids + ','
     }
+
+    if ($studio_id) { $studio_id = '"studio_id": "' + $studio_id + '",' }
 
     if ($tag_ids -and $tag_ids.Count) {
         $tag_ids = ConvertTo-Json $tag_ids -depth 32
@@ -119,6 +122,7 @@ function Set-StashSceneUpdate {
             '+ $date + '
             '+ $details + '
             '+ $performer_ids + '
+            '+ $studio_id + '
             '+ $tag_ids + '
             '+ $title + '
             '+ $urls + '

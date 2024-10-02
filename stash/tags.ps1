@@ -88,7 +88,6 @@ function Set-StashTag {
     }'
 
     $result = Invoke-StashGQLQuery -query $StashGQL_Query -variables $StashGQL_QueryVariables
-    Write-Host $result.errors
     $newTag = $result.data.tagCreate
     Write-Host "SUCCESS: Created tag $($newTag.name) (Stash ID $($newTag.id))." -ForegroundColor Green
     return $result

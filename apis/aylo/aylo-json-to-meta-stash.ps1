@@ -77,6 +77,7 @@ function Set-AyloJsonToMetaStash {
     else { Write-Host "Backup will not be created." }
 
     $dataDir = Join-Path $userConfig.general.scrapedDataDirectory "aylo"
+    $collectionsDataDir = Join-Path $dataDir "collection"
     $actorsDataDir = Join-Path $dataDir "actor"
     $scenesDataDir = Join-Path $dataDir "scene"
 
@@ -136,6 +137,61 @@ function Set-AyloJsonToMetaStash {
                 $performerIDs += $result.data.findPerformers.performers.id
             }
 
+            # ---------------------------------- Studio ---------------------------------- #
+            
+            $stashStudio = $null
+            $stashParentStudioID = $null
+
+            # TODO - Fix cases where the parent studio is also the studio
+
+            # Get the studio data from the manually-scraped collections file
+            $studioData = Get-ChildItem -Path $collectionsDataDir -Filter "*.json" | Where-Object { $_.BaseName -match $sceneData.brand }
+            $studioData = Get-Content $studioData -raw | ConvertFrom-Json
+            $studioData = $studioData.result | Where-Object { $_.name -eq $sceneData.collections[0].name }
+
+            # Check if the studio is already in Stash
+            $stashStudio = Get-StashStudioByName $studioData.name
+            if ($stashStudio.data.findStudios.studios.count -eq 0) {
+                # Check if the parent studio is already in Stash
+                $stashParentStudio = Get-StashStudioByName $studioData.brandMeta.displayName
+
+                if ($stashParentStudio.data.findStudios.studios.count -eq 0) { 
+                    # Create the parent studio if it doesn't exist
+                    $aliases = @($studioData.brandMeta.shortName)
+                    $url = "https://www." + $studioData.brand + ".com/"
+
+                    $stashParentStudio = Set-StashStudio -name $studioData.brandMeta.displayName -aliases @aliases -url $url
+                    $stashParentStudioID = $stashParentStudio.data.studioCreate.id
+                }
+                else {
+                    $stashParentStudioID = $stashParentStudio.data.findStudios.studios[0].id
+                }
+
+                $aliases = @($studioData.shortName)
+
+                $details = $null
+                if ($studioData.description) { $details = $studioData.description }
+
+                $image = $null
+                if ($studioData.images.card_main_rect."0".md.url) {
+                    $image = $studioData.images.card_main_rect."0".md.url
+                }
+                
+                $url = $null
+                if ($studioData.customUrl) {
+                    $url = "https://www." + $studioData.brand + ".com" + $studioData.customUrl
+                }
+                elseif ($studioData.domainName) {
+                    $url = $studioData.domainName
+                }
+
+                $stashStudio = Set-StashStudio -name $studioData.name -aliases @aliases -details $details -image $image -parent_id $stashParentStudioID -url $url
+                $stashStudioID = $stashStudio.data.studioCreate.id
+            }
+            else {
+                $stashStudioID = $stashStudio.data.findStudios.studios[0].id
+            }
+
             # ----------------------------------- Tags ----------------------------------- #
 
             # Create any parent tags that aren't in Stash yet
@@ -174,7 +230,7 @@ function Set-AyloJsonToMetaStash {
             $urls += $publicUrl
 
             # Update the scene
-            $null = Set-StashSceneUpdate -id $stashScene.id -code $sceneData.id -cover_image $sceneData.images.poster."0".xx.url -details $sceneData.description -performer_ids $performerIDs -tag_ids $tagIDs -title $sceneData.title -urls $urls -date $sceneData.dateReleased
+            $null = Set-StashSceneUpdate -id $stashScene.id -code $sceneData.id -cover_image $sceneData.images.poster."0".xx.url -details $sceneData.description -performer_ids $performerIDs -studio_id $stashStudioID -tag_ids $tagIDs -title $sceneData.title -urls $urls -date $sceneData.dateReleased
             $metaScenesUpdated++
         }
     }
