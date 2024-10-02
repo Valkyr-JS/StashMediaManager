@@ -65,7 +65,7 @@ function Set-StashPerformer {
     else { [string]$height_cm = '' }
 
     if ($image) { $image = '"image": "' + $image + '",' }
-    if ($measurements) { $measurements = '"measurements": "' + $measurements + '",' }
+    if ($measurements) { $measurements = '"measurements": "' + $measurements.Trim() + '",' }
 
     if ($penis_length -and $penis_length -ne 0) { [string]$penis_length = '"penis_length": ' + $penis_length + ',' }
     else { [string]$penis_length = '' }
