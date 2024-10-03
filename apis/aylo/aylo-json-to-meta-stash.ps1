@@ -227,6 +227,8 @@ function Set-AyloJsonToMetaStash {
 
             # Non-members URL
             $slug = $sceneData.title -replace "ï¿½", "i-" # Fix for some corrupted titles in BB.
+            # Remove trailing "-" if needed
+            if ($slug[-1] -eq "-") { $slug = $slug.Substring(0, $slug.Length - 1) }
             $slug = $slug -replace "[^\w\s-]", "" # Remove all characters that aren't letters, numbers, spaces, or hyphens
             $slug = $slug -replace " ", "-" # Replace spaces with hyphens
             $slug = Get-TextWithoutDiacritics $slug # Simplify diacritics
