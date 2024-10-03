@@ -22,8 +22,26 @@ function Get-AyloAllContentByActorIDs {
     }
 }
 
+# Scrape then download all content featured in the provided scene ID/s
+function Get-AyloAllContentBySceneIDs {
+    param(
+        [Parameter(Mandatory)][String]$pathToUserConfig,
+        [Parameter(Mandatory)][Int[]]$sceneIDs
+    )
+    foreach ($sceneID in $sceneIDs) {
+        $pathToSceneJson = Get-AyloAllJson -pathToUserConfig $pathToUserConfig -sceneID $sceneID
+        if (($null -ne $pathToSceneJson) -and !(Test-Path $pathToSceneJson)) {
+            Write-Host `n"ERROR: scene $sceneID JSON data not found - $pathToSceneJson." -ForegroundColor Red
+        }
+        elseif ($null -ne $pathToSceneJson) {
+            $sceneData = Get-Content $pathToSceneJson -raw | ConvertFrom-Json
+            Get-AyloSceneAllMedia -sceneData $sceneData -pathToUserConfig $pathToUserConfig
+        }
+    }
+}
+
 # Scrape then download all content featured in the provided series ID/s
-function Get-AyloAllContentBySeriesID {
+function Get-AyloAllContentBySeriesIDs {
     param(
         [Parameter(Mandatory)][String]$pathToUserConfig,
         [Parameter(Mandatory)][Int[]]$seriesIDs

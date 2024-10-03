@@ -107,8 +107,9 @@ function Set-Entry {
 
         # Next, user specifies what to download
         Write-Host `n"What content do you want to download?"
-        Write-Host "1. All content from a group of performers"
-        Write-Host "2. All content from a series"
+        Write-Host "1. All content from a list of performers"
+        Write-Host "2. All content from a list of scenes"
+        Write-Host "3. All content from a list of series"
         do { $contentSelection = read-host "Enter your selection (1-2)" }
         while (($contentSelection -notmatch "[1-2]"))
 
@@ -128,12 +129,20 @@ function Set-Entry {
             }
         }
         elseif ($contentSelection -eq 2) {
+            # Next, user specifies scene IDs
+            Write-Host `n"Specify all scene IDs you wish to download in a space-separated list, e.g. '123 2534 1563'."
+            $sceneIDs = read-host "Scene IDs"
+            $sceneIDs = $sceneIDs -split (" ")
+
+            Get-AyloAllContentBySceneIDs -pathToUserConfig $pathToUserConfig -sceneIDs $sceneIDs
+        }
+        elseif ($contentSelection -eq 3) {
             # Next, user specifies series IDs
             Write-Host `n"Specify all series IDs you wish to download in a space-separated list, e.g. '123 2534 1563'."
             $seriesIDs = read-host "Series IDs"
             $seriesIDs = $seriesIDs -split (" ")
 
-            Get-AyloAllContentBySeriesID -pathToUserConfig $pathToUserConfig -seriesIDs $seriesIDs
+            Get-AyloAllContentBySeriesIDs -pathToUserConfig $pathToUserConfig -seriesIDs $seriesIDs
         }
     }
 
