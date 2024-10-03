@@ -227,20 +227,26 @@ function Get-AyloJson {
     if ($result.collections.count -gt 0) { $studio = $result.collections[0].name }
     else { $studio = $parentStudio }
 
+    # Skip creating JSON if the content already exists in either the download or
+    # storage directory
+    $topDirs = @($userConfig.general.downloadDirectory, $userConfig.general.storageDirectory)
     $subDir = Join-Path "aylo" $apiType $parentStudio $studio
-    $contentDir = Join-Path $userConfig.general.downloadDirectory $subDir
 
-    # Skip creating JSON if the downloaded content already exists
-    if (Test-Path -LiteralPath $contentDir) {
-        $contentFile = Get-ChildItem $contentDir | Where-Object { $_.BaseName -match "^$contentID\s" }
-        if ($contentFile.Length -gt 0) {
-            Write-Host "Media already exists. Skipping JSON generation for $apiType #$contentID."
+    foreach ($topDir in $topDirs) {
+        $contentDir = Join-Path $topDir $subDir
+        
+        # Skip creating JSON if the content already exists
+        if (Test-Path -LiteralPath $contentDir) {
+            $contentFile = Get-ChildItem $contentDir | Where-Object { $_.BaseName -match "^$contentID\s" }
+            if ($contentFile.Length -gt 0) {
+                Write-Host "Media already exists. Skipping JSON generation for $apiType #$contentID."
 
-            # Return the path to the existing JSON file
-            $title = Get-SanitizedTitle -title $result.title
-            $filename = "$contentID $title.json"
-            $pathToExistingJson = Join-Path $userConfig.general.scrapedDataDirectory $subDir $filename
-            return $pathToExistingJson
+                # Return the path to the existing JSON file
+                $title = Get-SanitizedTitle -title $result.title
+                $filename = "$contentID $title.json"
+                $pathToExistingJson = Join-Path $userConfig.general.scrapedDataDirectory $subDir $filename
+                return $pathToExistingJson
+            }
         }
     }
 
