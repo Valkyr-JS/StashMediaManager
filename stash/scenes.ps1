@@ -59,6 +59,7 @@ function Set-StashSceneUpdate {
         [String]$code,
         [String]$cover_image,
         [String]$details,
+        [array]$groups,
         [String[]]$performer_ids,
         [String]$studio_id,
         [String[]]$tag_ids,
@@ -78,6 +79,11 @@ function Set-StashSceneUpdate {
         # Need to escape the quotation marks in JSON.
         $details = $details.replace('"', '\"')
         $details = '"details": "' + $details + '",'
+    }
+
+    if ($groups -and $groups.Count) {
+        $groups = ConvertTo-Json $groups -depth 32
+        $groups = '"groups": ' + $groups + ','
     }
 
     if ($performer_ids -and $performer_ids.Count) {
@@ -104,10 +110,12 @@ function Set-StashSceneUpdate {
             code
             date
             details
+            groups { group {
+                id
+                name
+            }}
             id
-            paths {
-                screenshot
-            }
+            paths { screenshot }
             performers {
                 id
                 name
@@ -121,6 +129,7 @@ function Set-StashSceneUpdate {
             '+ $cover_image + '
             '+ $date + '
             '+ $details + '
+            '+ $groups + '
             '+ $performer_ids + '
             '+ $studio_id + '
             '+ $tag_ids + '

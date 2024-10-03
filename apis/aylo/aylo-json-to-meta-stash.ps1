@@ -80,6 +80,7 @@ function Set-AyloJsonToMetaStash {
     $collectionsDataDir = Join-Path $dataDir "collection"
     $actorsDataDir = Join-Path $dataDir "actor"
     $scenesDataDir = Join-Path $dataDir "scene"
+    $seriesDataDir = Join-Path $dataDir "serie"
 
     # Logging meta
     $metaScenesUpdated = 0
@@ -125,6 +126,67 @@ function Set-AyloJsonToMetaStash {
         else {
             $sceneData = Get-Content $sceneData -raw | ConvertFrom-Json
 
+            # ---------------------------------- Groups ---------------------------------- #
+
+            $groups = @()
+
+            # ---------------------------- Group - web series ---------------------------- #
+
+            $stashGroup_webseries = $null
+            if ($sceneData.parent -and $sceneData.parent.type -eq "serie") {
+                # Get the web series data
+                $seriesData = Get-ChildItem -Path $seriesDataDir -Recurse -File -Filter "*.json" | Where-Object { $_.BaseName -match "^$($sceneData.parent.id)\s" }
+                $seriesData = Get-Content $seriesData -raw | ConvertFrom-Json
+
+                $sceneGroupIndex = $seriesData.children | Where-Object { $_.id -eq $sceneData.id }
+                $sceneGroupIndex = $sceneGroupIndex.position
+
+                # Check if the series is already in Stash
+
+                # TODO - Change to filter by alias when Stash supports aliases
+                # in GroupFilterType -
+                # https://discord.com/channels/559159668438728723/559159910550732809/1291168582390124554
+                $stashGroup_webseries = Get-StashGroupByName $seriesData.title
+
+                if ($stashGroup_webseries.data.findGroups.groups.count -eq 0) {
+                    # Create the new group
+
+                    # Create any parent tags that aren't in Stash yet
+                    [array]$parentTagNames = Get-ParentTagsFromTagsList -tagList $seriesData.tags
+                    if ($parentTagNames.Count) { $null = Set-ParentTagsFromTagNameList -tagList $parentTagNames }
+
+                    # Create new tags that aren't in Stash yet
+                    if ($seriesData.tags.Count) { $null = Set-TagsFromTagList -tagList $seriesData.tags }
+
+                    $aliases = "aylo-$($seriesData.id)"
+
+                    $stashStudio = Get-StashStudioFromData -collectionsDataDir $collectionsDataDir -data $seriesData
+                    if ($stashStudio.data.findStudios) { $stashStudioID = $stashStudio.data.findStudios.studios.id }
+                    else { $stashStudioID = $stashStudio.data.studioCreate.id }
+                    
+                    $tagIDs = @()
+                    foreach ($id in $seriesData.tags.id) {
+                        $result = Get-StashTagByAlias -alias "aylo-$id"
+                        $tagIDs += $result.data.findTags.tags.id
+                    }
+    
+                    $stashGroup_webseries = Set-StashGroup -name $seriesData.title -aliases $aliases -front_image $seriesData.images.poster."0".lg.url -studio_id $stashStudioID -synopsis $seriesData.description -tag_ids $tagIDs -date $seriesData.dateReleased
+
+                    $webseriesInput = @{
+                        "group_id"    = $stashGroup_webseries.data.groupCreate.id
+                        "scene_index" = $sceneGroupIndex
+                    }
+                    $groups += $webseriesInput
+                }
+                else {
+                    $webseriesInput = @{
+                        "group_id"    = $stashGroup_webseries.data.findGroups.groups[0].id
+                        "scene_index" = $sceneGroupIndex
+                    }
+                    $groups += $webseriesInput
+                }
+            }
+
             # -------------------------------- Performers -------------------------------- #
 
             # Create any performers that aren't in Stash yet
@@ -139,67 +201,7 @@ function Set-AyloJsonToMetaStash {
 
             # ---------------------------------- Studio ---------------------------------- #
             
-            $stashStudio = $null
-            $stashParentStudioID = $null
-
-            # Get the studio data from the manually-scraped collections file
-            $studioData = Get-ChildItem -Path $collectionsDataDir -Filter "*.json" | Where-Object { $_.BaseName -match $sceneData.brand }
-            $studioData = Get-Content $studioData -raw | ConvertFrom-Json
-
-            if ($sceneData.collections.count -eq 0) {
-                # Use a studio with the same name as the parent, without the "(network)" suffix.
-                $studioData = @{
-                    "brand"     = $sceneData.brand
-                    "brandMeta" = $sceneData.brandMeta
-                    "name"      = $sceneData.brandMeta.displayName
-                }
-            }
-            else {
-                $studioData = $studioData.result | Where-Object { $_.name -eq $sceneData.collections[0].name }
-            }
-
-            # Check if the studio is already in Stash
-            $stashStudio = Get-StashStudioByName $studioData.name
-            if ($stashStudio.data.findStudios.studios.count -eq 0) {
-                # Check if the parent studio is already in Stash
-                $stashParentStudio = Get-StashStudioByName "$($studioData.brandMeta.displayName) (network)"
-
-                if ($stashParentStudio.data.findStudios.studios.count -eq 0) { 
-                    # Create the parent studio if it doesn't exist
-                    $url = "https://www." + $studioData.brand + ".com/"
-
-                    $stashParentStudio = Set-StashStudio -name "$($studioData.brandMeta.displayName) (network)" -url $url
-                    $stashParentStudioID = $stashParentStudio.data.studioCreate.id
-                }
-                else {
-                    $stashParentStudioID = $stashParentStudio.data.findStudios.studios[0].id
-                }
-
-                $aliases = @()
-                if ($studioData.shortName) { $aliases = @($studioData.shortName) }
-
-                $details = $null
-                if ($studioData.description) { $details = $studioData.description }
-
-                $image = $null
-                if ($studioData.images.card_main_rect."0".md.url) {
-                    $image = $studioData.images.card_main_rect."0".md.url
-                }
-                
-                $url = $null
-                if ($studioData.customUrl) {
-                    $url = "https://www." + $studioData.brand + ".com" + $studioData.customUrl
-                }
-                elseif ($studioData.domainName) {
-                    $url = $studioData.domainName
-                }
-
-                $stashStudio = Set-StashStudio -name $studioData.name -aliases @aliases -details $details -image $image -parent_id $stashParentStudioID -url $url
-                $stashStudioID = $stashStudio.data.studioCreate.id
-            }
-            else {
-                $stashStudioID = $stashStudio.data.findStudios.studios[0].id
-            }
+            $stashStudio = Get-StashStudioFromData -collectionsDataDir $collectionsDataDir -data $sceneData
 
             # ----------------------------------- Tags ----------------------------------- #
 
@@ -239,7 +241,7 @@ function Set-AyloJsonToMetaStash {
             $urls += $publicUrl
 
             # Update the scene
-            $null = Set-StashSceneUpdate -id $stashScene.id -code $sceneData.id -cover_image $sceneData.images.poster."0".xx.url -details $sceneData.description -performer_ids $performerIDs -studio_id $stashStudioID -tag_ids $tagIDs -title $sceneData.title -urls $urls -date $sceneData.dateReleased
+            $null = Set-StashSceneUpdate -id $stashScene.id -code $sceneData.id -cover_image $sceneData.images.poster."0".xx.url -details $sceneData.description -groups $groups -performer_ids $performerIDs -studio_id $stashStudio.id -tag_ids $tagIDs -title $sceneData.title -urls $urls -date $sceneData.dateReleased
             $metaScenesUpdated++
         }
     }
@@ -410,4 +412,70 @@ function Set-PerformersFromActorList {
             }
         }
     }
+}
+
+# Get the Stash studio data from a piece of scene or group data, and create a
+# new one if required. Returns the Stash studio data
+function Get-StashStudioFromData {
+    param (
+        [Parameter(Mandatory)][string]$collectionsDataDir,
+        [Parameter(Mandatory)]$data
+    )
+    $stashParentStudioID = $null
+
+    # Get the studio data from the manually-scraped collections file
+    $studioData = Get-ChildItem -Path $collectionsDataDir -Filter "*.json" | Where-Object { $_.BaseName -match $data.brand }
+    $studioData = Get-Content $studioData -raw | ConvertFrom-Json
+
+    if ($data.collections.count -eq 0) {
+        # Use a studio with the same name as the parent, without the "(network)" suffix.
+        $studioData = @{
+            "brand"     = $data.brand
+            "brandMeta" = $data.brandMeta
+            "name"      = $data.brandMeta.displayName
+        }
+    }
+    else {
+        $studioData = $studioData.result | Where-Object { $_.name -eq $data.collections[0].name }
+    }
+
+    # Check if the studio is already in Stash
+    $stashStudio = Get-StashStudioByName $studioData.name
+    if ($stashStudio.data.findStudios.studios.count -eq 0) {
+        # Check if the parent studio is already in Stash
+        $stashParentStudio = Get-StashStudioByName "$($studioData.brandMeta.displayName) (network)"
+
+        if ($stashParentStudio.data.findStudios.studios.count -eq 0) { 
+            # Create the parent studio if it doesn't exist
+            $url = "https://www." + $studioData.brand + ".com/"
+
+            $stashParentStudio = Set-StashStudio -name "$($studioData.brandMeta.displayName) (network)" -url $url
+            $stashParentStudioID = $stashParentStudio.data.studioCreate.id
+        }
+        else {
+            $stashParentStudioID = $stashParentStudio.data.findStudios.studios[0].id
+        }
+
+        $aliases = @()
+        if ($studioData.shortName) { $aliases = @($studioData.shortName) }
+
+        $details = $null
+        if ($studioData.description) { $details = $studioData.description }
+
+        $image = $null
+        if ($studioData.images.card_main_rect."0".md.url) {
+            $image = $studioData.images.card_main_rect."0".md.url
+        }
+        
+        $url = $null
+        if ($studioData.customUrl) {
+            $url = "https://www." + $studioData.brand + ".com" + $studioData.customUrl
+        }
+        elseif ($studioData.domainName) {
+            $url = $studioData.domainName
+        }
+
+        $stashStudio = Set-StashStudio -name $studioData.name -aliases @aliases -details $details -image $image -parent_id $stashParentStudioID -url $url
+    }
+    return $stashStudio
 }
