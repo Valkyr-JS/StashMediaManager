@@ -77,13 +77,15 @@ function Set-AyloJsonToMetaStash {
     else { Write-Host "Backup will not be created." }
 
     $dataDir = Join-Path $userConfig.general.scrapedDataDirectory "aylo"
-    $collectionsDataDir = Join-Path $dataDir "collection"
     $actorsDataDir = Join-Path $dataDir "actor"
+    $collectionsDataDir = Join-Path $dataDir "collection"
+    $galleriesDataDir = Join-Path $dataDir "gallery"
     $scenesDataDir = Join-Path $dataDir "scene"
     $seriesDataDir = Join-Path $dataDir "serie"
 
     # Logging meta
     $metaScenesUpdated = 0
+    $metaGalleriesUpdated = 0
 
     # ---------------------------------------------------------------------------- #
     #                                    Scenes                                    #
@@ -253,10 +255,9 @@ function Set-AyloJsonToMetaStash {
             foreach ($markerData in $sceneData.timeTags) {
                 # First, check if a marker already exists with the same aylo tag
                 # ID at the same start time.
-                if (!($existingMarkers | Where-Object {
-                            $_.primary_tag.name -eq $markerData.name -and
-                            $_.seconds -eq $markerData.startTime
-                        })) {
+                $matchingMarker = $existingMarkers | Where-Object { $_.primary_tag.name -eq $markerData.name -and $_.seconds -eq $markerData.startTime }
+                if (!($matchingMarker)) {
+                    $primaryTag = Get-StashTagByAlias "aylo-$($markerData.id)"
                     # Create the new marker
                     $StashGQL_Query = 'mutation CreateSceneMarker($input: SceneMarkerCreateInput!) {
                         sceneMarkerCreate(input: $input) {
@@ -271,15 +272,82 @@ function Set-AyloJsonToMetaStash {
                             "seconds": '+ $markerData.startTime + ',
                             "title": "'+ $markerData.name + '"
                         }
-                    }' 
-                    $result = Invoke-StashGQLQuery -query $StashGQL_Query -variables $StashGQL_QueryVariables
+                    }'
+                    $null = Invoke-StashGQLQuery -query $StashGQL_Query -variables $StashGQL_QueryVariables
                 }
             }      
         }
     }
 
+    # ---------------------------------------------------------------------------- #
+    #                                   Galleries                                  #
+    # ---------------------------------------------------------------------------- #
+
+    # Fetch all Stash galleries not marked as organized
+    $StashGQL_Query = 'query FindUnorganizedGalleries($filter: FindFilterType, $gallery_filter: GalleryFilterType) {
+        findGalleries(filter: $filter, gallery_filter: $gallery_filter) {
+            galleries {
+            files { path }
+                id
+                title
+            }
+        }
+    }'
+    $StashGQL_QueryVariables = '{
+        "filter": {
+            "per_page": -1
+        },
+        "gallery_filter": {
+            "organized": false
+        }
+    }'
+
+    $result = Invoke-StashGQLQuery -query $StashGQL_Query -variables $StashGQL_QueryVariables
+
+    foreach ($stashGallery in $result.data.findGalleries.galleries) {
+        Write-Host "Updating Stash gallery $($stashGallery.id)" -ForegroundColor Cyan
+
+        # Get the associated data file
+        $ayloID = $stashGallery.files.path.split("/")[5].split(" ")[0]
+        $galleryData = Get-ChildItem -Path $galleriesDataDir -Recurse -File -Filter "*.json" | Where-Object { $_.BaseName -match "^$ayloID\s" }
+
+        if (!($galleryData)) {
+            Write-Host "FAILED: No data file found that matches Stash gallery $($stashGallery.id)." -ForegroundColor Red
+        }
+        else {
+            $galleryData = Get-Content $galleryData -raw | ConvertFrom-Json
+
+            # -------------------------------- Performers -------------------------------- #
+
+            # Create any performers that aren't in Stash yet
+            $null = Set-PerformersFromActorList -actorsDataDir $actorsDataDir -actorList $galleryData.parent.actors
+
+            # Fetch all performer IDs from Stash
+            $performerIDs = @()
+            foreach ($id in $galleryData.parent.actors.id) {
+                $result = Get-StashPerformerByDisambiguation -disambiguation $id
+                $performerIDs += $result.data.findPerformers.performers.id
+            }
+
+            # ---------------------------------- Scenes ---------------------------------- #
+
+            # Fetch all scene IDs from Stash
+            $stashScene = Get-StashSceneByCode $galleryData.parent.id
+
+            # ---------------------------------- Studio ---------------------------------- #
+            
+            $stashStudio = Get-StashStudioFromData -collectionsDataDir $collectionsDataDir -data $galleryData
+
+            # ---------------------------- Update the gallery ---------------------------- #
+
+            $null = Set-StashGalleryUpdate -id $stashGallery.id -code $galleryData.id -details $galleryData.description -performer_ids $performerIDs -scene_ids $stashScene.data.findScenes.scenes.id -studio_id $stashStudio.data.findStudios.studios[0].id -title $galleryData.title -date $galleryData.dateReleased
+        }
+        $metaGalleriesUpdated++
+    }
+
     Write-Host "All updates complete" -ForegroundColor Cyan
     Write-Host "Scenes updated: $metaScenesUpdated"
+    Write-Host "Galleries updated: $metaGalleriesUpdated"
 }
 
 # ---------------------------------------------------------------------------- #
