@@ -62,7 +62,7 @@ function Set-StashTag {
         $aliases = '"aliases": ' + $aliases + ','
     }
 
-    if ($parent_ids -and $aliases.Count) {
+    if ($parent_ids -and $parent_ids.Count) {
         $parent_ids = ConvertTo-Json $parent_ids -depth 32
         $parent_ids = '"parent_ids": ' + $parent_ids + ','
     }

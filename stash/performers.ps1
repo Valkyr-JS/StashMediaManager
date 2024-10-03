@@ -31,14 +31,14 @@ function Set-StashPerformer {
         [Parameter(Mandatory)][String]$name,
         [ValidateSet('MALE', 'FEMALE', 'TRANSGENDER_MALE', 'TRANSGENDER_FEMALE', 'INTERSEX', 'NONBINARY')][String]$gender,
         [String[]]$alias_list,
-        $birthdate,
         [String]$details,
         [Int]$height_cm,
         [String]$image,
         [String]$measurements,
         [Int]$penis_length,
         [String[]]$tag_ids,
-        [Int]$weight
+        [Int]$weight,
+        $birthdate
     )
     if ($alias_list -and $alias_list.Count) {
         $alias_list = ConvertTo-Json $aliases -depth 32
@@ -65,7 +65,7 @@ function Set-StashPerformer {
     else { [string]$height_cm = '' }
 
     if ($image) { $image = '"image": "' + $image + '",' }
-    if ($measurements) { $measurements = '"measurements": "' + $measurements + '",' }
+    if ($measurements) { $measurements = '"measurements": "' + $measurements.Trim() + '",' }
 
     if ($penis_length -and $penis_length -ne 0) { [string]$penis_length = '"penis_length": ' + $penis_length + ',' }
     else { [string]$penis_length = '' }
