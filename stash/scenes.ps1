@@ -120,6 +120,16 @@ function Set-StashSceneUpdate {
                 id
                 name
             }
+            scene_markers {
+                id
+                primary_tag {
+                    aliases
+                    id
+                    name
+                }
+                seconds
+                title
+            }
             title
         }
     }'

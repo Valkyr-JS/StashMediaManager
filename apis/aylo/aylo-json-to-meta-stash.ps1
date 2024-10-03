@@ -241,8 +241,40 @@ function Set-AyloJsonToMetaStash {
             $urls += $publicUrl
 
             # Update the scene
-            $null = Set-StashSceneUpdate -id $stashScene.id -code $sceneData.id -cover_image $sceneData.images.poster."0".xx.url -details $sceneData.description -groups $groups -performer_ids $performerIDs -studio_id $stashStudio.id -tag_ids $tagIDs -title $sceneData.title -urls $urls -date $sceneData.dateReleased
+            $stashScene = Set-StashSceneUpdate -id $stashScene.id -code $sceneData.id -cover_image $sceneData.images.poster."0".xx.url -details $sceneData.description -groups $groups -performer_ids $performerIDs -studio_id $stashStudio.id -tag_ids $tagIDs -title $sceneData.title -urls $urls -date $sceneData.dateReleased
             $metaScenesUpdated++
+            
+            # ------------------------------- Scene markers ------------------------------ #
+
+            # Scene markers can't be created as part of a scene update, it needs to
+            # be done as a separate graphql query afterwards.
+
+            $existingMarkers = $stashScene.data.sceneUpdate.scene_markers
+            foreach ($markerData in $sceneData.timeTags) {
+                # First, check if a marker already exists with the same aylo tag
+                # ID at the same start time.
+                if (!($existingMarkers | Where-Object {
+                            $_.primary_tag.name -eq $markerData.name -and
+                            $_.seconds -eq $markerData.startTime
+                        })) {
+                    # Create the new marker
+                    $StashGQL_Query = 'mutation CreateSceneMarker($input: SceneMarkerCreateInput!) {
+                        sceneMarkerCreate(input: $input) {
+                            id
+                            title
+                        }
+                    }'
+                    $StashGQL_QueryVariables = '{
+                        "input": {
+                            "primary_tag_id": "'+ $primaryTag.data.findTags.tags[0].id + '",
+                            "scene_id": "'+ $stashScene.data.sceneUpdate.id + '",
+                            "seconds": '+ $markerData.startTime + ',
+                            "title": "'+ $markerData.name + '"
+                        }
+                    }' 
+                    $result = Invoke-StashGQLQuery -query $StashGQL_Query -variables $StashGQL_QueryVariables
+                }
+            }      
         }
     }
 
