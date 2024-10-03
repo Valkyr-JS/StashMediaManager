@@ -1,6 +1,7 @@
 . "./config-management.ps1"
 . "./helpers.ps1"
 
+. "./stash/galleries.ps1"
 . "./stash/groups.ps1"
 . "./stash/performers.ps1"
 . "./stash/scenes.ps1"
