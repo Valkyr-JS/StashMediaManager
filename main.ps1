@@ -44,6 +44,49 @@ function Set-Entry {
 
     $apiData = $apiData[$apiSelection - 1]
 
+    # -------------------------- General config updates -------------------------- #
+    
+    # Update the config if needed
+    if ($userConfig.general.downloadDirectory.Length -eq 0) {
+        $userConfig = Set-ConfigDownloadDirectory -pathToUserConfig $pathToUserConfig
+    }
+
+    # Ensure the download directory doesn't have a trailing directory delimiter
+    [string]$downloadDirectory = $userConfig.general.downloadDirectory
+    if ($downloadDirectory[-1] -eq $directorydelimiter) {
+        $downloadDirectory = $downloadDirectory.Substring(0, $downloadDirectory.Length - 1)
+    }
+
+    if ($userConfig.general.scrapedDataDirectory.Length -eq 0) {
+        $userConfig = Set-ConfigScrapedDataDirectory -pathToUserConfig $pathToUserConfig
+    }
+
+    # Ensure the storage directory doesn't have a trailing directory delimiter
+    [string]$storageDirectory = $userConfig.general.storageDirectory
+    if ($storageDirectory[-1] -eq $directorydelimiter) {
+        $storageDirectory = $storageDirectory.Substring(0, $storageDirectory.Length - 1)
+    }
+
+    if ($userConfig.general.storageDirectory.Length -eq 0) {
+        $userConfig = Set-ConfigStorageDirectory -pathToUserConfig $pathToUserConfig
+    }
+
+    # Ensure the scraped data directory doesn't have a trailing directory delimiter
+    [string]$scrapedDataDirectory = $userConfig.general.scrapedDataDirectory
+    if ($scrapedDataDirectory[-1] -eq $directorydelimiter) {
+        $scrapedDataDirectory = $scrapedDataDirectory.Substring(0, $scrapedDataDirectory.Length - 1)
+    }
+
+    if ($userConfig.general.assetsDirectory.Length -eq 0) {
+        $userConfig = Set-ConfigAssetsDirectory -pathToUserConfig $pathToUserConfig
+    }
+
+    # Ensure the assets directory doesn't have a trailing directory delimiter
+    [string]$assetsDirectory = $userConfig.general.assetsDirectory
+    if ($assetsDirectory[-1] -eq $directorydelimiter) {
+        $assetsDirectory = $assetsDirectory.Substring(0, $assetsDirectory.Length - 1)
+    }
+
     # Next, user selects an operation
     Write-Host `n"What would you like to do?"
     Write-Host "1. Download media"
@@ -73,37 +116,6 @@ function Set-Entry {
         while ($networksValid -eq $false)
 
         $networks = $networks -split (" ")
-
-        # Update the config if needed
-        if ($userConfig.general.downloadDirectory.Length -eq 0) {
-            $userConfig = Set-ConfigDownloadDirectory -pathToUserConfig $pathToUserConfig
-        }
-
-        # Ensure the download directory doesn't have a trailing directory delimiter
-        [string]$downloadDirectory = $userConfig.general.downloadDirectory
-        if ($downloadDirectory[-1] -eq $directorydelimiter) {
-            $downloadDirectory = $downloadDirectory.Substring(0, $downloadDirectory.Length - 1)
-        }
-
-        if ($userConfig.general.scrapedDataDirectory.Length -eq 0) {
-            $userConfig = Set-ConfigScrapedDataDirectory -pathToUserConfig $pathToUserConfig
-        }
-
-        # Ensure the scraped data directory doesn't have a trailing directory delimiter
-        [string]$scrapedDataDirectory = $userConfig.general.scrapedDataDirectory
-        if ($scrapedDataDirectory[-1] -eq $directorydelimiter) {
-            $scrapedDataDirectory = $scrapedDataDirectory.Substring(0, $scrapedDataDirectory.Length - 1)
-        }
-
-        if ($userConfig.general.assetsDirectory.Length -eq 0) {
-            $userConfig = Set-ConfigAssetsDirectory -pathToUserConfig $pathToUserConfig
-        }
-
-        # Ensure the assets directory doesn't have a trailing directory delimiter
-        [string]$assetsDirectory = $userConfig.general.assetsDirectory
-        if ($assetsDirectory[-1] -eq $directorydelimiter) {
-            $assetsDirectory = $assetsDirectory.Substring(0, $assetsDirectory.Length - 1)
-        }
 
         # Next, user specifies what to download
         Write-Host `n"What content do you want to download?"

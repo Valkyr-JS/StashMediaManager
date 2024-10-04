@@ -1,36 +1,7 @@
-$login = [PSCustomObject]@{
-    "password" = ""
-    "url"      = ""
-    "username" = ""
-}
-
 $headers = @{
     "authorization" = $null
     "dnt"           = "1"
     "instance"      = $null
-}
-
-# Set the login details for an Aylo site
-function Set-AyloLoginDetails {
-    param(
-        [Parameter(Mandatory)][String]$pathToUserConfig,
-        [Boolean]$setLoginUrl = $false
-    )
-
-    do { $ayloUsername = read-host "Enter your Aylo username" }
-    while ($ayloUsername.Length -eq 0)
-    $login.username = $ayloUsername
-
-    do { $ayloPassword = read-host "Enter your Aylo password - THIS WILL BE SHOWN ON YOUR SCREEN" }
-    while ($ayloPassword.Length -eq 0)
-    $login.password = $ayloPassword
-
-    $userConfig = Get-Content $pathToUserConfig -raw | ConvertFrom-Json
-    if ($setLoginUrl -or ($userConfig.aylo.masterSite.Length -eq 0)) {
-        Set-ConfigAyloMasterSite -pathToUserConfig $pathToUserConfig
-        $userConfig = Get-Content $pathToUserConfig -raw | ConvertFrom-Json
-    }
-    $login.url = "https://site-ma.$($userConfig.aylo.masterSite).com/login"
 }
 
 # Get headers for an Aylo web request
@@ -44,37 +15,15 @@ function Set-AyloHeaders {
         [Parameter(Mandatory)][String]$pathToUserConfig
     )
     $userConfig = Get-Content $pathToUserConfig -raw | ConvertFrom-Json
-
-    # Set login details if required. Login details should be entered at the
-    # start of every session and cleared at the very end.
-    if (($login.username.Length -eq 0) -or
-    ($login.password.Length -eq 0) -or
-    ($login.url.Length -eq 0)) {
-        do {
-            Set-AyloLoginDetails -pathToUserConfig $pathToUserConfig -setLoginUrl ($userConfig.aylo.masterSite.Length -eq 0)
-        }
-        while (
-            ($login.username.Length -eq 0) -or
-            ($login.password.Length -eq 0) -or
-            ($login.url.Length -eq 0)
-        )
+    if ($userConfig.aylo.masterSite.Length -eq 0) {
+        Set-ConfigAyloMasterSite -pathToUserConfig $pathToUserConfig
+        $userConfig = Get-Content $pathToUserConfig -raw | ConvertFrom-Json
     }
+    $loginUrl = "https://site-ma.$($userConfig.aylo.masterSite).com/login"
 
-    # Open Firefox
+    # Open Firefox then wait for the user to login
     $Driver = Start-SeFirefox -PrivateBrowsing
-    Enter-SeUrl $login.url -Driver $Driver
-
-    # Username
-    $usernameInput = Find-SeElement -Driver $Driver -CssSelector "input[type=text][name=username]"
-    Send-SeKeys -Element $usernameInput -Keys $login.username
-
-    # Password
-    $passwordInput = Find-SeElement -Driver $Driver -CssSelector "input[type=password][name=password]"
-    Send-SeKeys -Element $passwordInput -Keys $login.password
-
-    # Click login
-    $loginBtn = Find-SeElement -Driver $Driver -CssSelector "button[type=submit]"
-    Invoke-SeClick -Element $loginBtn
+    Enter-SeUrl $loginUrl -Driver $Driver
     Find-SeElement -Driver $Driver -Wait -By XPath "//*[text()='Continue to Members Area']"
 
     # Get new page content
@@ -149,6 +98,8 @@ function Get-AyloQueryData {
         [string]$parentStudio
     )
 
+    Write-Host `n"Please login to the master site in the new browser window, then wait until it closes automatically." -ForegroundColor Cyan
+
     $params = Set-AyloQueryParameters -actorID $actorID -apiType $apiType -id $contentID -offset $offset -parentId $parentId -parentStudio $parentStudio -pathToUserConfig $pathToUserConfig
 
     if (($null -eq $headers.authorization) -or ($null -eq $headers.instance)) {
@@ -157,17 +108,8 @@ function Get-AyloQueryData {
 
     try { $result = Invoke-RestMethod @params }
     catch {
-        # If initial scrape fails, try fetching new auth keys
-        Write-Host "WARNING: Scene scrape failed. Attempting to fetch new auth keys." -ForegroundColor Yellow
-        Set-AyloHeaders -pathToUserConfig $pathToUserConfig
-        $params = Set-AyloQueryParameters -actorID $actorID -apiType $apiType -id $contentID -offset $offset -parentId $parentId -parentStudio $parentStudio -pathToUserConfig $pathToUserConfig
-
-        # Retry scrape once with new keys
-        try { $result = Invoke-RestMethod @params }
-        catch {
-            Write-Host "ERROR: $contentType scrape failed." -ForegroundColor Red
-            return Write-Host "$_" -ForegroundColor Red
-        }
+        Write-Host "WARNING: Scene scrape failed." -ForegroundColor Yellow
+        exit
     }
 
     return $result
@@ -227,20 +169,26 @@ function Get-AyloJson {
     if ($result.collections.count -gt 0) { $studio = $result.collections[0].name }
     else { $studio = $parentStudio }
 
+    # Skip creating JSON if the content already exists in either the download or
+    # storage directory
+    $topDirs = @($userConfig.general.downloadDirectory, $userConfig.general.storageDirectory)
     $subDir = Join-Path "aylo" $apiType $parentStudio $studio
-    $contentDir = Join-Path $userConfig.general.downloadDirectory $subDir
 
-    # Skip creating JSON if the downloaded content already exists
-    if (Test-Path -LiteralPath $contentDir) {
-        $contentFile = Get-ChildItem $contentDir | Where-Object { $_.BaseName -match "^$contentID\s" }
-        if ($contentFile.Length -gt 0) {
-            Write-Host "Media already exists. Skipping JSON generation for $apiType #$contentID."
+    foreach ($topDir in $topDirs) {
+        $contentDir = Join-Path $topDir $subDir
+        
+        # Skip creating JSON if the content already exists
+        if (Test-Path -LiteralPath $contentDir) {
+            $contentFile = Get-ChildItem $contentDir | Where-Object { $_.BaseName -match "^$contentID\s" }
+            if ($contentFile.Length -gt 0) {
+                Write-Host "Media already exists at $($contentFile.FullName). Skipping JSON generation for $apiType #$contentID."
 
-            # Return the path to the existing JSON file
-            $title = Get-SanitizedTitle -title $result.title
-            $filename = "$contentID $title.json"
-            $pathToExistingJson = Join-Path $userConfig.general.scrapedDataDirectory $subDir $filename
-            return $pathToExistingJson
+                # Return the path to the existing JSON file
+                $title = Get-SanitizedTitle -title $result.title
+                $filename = "$contentID $title.json"
+                $pathToExistingJson = Join-Path $userConfig.general.scrapedDataDirectory $subDir $filename
+                return $pathToExistingJson
+            }
         }
     }
 

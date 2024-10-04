@@ -47,6 +47,21 @@ function Set-ConfigScrapedDataDirectory {
     return $userConfig
 }
 
+# Set the user config value for the storage directory
+function Set-ConfigStorageDirectory {
+    param(
+        [String]$pathToUserConfig
+    )
+
+    $userConfig = Get-Content $pathToUserConfig -raw | ConvertFrom-Json
+    do { $userInput = read-host "Please enter a valid path to your storage folder" }
+    while (($userInput.Length -eq 0) -or !(Test-Path $userInput))
+
+    $userConfig.general.storageDirectory = "$userInput"
+    $userConfig | ConvertTo-Json -depth 32 | set-content $pathToUserConfig
+    return $userConfig
+}
+
 # ----------------------------------- AYLO ----------------------------------- #
 
 # Set the user config value for aylo.masterSite

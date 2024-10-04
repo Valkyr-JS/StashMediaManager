@@ -6,6 +6,7 @@
   "general": {
     "assetsDirectory": "",
     "downloadDirectory": "",
-    "scrapedDataDirectory": ""
+    "scrapedDataDirectory": "",
+    "storageDirectory": ""
   }
 }
