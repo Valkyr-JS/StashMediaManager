@@ -8,6 +8,7 @@ function Get-AyloSceneAllMedia {
     $assetsDir = $userConfig.general.assetsDirectory
     $dataDir = $userConfig.general.scrapedDataDirectory
     $downloadDir = $userConfig.general.downloadDirectory
+    $storageDir = $userConfig.general.storageDirectory
 
     $parentStudio = $sceneData.brandMeta.displayName
     if ($sceneData.collections.count -gt 0) { $studio = $sceneData.collections[0].name }
@@ -32,6 +33,7 @@ function Get-AyloSceneAllMedia {
         return Join-Path $root "aylo" $apiType $parentStudio $studio
     }
 
+
     # Galleries
     [array]$galleries = $sceneData.children | Where-Object { $_.type -eq "gallery" }
     if ($galleries.count -eq 0) {
@@ -41,9 +43,8 @@ function Get-AyloSceneAllMedia {
         foreach ($gID in $galleries.id) {
             $pathToGalleryJson = Get-ChildItem (Get-AyloPath -apiType "gallery" -root $dataDir) | Where-Object { $_.BaseName -match "^$gID\s" }
             $galleryData = Get-Content $pathToGalleryJson -raw | ConvertFrom-Json
-            $outputDir = Get-AyloPath -apiType "gallery" -root $downloadDir
-    
-            $null = Get-AyloSceneGallery -galleryData $galleryData -outputDir $outputDir
+            $subDir = Join-Path "aylo" "gallery" $parentStudio $studio
+            $null = Get-AyloSceneGallery -downloadDir $downloadDir -galleryData $galleryData -storageDir $storageDir -subDir $subDir
         }
     }
 
@@ -56,9 +57,9 @@ function Get-AyloSceneAllMedia {
         foreach ($tID in $trailers.id) {
             $pathToTrailerJson = Get-ChildItem (Get-AyloPath -apiType "trailer" -root $dataDir) | Where-Object { $_.BaseName -match "^$tID\s" }
             $trailerData = Get-Content $pathToTrailerJson -raw | ConvertFrom-Json
-            $outputDir = Get-AyloPath -apiType "trailer" -root $downloadDir
+            $subDir = Join-Path "aylo" "trailer" $parentStudio $studio
     
-            $null = Get-AyloSceneTrailer -trailerData $trailerData -outputDir $outputDir
+            $null = Get-AyloSceneTrailer -downloadDir $downloadDir -trailerData $trailerData -storageDir $storageDir -subDir $subDir
         }
     }
 
@@ -83,9 +84,9 @@ function Get-AyloSceneAllMedia {
             foreach ($gID in $seriesGalleries.id) {
                 $pathToGalleryJson = Get-ChildItem (Get-AyloSeriesPath -apiType "gallery" -root $dataDir -studio $seriesStudio) | Where-Object { $_.BaseName -match "^$gID\s" }
                 $galleryData = Get-Content $pathToGalleryJson -raw | ConvertFrom-Json
-                $outputDir = Get-AyloSeriesPath -apiType "gallery" -root $downloadDir -studio $seriesStudio
+                $subDir = Join-Path "aylo" "gallery" $parentStudio $seriesStudio
         
-                $null = Get-AyloSceneGallery -galleryData $galleryData -outputDir $outputDir
+                $null = Get-AyloSceneGallery -downloadDir $downloadDir -galleryData $galleryData -storageDir $storageDir -subDir $subDir
             }
         }
     
@@ -98,15 +99,15 @@ function Get-AyloSceneAllMedia {
             foreach ($tID in $seriesTrailers.id) {
                 $pathToTrailerJson = Get-ChildItem (Get-AyloSeriesPath -apiType "trailer" -root $dataDir -studio $seriesStudio) | Where-Object { $_.BaseName -match "^$tID\s" }
                 $trailerData = Get-Content $pathToTrailerJson -raw | ConvertFrom-Json
-                $outputDir = Get-AyloSeriesPath -apiType "trailer" -root $downloadDir -studio $seriesStudio
+                $subDir = Join-Path "aylo" "gallery" $parentStudio $seriesStudio
         
-                $null = Get-AyloSceneTrailer -trailerData $trailerData -outputDir $outputDir
+                $null = Get-AyloSceneTrailer -downloadDir $downloadDir -trailerData $traile-trailerData -storageDir $storageDir -subDir $subDir
             }
         }
 
         # Series poster
         $outputDir = Get-AyloSeriesPath -apiType "serie" -root $assetsDir -studio $seriesStudio
-        $null = Get-AyloMediaPoster -outputDir $outputDir -sceneData $seriesData
+        $null = Get-AyloMediaPoster -downloadDir $assetsDir -sceneData $seriesData -storageDir $storageDir -subDir $subDir
 
     }
     else { Write-Host "Scene #$($sceneData.id) is not part of a series." -ForegroundColor Yellow }
@@ -120,33 +121,41 @@ function Get-AyloSceneAllMedia {
         $null = Get-AyloActorAssets -actorData $actorData -assetsDir $outputDir
     }
 
-
     # Scene poster
-    $outputDir = Get-AyloPath -apiType "scene" -root $assetsDir
-    $null = Get-AyloMediaPoster -outputDir $outputDir -sceneData $sceneData
+    $subDir = Join-Path "aylo" "scene" $parentStudio $studio
+    $null = Get-AyloMediaPoster -downloadDir $assetsDir -sceneData $sceneData -storageDir $storageDir -subDir $subDir
+
 
     # Scene
-    $outputDir = Get-AyloPath -apiType "scene" -root $downloadDir
-    $null = Get-AyloSceneVideo -outputDir $outputDir -sceneData $sceneData
+    $subDir = Join-Path "aylo" "scene" $parentStudio $studio
+    $null = Get-AyloSceneVideo -downloadDir $downloadDir -sceneData $sceneData -storageDir $storageDir -subDir $subDir
+
 }
 
 # Download a media file into the appropriate directory.
 function Get-AyloMediaFile {
     param(
+        [Parameter(Mandatory)][ValidateSet("gallery", "poster", "scene", "trailer", ErrorMessage = "Error: mediaType argumement is not supported" )][String]$mediaType,
+        [Parameter(Mandatory)][String]$downloadDir,
         [Parameter(Mandatory)][string]$filename,
-        [Parameter(Mandatory)]
-        [ValidateSet("gallery", "poster", "scene", "trailer", ErrorMessage = "Error: mediaType argumement is not supported" )]
-        [String]$mediaType,
-        [Parameter(Mandatory)][String]$outputDir,
+        [Parameter(Mandatory)][String]$storageDir,
+        [Parameter(Mandatory)][String]$subDir,
         [Parameter(Mandatory)][String]$target
     )
 
-    $outputPath = Join-Path $outputDir $filename
-    $existingFile = Test-Path -LiteralPath $outputPath
     $mediaTypeCap = ( Get-Culture ).TextInfo.ToTitleCase( $mediaType.ToLower() )
 
+    # Check if the file exists
+    $existingPath = $null
+    foreach ($dir in @($downloadDir, $storageDir)) {
+        $testPath = Join-Path $dir $subDir $filename
+        if (Test-Path -LiteralPath $testPath) { $existingPath = $testPath }
+    }
+
     # Download if the file doesn't exist
-    if (!$existingFile) {
+    if ($null -eq $existingPath) {
+        $outputPath = Join-Path $downloadDir $subDir $filename
+
         Write-Host "Downloading $($mediaType): $outputPath"
         try {
             Invoke-WebRequest -uri $target -OutFile ( New-Item -Path $outputPath -Force ) 
@@ -154,12 +163,15 @@ function Get-AyloMediaFile {
         catch {
             Write-Host "ERROR: Could not download $($mediaType): $outputPath" -ForegroundColor Red
             Write-Host "$_" -ForegroundColor Red
+            
+            # If an empty or partial file has been generated, delete it
+            if (Test-Path $outputPath) { Remove-Item $outputPath }
         }
 
         # Check the file has been downloaded successfully.
         # TODO - Check existing file matches db MD5 hash
         if (!(Test-Path -LiteralPath $outputPath)) {
-            Write-Host "FAILED: $outputPath" -ForegroundColor Red
+            Write-Host "FAILED: File not downloaded." -ForegroundColor Red
         }
         else {
             Write-Host "SUCCESS: Downloaded $outputPath" -ForegroundColor Green
@@ -167,14 +179,16 @@ function Get-AyloMediaFile {
 
     }
     else {
-        Write-Host "$mediaTypeCap already exists. Skipping $outputPath"
+        Write-Host "Skipping $mediaTypeCap as it already exists at $existingPath."
     }
 }
 
 # Download the scene gallery
 function Get-AyloSceneGallery {
     param(
-        [Parameter(Mandatory)][string]$outputDir,
+        [Parameter(Mandatory)][string]$downloadDir,
+        [Parameter(Mandatory)][string]$storageDir,
+        [Parameter(Mandatory)][string]$subDir,
         [Parameter(Mandatory)]$galleryData
     )
 
@@ -188,13 +202,15 @@ function Get-AyloSceneGallery {
     $fileToDownload = $files[0]
     $filename = Set-MediaFilename -mediaType "gallery" -extension "zip" -id $galleryData.id -title $galleryData.title
 
-    return Get-AyloMediaFile -filename $filename -mediaType "gallery" -outputDir $outputDir -target $fileToDownload.urls.download
+    return Get-AyloMediaFile -downloadDir $downloadDir -filename $filename -mediaType "gallery" -storageDir $storageDir -subDir $subDir -target $fileToDownload.urls.download
 }
 
 # Download the scene poster
 function Get-AyloMediaPoster {
     param(
-        [Parameter(Mandatory)][string]$outputDir,
+        [Parameter(Mandatory)][string]$downloadDir,
+        [Parameter(Mandatory)][string]$storageDir,
+        [Parameter(Mandatory)][string]$subDir,
         [Parameter(Mandatory)]$sceneData
     )
 
@@ -203,13 +219,15 @@ function Get-AyloMediaPoster {
 
     $filename = Set-MediaFilename -mediaType "poster" -extension "webp" -id $sceneData.id -resolution $resolution -title $sceneData.title
 
-    return Get-AyloMediaFile -filename $filename -mediaType "poster" -outputDir $outputDir -target $fileToDownload.urls.webp
+    return Get-AyloMediaFile -downloadDir $downloadDir -filename $filename -mediaType "poster" -storageDir $storageDir -subDir $subDir -target $fileToDownload.urls.webp
 }
 
 # Download the scene trailer
 function Get-AyloSceneTrailer {
     param(
-        [Parameter(Mandatory)][string]$outputDir,
+        [Parameter(Mandatory)][string]$downloadDir,
+        [Parameter(Mandatory)][string]$storageDir,
+        [Parameter(Mandatory)][string]$subDir,
         [Parameter(Mandatory)]$trailerData
     )
 
@@ -228,7 +246,7 @@ function Get-AyloSceneTrailer {
         $fileToDownload = $filteredFiles[0]
         $filename = Set-MediaFilename -mediaType "trailer" -extension "mp4" -id $trailerData.id -resolution $fileToDownload.label -title $trailerData.title
 
-        return Get-AyloMediaFile -filename $filename -mediaType "trailer" -outputDir $outputDir -target $fileToDownload.urls.view
+        return Get-AyloMediaFile -downloadDir $downloadDir -filename $filename -mediaType "trailer" -storageDir $storageDir -subDir $subDir -target $fileToDownload.urls.view
     }
 
     # 2. Get the highest resoltion file available
@@ -237,13 +255,15 @@ function Get-AyloSceneTrailer {
     $fileToDownload = $filteredFiles[0]
     $filename = Set-MediaFilename -mediaType "trailer" -extension "mp4" -id $trailerData.id -resolution $fileToDownload.label -title $trailerData.title
 
-    return Get-AyloMediaFile -filename $filename -mediaType "trailer" -outputDir $outputDir -target $fileToDownload.urls.view
+    return Get-AyloMediaFile -downloadDir $downloadDir -filename $filename -mediaType "trailer" -storageDir $storageDir -subDir $subDir -target $fileToDownload.urls.view
 }
 
 # Download the preferred scene file
 function Get-AyloSceneVideo {
     param(
-        [Parameter(Mandatory)][string]$outputDir,
+        [Parameter(Mandatory)][string]$downloadDir,
+        [Parameter(Mandatory)][string]$storageDir,
+        [Parameter(Mandatory)][string]$subDir,
         [Parameter(Mandatory)]$sceneData
     )
 
@@ -263,7 +283,7 @@ function Get-AyloSceneVideo {
         $fileToDownload = $filteredFiles[0]
         $filename = Set-MediaFilename -mediaType "scene" -extension "mp4" -id $sceneData.id -resolution $fileToDownload.label -title $sceneData.title
 
-        return Get-AyloMediaFile -filename $filename -mediaType "scene" -outputDir $outputDir -target $fileToDownload.urls.download
+        return Get-AyloMediaFile -downloadDir $downloadDir -filename $filename -mediaType "scene" -storageDir $storageDir -subDir $subDir -target $fileToDownload.urls.download
     }
 
     # 2. Get the highest resolution file under 8GB as long as it's at least HD
@@ -287,7 +307,7 @@ function Get-AyloSceneVideo {
         $fileToDownload = $biggestFile
         $filename = Set-MediaFilename -mediaType "scene" -extension "mp4" -id $sceneData.id -resolution $fileToDownload.label -title $sceneData.title
 
-        return Get-AyloMediaFile -filename $filename -mediaType "scene" -outputDir $outputDir -target $fileToDownload.urls.download
+        return Get-AyloMediaFile -downloadDir $downloadDir -filename $filename -mediaType "scene" -storageDir $storageDir -subDir $subDir -target $fileToDownload.urls.download
     }
 
     # 3. Get the HD file if there's one available
@@ -296,7 +316,7 @@ function Get-AyloSceneVideo {
         $fileToDownload = $filteredFiles[0]
         $filename = Set-MediaFilename -mediaType "scene" -extension "mp4" -id $sceneData.id -resolution $fileToDownload.label -title $sceneData.title
 
-        return Get-AyloMediaFile -filename $filename -mediaType "scene" -outputDir $outputDir -target $fileToDownload.urls.download
+        return Get-AyloMediaFile -downloadDir $downloadDir -filename $filename -mediaType "scene" -storageDir $storageDir -subDir $subDir -target $fileToDownload.urls.download
     }
 
     # 4. Just get the biggest file available
@@ -305,7 +325,7 @@ function Get-AyloSceneVideo {
     $fileToDownload = $filteredFiles[0]
     $filename = Set-MediaFilename -mediaType "scene" -extension "mp4" -id $sceneData.id -resolution $fileToDownload.label -title $sceneData.title
 
-    return Get-AyloMediaFile -filename $filename -mediaType "scene" -outputDir $outputDir -target $fileToDownload.urls.download
+    return Get-AyloMediaFile -downloadDir $downloadDir -filename $filename -mediaType "scene" -storageDir $storageDir -subDir $subDir -target $fileToDownload.urls.download
 }
 
 #Download the actor assets

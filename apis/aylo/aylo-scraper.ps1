@@ -64,17 +64,17 @@ function Set-AyloHeaders {
     $Driver = Start-SeFirefox -PrivateBrowsing
     Enter-SeUrl $login.url -Driver $Driver
 
-    # Username
-    $usernameInput = Find-SeElement -Driver $Driver -CssSelector "input[type=text][name=username]"
-    Send-SeKeys -Element $usernameInput -Keys $login.username
+    # # Username
+    # $usernameInput = Find-SeElement -Driver $Driver -CssSelector "input[type=text][name=username]"
+    # Send-SeKeys -Element $usernameInput -Keys $login.username
 
-    # Password
-    $passwordInput = Find-SeElement -Driver $Driver -CssSelector "input[type=password][name=password]"
-    Send-SeKeys -Element $passwordInput -Keys $login.password
+    # # Password
+    # $passwordInput = Find-SeElement -Driver $Driver -CssSelector "input[type=password][name=password]"
+    # Send-SeKeys -Element $passwordInput -Keys $login.password
 
-    # Click login
-    $loginBtn = Find-SeElement -Driver $Driver -CssSelector "button[type=submit]"
-    Invoke-SeClick -Element $loginBtn
+    # # Click login
+    # $loginBtn = Find-SeElement -Driver $Driver -CssSelector "button[type=submit]"
+    # Invoke-SeClick -Element $loginBtn
     Find-SeElement -Driver $Driver -Wait -By XPath "//*[text()='Continue to Members Area']"
 
     # Get new page content
@@ -239,7 +239,7 @@ function Get-AyloJson {
         if (Test-Path -LiteralPath $contentDir) {
             $contentFile = Get-ChildItem $contentDir | Where-Object { $_.BaseName -match "^$contentID\s" }
             if ($contentFile.Length -gt 0) {
-                Write-Host "Media already exists. Skipping JSON generation for $apiType #$contentID."
+                Write-Host "Media already exists at $($contentFile.FullName). Skipping JSON generation for $apiType #$contentID."
 
                 # Return the path to the existing JSON file
                 $title = Get-SanitizedTitle -title $result.title
