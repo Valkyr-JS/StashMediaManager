@@ -245,7 +245,7 @@ function Set-AyloJsonToMetaStash {
             $urls += $publicUrl
 
             # Update the scene
-            $stashScene = Set-StashSceneUpdate -id $stashScene.id -code $sceneData.id -cover_image $sceneData.images.poster."0".xx.url -details $sceneData.description -groups $groups -performer_ids $performerIDs -studio_id $stashStudio.id -tag_ids $tagIDs -title $sceneData.title -urls $urls -date $sceneData.dateReleased
+            $stashScene = Set-StashSceneUpdate -id $stashScene.id -code $sceneData.id -cover_image $sceneData.images.poster."0".xx.url -details $sceneData.description -groups $groups -performer_ids $performerIDs -studio_id $stashStudio.data.findStudios.studios[0].id -tag_ids $tagIDs -title $sceneData.title -urls $urls -date $sceneData.dateReleased
             $metaScenesUpdated++
             
             # ------------------------------- Scene markers ------------------------------ #
