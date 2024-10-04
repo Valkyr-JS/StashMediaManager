@@ -192,7 +192,9 @@ function Set-AyloJsonToMetaStash {
             # -------------------------------- Performers -------------------------------- #
 
             # Create any performers that aren't in Stash yet
-            $null = Set-PerformersFromActorList -actorsDataDir $actorsDataDir -actorList $sceneData.actors
+            if ($sceneData.actors.count) {
+                $null = Set-PerformersFromActorList -actorsDataDir $actorsDataDir -actorList $sceneData.actors
+            }
 
             # Fetch all performer IDs from Stash
             $performerIDs = @()
@@ -322,7 +324,9 @@ function Set-AyloJsonToMetaStash {
             # -------------------------------- Performers -------------------------------- #
 
             # Create any performers that aren't in Stash yet
-            $null = Set-PerformersFromActorList -actorsDataDir $actorsDataDir -actorList $galleryData.parent.actors
+            if ($galleryData.parent.actors.count) {
+                $null = Set-PerformersFromActorList -actorsDataDir $actorsDataDir -actorList $galleryData.parent.actors
+            }
 
             # Fetch all performer IDs from Stash
             $performerIDs = @()
