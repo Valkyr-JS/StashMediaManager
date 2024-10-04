@@ -247,7 +247,7 @@ function Set-AyloJsonToMetaStash {
             $urls += $publicUrl
 
             # Update the scene
-            $stashScene = Set-StashSceneUpdate -id $stashScene.id -code $sceneData.id -cover_image $sceneData.images.poster."0".xx.url -details $sceneData.description -groups $groups -performer_ids $performerIDs -studio_id $stashStudio.data.findStudios.studios[0].id -tag_ids $tagIDs -title $sceneData.title -urls $urls -date $sceneData.dateReleased
+            $stashScene = Set-StashSceneUpdate -id $stashScene.id -code $sceneData.id -cover_image $sceneData.images.poster."0".xx.url -details $sceneData.description -groups $groups -organized $true -performer_ids $performerIDs -studio_id $stashStudio.data.findStudios.studios[0].id -tag_ids $tagIDs -title $sceneData.title -urls $urls -date $sceneData.dateReleased
             $metaScenesUpdated++
             
             # ------------------------------- Scene markers ------------------------------ #
@@ -346,7 +346,7 @@ function Set-AyloJsonToMetaStash {
 
             # ---------------------------- Update the gallery ---------------------------- #
 
-            $null = Set-StashGalleryUpdate -id $stashGallery.id -code $galleryData.id -details $galleryData.description -performer_ids $performerIDs -scene_ids $stashScene.data.findScenes.scenes.id -studio_id $stashStudio.data.findStudios.studios[0].id -title $galleryData.title -date $galleryData.dateReleased
+            $null = Set-StashGalleryUpdate -id $stashGallery.id -code $galleryData.id -details $galleryData.description -organized $true -performer_ids $performerIDs -scene_ids $stashScene.data.findScenes.scenes.id -studio_id $stashStudio.data.findStudios.studios[0].id -title $galleryData.title -date $galleryData.dateReleased
         }
         $metaGalleriesUpdated++
     }
