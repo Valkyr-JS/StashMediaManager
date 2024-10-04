@@ -14,6 +14,8 @@ function Set-AyloHeaders {
     param(
         [Parameter(Mandatory)][String]$pathToUserConfig
     )
+    Write-Host `n"Please login to the master site in the new browser window, then wait until it closes automatically." -ForegroundColor Cyan
+
     $userConfig = Get-Content $pathToUserConfig -raw | ConvertFrom-Json
     if ($userConfig.aylo.masterSite.Length -eq 0) {
         Set-ConfigAyloMasterSite -pathToUserConfig $pathToUserConfig
@@ -97,8 +99,6 @@ function Get-AyloQueryData {
         [Int]$parentId,
         [string]$parentStudio
     )
-
-    Write-Host `n"Please login to the master site in the new browser window, then wait until it closes automatically." -ForegroundColor Cyan
 
     $params = Set-AyloQueryParameters -actorID $actorID -apiType $apiType -id $contentID -offset $offset -parentId $parentId -parentStudio $parentStudio -pathToUserConfig $pathToUserConfig
 
