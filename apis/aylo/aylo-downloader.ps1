@@ -59,7 +59,7 @@ function Get-AyloSceneAllMedia {
             $trailerData = Get-Content $pathToTrailerJson -raw | ConvertFrom-Json
             $subDir = Join-Path "aylo" "trailer" $parentStudio $studio
     
-            $null = Get-AyloSceneTrailer -downloadDir $downloadDir -trailerData $trailerData -storageDir $storageDir -subDir $subDir
+            $null = Get-AyloSceneTrailer -downloadDir $assetsDir -trailerData $trailerData -storageDir $storageDir -subDir $subDir
         }
     }
 
@@ -101,7 +101,7 @@ function Get-AyloSceneAllMedia {
                 $trailerData = Get-Content $pathToTrailerJson -raw | ConvertFrom-Json
                 $subDir = Join-Path "aylo" "gallery" $parentStudio $seriesStudio
         
-                $null = Get-AyloSceneTrailer -downloadDir $downloadDir -trailerData $traile-trailerData -storageDir $storageDir -subDir $subDir
+                $null = Get-AyloSceneTrailer -downloadDir $assetsDir -trailerData $traile-trailerData -storageDir $storageDir -subDir $subDir
             }
         }
 
