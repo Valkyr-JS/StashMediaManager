@@ -59,6 +59,7 @@ function Set-StashSceneUpdate {
         [String]$code,
         [String]$cover_image,
         [String]$details,
+        [bool]$organized,
         [array]$groups,
         [String[]]$performer_ids,
         [String]$studio_id,
@@ -85,6 +86,9 @@ function Set-StashSceneUpdate {
         $groups = ConvertTo-Json $groups -depth 32
         $groups = '"groups": ' + $groups + ','
     }
+
+    if ($organized -eq $true) { [string]$organized = '"organized": true,' }
+    if ($organized -eq $false) { [string]$organized = '"organized": false,' }
 
     if ($performer_ids -and $performer_ids.Count) {
         $performer_ids = ConvertTo-Json $performer_ids -depth 32
@@ -115,6 +119,7 @@ function Set-StashSceneUpdate {
                 name
             }}
             id
+            organized
             paths { screenshot }
             performers {
                 id
@@ -140,6 +145,7 @@ function Set-StashSceneUpdate {
             '+ $date + '
             '+ $details + '
             '+ $groups + '
+            '+ $organized + '
             '+ $performer_ids + '
             '+ $studio_id + '
             '+ $tag_ids + '

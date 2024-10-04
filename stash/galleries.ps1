@@ -4,6 +4,7 @@ function Set-StashGalleryUpdate {
         [Parameter(Mandatory)][String]$id,
         [String]$code,
         [String]$details,
+        [bool]$organized,
         [String[]]$performer_ids,
         [String[]]$scene_ids,
         [String]$studio_id,
@@ -22,6 +23,9 @@ function Set-StashGalleryUpdate {
         $details = $details.replace('"', '\"')
         $details = '"details": "' + $details + '",'
     }
+
+    if ($organized -eq $true) { [string]$organized = '"organized": true,' }
+    if ($organized -eq $false) { [string]$organized = '"organized": false,' }
 
     if ($performer_ids -and $performer_ids.Count) {
         $performer_ids = ConvertTo-Json $performer_ids -depth 32
@@ -42,6 +46,7 @@ function Set-StashGalleryUpdate {
             date
             details
             id
+            organized
             performers {
                 id
                 name
@@ -62,6 +67,7 @@ function Set-StashGalleryUpdate {
             '+ $code + '
             '+ $date + '
             '+ $details + '
+            '+ $organized + '
             '+ $performer_ids + '
             '+ $scene_ids + '
             '+ $studio_id + '
