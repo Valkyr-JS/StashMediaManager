@@ -1,8 +1,8 @@
 function Get-AFAllContentBySite {
     param(
-        [Parameter(Mandatory)][Int[]]$siteID,
-        [Parameter(Mandatory)][String]$pathToUserConfig
+        [Parameter(Mandatory)][String]$pathToUserConfig,
+        [Parameter(Mandatory)][String]$slug
     )
 
-    Write-Host "Scraping site $siteID."
+    Get-AFModelSiteJson -pathToUserConfig $pathToUserConfig -slug $slug
 }

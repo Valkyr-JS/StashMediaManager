@@ -118,8 +118,9 @@ function Set-Entry {
         if ($userInput -like "Y") {
             # Load the required files
             . "./apis/addfriends/addfriends-actions.ps1"
+            . "./apis/addfriends/addfriends-scraper.ps1"
 
-            Get-AFAllContentBySite -siteID $ayloApiData.id -pathToUserConfig $pathToUserConfig
+            Get-AFAllContentBySite -pathToUserConfig $pathToUserConfig -slug $ayloApiData.url
         }
         else {
             Write-Host "Closing the script."
