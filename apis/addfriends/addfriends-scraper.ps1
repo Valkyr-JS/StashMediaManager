@@ -69,13 +69,14 @@ function Get-AFQueryData {
 function Get-AFModelSiteJson {
     param (
         [Parameter(Mandatory)][String]$pathToUserConfig,
+        [Parameter(Mandatory)][String]$siteName,
         [Parameter(Mandatory)][String]$slug
     )
     Write-Host `n"Starting scrape for site addfriends.com/vip/$slug" -ForegroundColor Cyan
 
     $userConfig = Get-Content $pathToUserConfig -raw | ConvertFrom-Json
     $result = Get-AFQueryData -apiType "model-archive" -slug $slug
-    $subDir = Join-Path "addfriends" "model-archive" $slug
+    $subDir = Join-Path "addfriends" "model-archive" $siteName
 
     if ($result) {
         # Output the JSON file
@@ -107,7 +108,8 @@ function Get-AFModelSiteJson {
 function Get-AFSceneJson {
     param (
         [Parameter(Mandatory)][String]$pathToUserConfig,
-        [Parameter(Mandatory)][String]$sceneID
+        [Parameter(Mandatory)][String]$sceneID,
+        [Parameter(Mandatory)][String]$siteName
     )
 
     Write-Host `n"Starting scrape for scene #$sceneID" -ForegroundColor Cyan
@@ -119,7 +121,7 @@ function Get-AFSceneJson {
     # Skip creating JSON if the content already exists in either the download or
     # storage directory
     $topDirs = @($userConfig.general.downloadDirectory, $userConfig.general.storageDirectory)
-    $subDir = Join-Path "addfriends" "video" $slug
+    $subDir = Join-Path "addfriends" "video" $siteName
 
     foreach ($topDir in $topDirs) {
         $contentDir = Join-Path $topDir $subDir
@@ -143,7 +145,6 @@ function Get-AFSceneJson {
         # Output the JSON file
         $title = Get-SanitizedTitle -title $video.title
         $filename = "$($video.id) $title.json"
-        $subDir = Join-Path "addfriends" "tags" $slug
         $outputDir = Join-Path $userConfig.general.scrapedDataDirectory $subDir
         if (!(Test-Path $outputDir)) { New-Item -ItemType "directory" -Path $outputDir }
         $videoDest = Join-Path $outputDir $filename
@@ -161,7 +162,9 @@ function Get-AFSceneJson {
 
         if ($tags.success) {
             $title = Get-SanitizedTitle -title $video.title
-            $filename = "$($video.id) $title.json"
+            $subDir = Join-Path "addfriends" "tags" $siteName
+            $outputDir = Join-Path $userConfig.general.scrapedDataDirectory $subDir
+            if (!(Test-Path $outputDir)) { New-Item -ItemType "directory" -Path $outputDir }
             $tagsDest = Join-Path $outputDir $filename
             $tags.success | ConvertTo-Json -Depth 32 | Out-File -FilePath $tagsDest
         }
