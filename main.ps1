@@ -94,6 +94,40 @@ function Set-Entry {
     do { $operationSelection = read-host "Enter your selection (1-2)" }
     while (($operationSelection -notmatch "[1-2]"))
 
+    # --------------------------- AddFriends : Download -------------------------- #
+    if ($operationSelection -eq 1 -and $apiData.name -eq "AddFriends") {
+        Write-Host `n"Which site do you want to download from?"
+
+        $ayloApiCounter = 1
+        $ayloApiData = $apiData | Where-Object { $_.name -eq "AddFriends" }
+
+        foreach ($site in $ayloApiData.sites) {
+            Write-Host "$ayloApiCounter. $($site.site_name)";
+            $ayloApiCounter++
+        }
+    
+        do { $siteSelection = read-host "Enter your selection" }
+        while (($siteSelection -notmatch "[1-$ayloApiCounter]"))
+    
+        $ayloApiData = $ayloApiData.sites[$siteSelection - 1]
+    
+        Write-Host `n"Begin downloading all missing content from addfriends.com/vip/$($ayloApiData.url)?"
+        do { $userInput = Read-Host "[Y/N]" }
+        while ($userInput -notlike "Y" -and $userInput -notlike "N")
+
+        if ($userInput -like "Y") {
+            # Load the required files
+            . "./apis/addfriends/addfriends-actions.ps1"
+
+            Get-AFAllContentBySite -siteID $ayloApiData.id -pathToUserConfig $pathToUserConfig
+        }
+        else {
+            Write-Host "Closing the script."
+            exit
+        }
+    
+    }    
+
     # ------------------------------ Aylo : Download ----------------------------- #
 
     if ($operationSelection -eq 1 -and $apiData.name -eq "Aylo") {
