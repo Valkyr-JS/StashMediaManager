@@ -20,7 +20,7 @@ function Set-AFHeaders {
 # Set the query parameters for the web request
 function Set-AFQueryParameters {
     param (
-        [Parameter(Mandatory)][ValidateSet('getVideo', 'get-tags', 'model-archive', 'user-init')][String]$apiType,
+        [Parameter(Mandatory)][ValidateSet('getvideo', 'get-tags', 'model-archive', 'user-init')][String]$apiType,
         [String]$id,
         [String]$slug
     )
@@ -29,7 +29,7 @@ function Set-AFQueryParameters {
     $urlapi = "https://addfriends.com/vip/actions/$apiType.php"
     $body = @{}
 
-    if ($apiType -eq "getVideo") { $body.Add("v", $id) }
+    if ($apiType -eq "getvideo") { $body.Add("v", $id) }
     if ($apiType -eq "get-tags") { $body.Add("v", $id) }
     if ($apiType -eq "model-archive") { $body.Add("site", $slug) }
 
@@ -46,7 +46,7 @@ function Set-AFQueryParameters {
 # Attempt to fetch the given data from the AF API
 function Get-AFQueryData {
     param(
-        [Parameter(Mandatory)][ValidateSet('getVideo', 'get-tags', 'model-archive', 'user-init')][String]$apiType,
+        [Parameter(Mandatory)][ValidateSet('getvideo', 'get-tags', 'model-archive', 'user-init')][String]$apiType,
         [String]$id,
         [String]$slug
     )
@@ -87,7 +87,7 @@ function Get-AFModelSiteJson {
         $outputDest = Join-Path $outputDir $filename
         if (Test-Path $outputDest) { 
             Write-Host "Site data already generated for today. Skipping."
-            return $null
+            return $outputDest
         }
 
         Write-Host "Generating site JSON: $filename"
@@ -101,5 +101,73 @@ function Get-AFModelSiteJson {
             Write-Host "SUCCESS: site JSON generated - $outputDest" -ForegroundColor Green
             return $outputDest
         }  
+    }
+}
+
+function Get-AFSceneJson {
+    param (
+        [Parameter(Mandatory)][String]$pathToUserConfig,
+        [Parameter(Mandatory)][String]$sceneID
+    )
+
+    Write-Host `n"Starting scrape for scene #$sceneID" -ForegroundColor Cyan
+    $userConfig = Get-Content $pathToUserConfig -raw | ConvertFrom-Json
+
+    # First scrape the video data
+    $video = Get-AFQueryData -apiType "getvideo" -id $sceneID
+
+    # Skip creating JSON if the content already exists in either the download or
+    # storage directory
+    $topDirs = @($userConfig.general.downloadDirectory, $userConfig.general.storageDirectory)
+    $subDir = Join-Path "addfriends" "video" $slug
+
+    foreach ($topDir in $topDirs) {
+        $contentDir = Join-Path $topDir $subDir
+        
+        # Skip creating JSON if the content already exists
+        if (Test-Path -LiteralPath $contentDir) {
+            $contentFile = Get-ChildItem $contentDir | Where-Object { $_.BaseName -match "^$sceneID\s" }
+            if ($contentFile.Length -gt 0) {
+                Write-Host "Media already exists at $($contentFile.FullName). Skipping JSON generation for scene #$sceneID."
+
+                # Return the path to the existing JSON file
+                $title = Get-SanitizedTitle -title $video.title
+                $filename = "$($video.id) $title.json"
+                $pathToExistingJson = Join-Path $userConfig.general.scrapedDataDirectory $subDir $filename
+                return $pathToExistingJson
+            }
+        }
+    }
+
+    if ($video) {
+        # Output the JSON file
+        $title = Get-SanitizedTitle -title $video.title
+        $filename = "$($video.id) $title.json"
+        $subDir = Join-Path "addfriends" "tags" $slug
+        $outputDir = Join-Path $userConfig.general.scrapedDataDirectory $subDir
+        if (!(Test-Path $outputDir)) { New-Item -ItemType "directory" -Path $outputDir }
+        $videoDest = Join-Path $outputDir $filename
+        
+        Write-Host "Generating site JSON: $filename"
+        $video | ConvertTo-Json -Depth 32 | Out-File -FilePath $videoDest
+        
+        if (!(Test-Path $videoDest)) {
+            Write-Host "ERROR: site JSON generation failed - $videoDest" -ForegroundColor Red
+            return $null
+        }  
+                        
+        # Next scrape the tags data
+        $tags = Get-AFQueryData -apiType "get-tags" -id $sceneID
+
+        if ($tags.success) {
+            $title = Get-SanitizedTitle -title $video.title
+            $filename = "$($video.id) $title.json"
+            $tagsDest = Join-Path $outputDir $filename
+            $tags.success | ConvertTo-Json -Depth 32 | Out-File -FilePath $tagsDest
+        }
+
+        Write-Host "SUCCESS: site JSON generated - $videoDest" -ForegroundColor Green
+
+        return $videoDest
     }
 }
