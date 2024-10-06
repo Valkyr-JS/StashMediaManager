@@ -123,7 +123,7 @@ function Get-AyloActorJson {
     )
     $userConfig = Get-Content $pathToUserConfig -raw | ConvertFrom-Json
 
-    Write-Host `n"Starting scrape for actor #$actorID." -ForegroundColor Cyan
+    Write-Host "Starting scrape for actor #$actorID."
     
     # Attempt to scrape actor data
     $actorResult = Get-AyloQueryData -apiType "actor" -contentID $actorID -pathToUserConfig $pathToUserConfig
