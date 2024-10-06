@@ -94,6 +94,42 @@ function Set-Entry {
     do { $operationSelection = read-host "Enter your selection (1-2)" }
     while (($operationSelection -notmatch "[1-2]"))
 
+    # --------------------------- AddFriends : Download -------------------------- #
+    if ($operationSelection -eq 1 -and $apiData.name -eq "AddFriends") {
+        Write-Host `n"Which site do you want to download from?"
+
+        $addFriendsApiCounter = 1
+        $addFriendsApiData = $apiData | Where-Object { $_.name -eq "AddFriends" }
+
+        foreach ($site in $addFriendsApiData.sites) {
+            Write-Host "$addFriendsApiCounter. $($site.site_name)";
+            $addFriendsApiCounter++
+        }
+    
+        do { $siteSelection = read-host "Enter your selection" }
+        while (($siteSelection -notmatch "[1-$addFriendsApiCounter]"))
+    
+        $addFriendsApiData = $addFriendsApiData.sites[$siteSelection - 1]
+    
+        Write-Host `n"Begin downloading all missing content from addfriends.com/vip/$($addFriendsApiData.url)?"
+        do { $userInput = Read-Host "[Y/N]" }
+        while ($userInput -notlike "Y" -and $userInput -notlike "N")
+
+        if ($userInput -like "Y") {
+            # Load the required files
+            . "./apis/addfriends/addfriends-actions.ps1"
+            . "./apis/addfriends/addfriends-downloader.ps1"
+            . "./apis/addfriends/addfriends-scraper.ps1"
+
+            Get-AFAllContentBySite -pathToUserConfig $pathToUserConfig -siteName $addFriendsApiData.site_name -slug $addFriendsApiData.url
+        }
+        else {
+            Write-Host "Closing the script."
+            exit
+        }
+    
+    }    
+
     # ------------------------------ Aylo : Download ----------------------------- #
 
     if ($operationSelection -eq 1 -and $apiData.name -eq "Aylo") {

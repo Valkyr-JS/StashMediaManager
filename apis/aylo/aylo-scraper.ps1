@@ -54,7 +54,7 @@ function Set-AyloQueryParameters {
         [Int]$offset
     )
     
-    $header = Get-AyloHeaders -pathToUserConfig $pathToUserConfig
+    $header = Get-AyloHeaders
     $body = @{
         limit  = 100
         offset = $offset

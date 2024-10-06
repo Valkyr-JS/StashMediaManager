@@ -1,5 +1,25 @@
 [
   {
+    "name": "AddFriends",
+    "sites": [
+      {
+        "id": "7",
+        "site_name": "Mike",
+        "url": "mike"
+      },
+      {
+        "id": "13",
+        "site_name": "Mia Melano",
+        "url": "mia-melano"
+      },
+      {
+        "id": "31",
+        "site_name": "Mr. Lucky",
+        "url": "mr-lucky"
+      }
+    ]
+  },
+  {
     "name": "Aylo",
     "networks": [
       "bangbros",
