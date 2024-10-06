@@ -23,7 +23,7 @@ function Get-AFAllContentBySite {
         }
         elseif ($null -ne $pathToSceneJson) {
             $sceneData = Get-Content $pathToSceneJson -raw | ConvertFrom-Json
-            Get-AFSceneAllMedia -sceneData $sceneData -pathToUserConfig $pathToUserConfig
+            Get-AFSceneAllMedia -pathToUserConfig $pathToUserConfig -sceneData $sceneData -siteName $siteName
         }
     }
 }

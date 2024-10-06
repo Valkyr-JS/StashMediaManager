@@ -2,6 +2,7 @@
 function Get-AFSceneAllMedia {
     param(
         [Parameter(Mandatory)][String]$pathToUserConfig,
+        [Parameter(Mandatory)][String]$siteName,
         [Parameter(Mandatory)]$sceneData
     )
 
@@ -9,7 +10,7 @@ function Get-AFSceneAllMedia {
     $assetsDir = $userConfig.general.assetsDirectory
     $downloadDir = $userConfig.general.downloadDirectory
     $storageDir = $userConfig.general.storageDirectory
-    $subDir = Join-Path "addfriends" "video" $slug
+    $subDir = Join-Path "addfriends" "video" $siteName
     
     Write-Host `n"Downloading all media for scene #$($sceneData.id) - $($sceneData.title)." -ForegroundColor Cyan
 
@@ -93,7 +94,7 @@ function Get-AFSceneAllMedia {
 
     # SCENE
     $filename = Set-MediaFilename -mediaType "scene" -extension "mp4" -id $sceneData.id -title $sceneData.title
-    $subDir = Join-Path "addfriends" "video" $slug
+    $subDir = Join-Path "addfriends" "video" $siteName
 
     # Check if the file exists
     $existingPath = $null
