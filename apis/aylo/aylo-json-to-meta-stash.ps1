@@ -562,9 +562,6 @@ function Get-StashStudioFromData {
             $stashParentStudioID = $stashParentStudio.data.findStudios.studios[0].id
         }
 
-        $aliases = @()
-        if ($studioData.shortName) { $aliases = @($studioData.shortName) }
-
         $details = $null
         if ($studioData.description) { $details = $studioData.description }
 
@@ -581,7 +578,7 @@ function Get-StashStudioFromData {
             $url = $studioData.domainName
         }
 
-        $stashStudio = Set-StashStudio -name $studioData.name -aliases $aliases -details $details -image $image -parent_id $stashParentStudioID -url $url
+        $stashStudio = Set-StashStudio -name $studioData.name -details $details -image $image -parent_id $stashParentStudioID -url $url
         $stashStudio = Get-StashStudioByName $studioData.name
     }
     return $stashStudio
