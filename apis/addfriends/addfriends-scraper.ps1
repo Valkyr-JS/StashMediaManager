@@ -143,8 +143,7 @@ function Get-AFSceneJson {
 
     if ($video) {
         # Output the JSON file
-        $title = Get-SanitizedTitle -title $video.title
-        $filename = "$($video.id) $title.json"
+        $filename = Set-MediaFilename -mediaType "data" -extension "json" -id $video.id -title $video.title -siteName $siteName -date $video.released_date
         $outputDir = Join-Path $userConfig.general.scrapedDataDirectory $subDir
         if (!(Test-Path $outputDir)) { New-Item -ItemType "directory" -Path $outputDir }
         $videoDest = Join-Path $outputDir $filename
@@ -161,7 +160,6 @@ function Get-AFSceneJson {
         $tags = Get-AFQueryData -apiType "get-tags" -id $sceneID
 
         if ($tags.success) {
-            $title = Get-SanitizedTitle -title $video.title
             $subDir = Join-Path "addfriends" "tags" $siteName
             $outputDir = Join-Path $userConfig.general.scrapedDataDirectory $subDir
             if (!(Test-Path $outputDir)) { New-Item -ItemType "directory" -Path $outputDir }

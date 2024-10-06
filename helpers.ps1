@@ -38,14 +38,23 @@ function Get-SanitizedTitle {
 # Create the filename for a content item.
 function Set-MediaFilename {
     param(
-        [Parameter(Mandatory)][ValidateSet('gallery', 'poster', 'scene', 'trailer')][String]$mediaType,
+        [Parameter(Mandatory)][ValidateSet('data', 'gallery', 'poster', 'scene', 'trailer')][String]$mediaType,
         [Parameter(Mandatory)][String]$extension,
         [Parameter(Mandatory)][Int]$id,
         [Parameter(Mandatory)][String]$title,
-        [String]$resolution
+        [String]$resolution,
+        [String]$siteName,
+        $date
     )
     # Sanitise the title string
     $title = Get-SanitizedTitle -title $title
+
+    # If the title is too short, replace with the site name and the date
+    if ($title.Length -lt 3 -and $siteName -and $date) {
+        $date = Get-Date $date -Format "yyyy-MM-dd"
+        $siteName = Get-SanitizedTitle -title $siteName
+        $title = "$siteName $date"
+    }
 
     $filename = "$id $title" 
     if (($mediaType -eq "poster" -or $mediaType -eq "scene" -or $mediaType -eq "trailer") -and $resolution) {

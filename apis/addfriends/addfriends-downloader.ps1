@@ -16,7 +16,7 @@ function Get-AFSceneAllMedia {
 
     # POSTER
     $posterCdnFilename = $sceneData.file_name.split(".")[0]
-    $posterFilename = Set-MediaFilename -mediaType "poster" -extension "jpg" -id $sceneData.id -title $sceneData.title
+    $posterFilename = Set-MediaFilename -mediaType "poster" -extension "jpg" -id $sceneData.id -title $sceneData.title -siteName $siteName -date $sceneData.released_date
     $posterUrl = "https://static.addfriends.com/vip/posters/$posterCdnFilename-big.jpg"
 
     # Check if the file exists
@@ -55,7 +55,7 @@ function Get-AFSceneAllMedia {
     }
 
     # GIF
-    $gifFilename = Set-MediaFilename -mediaType "poster" -extension "gif" -id $sceneData.id -title $sceneData.title
+    $gifFilename = Set-MediaFilename -mediaType "poster" -extension "gif" -id $sceneData.id -title $sceneData.title -siteName $siteName -date $sceneData.released_date
     $gifUrl = "https://static.addfriends.com/vip/posters/$posterCdnFilename.gif"
 
     # Check if the file exists
@@ -93,7 +93,7 @@ function Get-AFSceneAllMedia {
     }
 
     # SCENE
-    $filename = Set-MediaFilename -mediaType "scene" -extension "mp4" -id $sceneData.id -title $sceneData.title
+    $filename = Set-MediaFilename -mediaType "scene" -extension "mp4" -id $sceneData.id -title $sceneData.title -siteName $siteName -date $sceneData.released_date
     $subDir = Join-Path "addfriends" "video" $siteName
 
     # Check if the file exists
