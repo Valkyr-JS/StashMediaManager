@@ -1,3 +1,29 @@
+# Get Stash studio data with the given studio alias name. Returns the graphql
+# query result.
+function Get-StashStudioByAlias {
+    param(
+        [Parameter(Mandatory)][String]$alias
+    )
+    $StashGQL_Query = 'query FindStudiosByName($studio_filter: StudioFilterType) {
+        findStudios(studio_filter: $studio_filter) {
+            studios {
+                aliases
+                id
+                name
+            }
+        }
+    }'
+    $StashGQL_QueryVariables = '{
+        "studio_filter": {
+            "aliases": {
+                "value": "'+ $alias + '",
+                "modifier": "EQUALS"
+            }
+        }
+    }'
+
+    Invoke-StashGQLQuery -query $StashGQL_Query -variables $StashGQL_QueryVariables
+}
 # Get Stash studio data with the given studio name. Returns the graphql query
 # result.
 function Get-StashStudioByName {

@@ -546,7 +546,7 @@ function Get-StashStudioFromData {
     }
 
     # Check if the studio is already in Stash
-    $stashStudio = Get-StashStudioByName $studioData.name
+    $stashStudio = Get-StashStudioByAlias $studioData.id
     if ($stashStudio.data.findStudios.studios.count -eq 0) {
         # Check if the parent studio is already in Stash
         $stashParentStudio = Get-StashStudioByName "$($studioData.brandMeta.displayName) (network)"
@@ -561,6 +561,8 @@ function Get-StashStudioFromData {
         else {
             $stashParentStudioID = $stashParentStudio.data.findStudios.studios[0].id
         }
+
+        $aliases = @("aylo-$($studioData.id)")
 
         $details = $null
         if ($studioData.description) { $details = $studioData.description }
@@ -578,8 +580,8 @@ function Get-StashStudioFromData {
             $url = $studioData.domainName
         }
 
-        $stashStudio = Set-StashStudio -name $studioData.name -details $details -image $image -parent_id $stashParentStudioID -url $url
-        $stashStudio = Get-StashStudioByName $studioData.name
+        $stashStudio = Set-StashStudio -name $studioData.name -aliases $aliases -details $details -image $image -parent_id $stashParentStudioID -url $url
+        $stashStudio = Get-StashStudioByAlias $studioData.id
     }
     return $stashStudio
 }
