@@ -62,7 +62,7 @@ function Set-AFJsonToMetaStash {
 
     $dataDir = Join-Path $userConfig.general.scrapedDataDirectory "addfriends"
     $modelArchiveDataDir = Join-Path $dataDir "model-archive"
-    # $tagsDataDir = Join-Path $dataDir "tags"
+    $tagsDataDir = Join-Path $dataDir "tags"
     $videoDataDir = Join-Path $dataDir "video"
 
     # Logging meta
@@ -110,6 +110,8 @@ function Set-AFJsonToMetaStash {
             $pageID = $sceneData.site_id
             $pageData = Get-ChildItem -Path $modelArchiveDataDir -Recurse -File -Filter "*.json" | Where-Object { $_.BaseName -match "^$pageID\s" }
 
+            $performerIDs = @()
+
             if (!($pageData)) {
                 Write-Host "FAILED: No data file found that matches AddFriends page $pageID." -ForegroundColor Red
             }
@@ -140,7 +142,12 @@ function Set-AFJsonToMetaStash {
                         $tagIDs += $result.data.findTags.tags.id
                     }
 
-                    $null = Set-StashPerformer -disambiguation $pageData.site.id -name $pageData.site.site_name -details $pageData.site.news -image "https://static.addfriends.com/images/friends/$($pageData.site.site_url).jpg" -tag_ids $tagIDs -urls $urls
+                    $stashPerformer = Set-StashPerformer -disambiguation $pageData.site.id -name $pageData.site.site_name -details $pageData.site.news -image "https://static.addfriends.com/images/friends/$($pageData.site.site_url).jpg" -tag_ids $tagIDs -urls $urls
+
+                    $performerIDs += $stashPerformer.data.performerCreate.id
+                }
+                else {
+                    $performerIDs += $existingPerformer.data.findPerformers.performers[0].id
                 }
 
                 # ---------------------------------- Studio ---------------------------------- #
@@ -181,7 +188,41 @@ function Set-AFJsonToMetaStash {
                     $stashStudio = Get-StashStudioByAlias "af-$($pageData.site.id)"
                 }
             }
-        }        
+
+            # ----------------------------------- Tags ----------------------------------- #
+
+            # Get the associated tags data file
+            $tagsData = Get-ChildItem -Path $tagsDataDir -Recurse -File -Filter "*.json" | Where-Object { $_.BaseName -match "^$afID\s" }
+            $tagsData = Get-Content $tagsData -raw | ConvertFrom-Json
+            $tagIDs = @()
+
+            if (!($tagsData)) {
+                Write-Host "FAILED: No tags data file found that matches Stash scene $($stashScene.id)." -ForegroundColor Red
+            }
+            else {
+                # Create new tags that aren't in Stash yet
+                if ($tagsData.Count) { $null = Set-TagsFromAFTagList -tagList $tagsData }
+    
+                # Fetch all tag IDs from Stash
+                foreach ($id in $tagsData.hashtag_id) {
+                    $result = Get-StashTagByAlias -alias "af-$id"
+                    $tagIDs += $result.data.findTags.tags.id
+                }
+            }
+
+            # -------------------------------- Other data -------------------------------- #
+
+            # Non-members URL
+            [array]$urls = @("https://addfriends.com/vip/video/$($sceneData.id)")
+
+            # Post
+            $posterCdnFilename = $sceneData.file_name.split(".")[0]
+            $gifUrl = "https://static.addfriends.com/vip/posters/$posterCdnFilename.gif"
+
+            # Update the scene
+            $stashScene = Set-StashSceneUpdate -id $stashScene.id -code $sceneData.id -cover_image $gifUrl -performer_ids $performerIDs -studio_id $stashStudio.data.findStudios.studios[0].id -tag_ids $tagIDs -title $sceneData.title -urls $urls -date $sceneData.released_date
+            $metaScenesUpdated++
+        }
     }
 
     Write-Host `n"All updates complete" -ForegroundColor Cyan
