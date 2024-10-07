@@ -16,6 +16,8 @@ function Get-AFAllContentBySite {
     $sceneIDs = [string[]]$modelArchive.videos.id
     $sceneIndex = 1
 
+    $null = Get-AFAssets -pathToUserConfig $pathToUserConfig -siteData $modelArchive.site
+
     # Fetch data for each scene
     foreach ($id in $sceneIDs) {
         Write-Host `n"Scene $sceneIndex/$($sceneIDs.Length)" -Foreground Cyan

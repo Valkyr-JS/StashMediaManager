@@ -79,7 +79,6 @@ function Get-AFSceneAllMedia {
         }
 
         # Check the file has been downloaded successfully.
-        # TODO - Check existing file matches db MD5 hash
         if (!(Test-Path -LiteralPath $outputPath)) {
             Write-Host "FAILED: File not downloaded." -ForegroundColor Red
         }
@@ -121,7 +120,6 @@ function Get-AFSceneAllMedia {
         }
 
         # Check the file has been downloaded successfully.
-        # TODO - Check existing file matches db MD5 hash
         if (!(Test-Path -LiteralPath $outputPath)) {
             Write-Host "FAILED: File not downloaded." -ForegroundColor Red
         }
@@ -132,5 +130,56 @@ function Get-AFSceneAllMedia {
     }
     else {
         Write-Host "Skipping scene as it already exists at $existingPath."
+    }
+}
+
+function Get-AFAssets {
+    param (
+        [Parameter(Mandatory)][String]$pathToUserConfig,
+        [Parameter(Mandatory)]$siteData
+    )
+    $userConfig = Get-Content $pathToUserConfig -raw | ConvertFrom-Json
+    $assetsDir = $userConfig.general.assetsDirectory
+    $subDir = Join-Path "addfriends" "pages"
+
+    Write-Host `n"Downloading assets for scene $($siteData.site_name)." -ForegroundColor Cyan
+
+    # Profile image
+    $imageFilename = Set-MediaFilename -mediaType "poster" -extension "jpg" -id $siteData.id -title $siteData.site_name
+    $imageUrl = "https://static.addfriends.com/images/friends/$($siteData.site_url).jpg"
+
+    # Check if the file exists
+    $existingPath = $null
+    $outputDir = Join-Path $assetsDir $subDir
+    $outputPath = Join-Path $outputDir $imageFilename
+    if (Test-Path -LiteralPath $outputPath) { $existingPath = $outputPath }
+    
+    # Download the file if it doesn't exist
+    if ($null -eq $existingPath) {
+        Write-Host "Downloading profile image: $outputPath"
+        if (!(Test-Path $outputDir)) { New-Item -ItemType "directory" -Path $outputDir }
+        try {
+            Invoke-WebRequest -uri $imageUrl -OutFile ( New-Item -Path $outputPath -Force ) 
+        }
+        catch {
+            Write-Host "ERROR: Could not download profile image: $outputPath" -ForegroundColor Red
+            Write-Host "$_" -ForegroundColor Red
+                
+            # If an empty or partial file has been generated, delete it
+            if (Test-Path $outputPath) { Remove-Item $outputPath }
+        }
+    
+        # Check the file has been downloaded successfully.
+        # TODO - Check existing file matches db MD5 hash
+        if (!(Test-Path -LiteralPath $outputPath)) {
+            Write-Host "FAILED: File not downloaded." -ForegroundColor Red
+        }
+        else {
+            Write-Host "SUCCESS: Downloaded $outputPath" -ForegroundColor Green
+        }
+    
+    }
+    else {
+        Write-Host "Skipping profile image as it already exists at $existingPath."
     }
 }

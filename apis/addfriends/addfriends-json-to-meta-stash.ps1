@@ -60,14 +60,13 @@ function Set-AFJsonToMetaStash {
     
     Invoke-StashBackupRequest
 
-    # $dataDir = Join-Path $userConfig.general.scrapedDataDirectory "addfriends"
-    # $modelArchiveDataDir = Join-Path $dataDir "model-archive"
+    $dataDir = Join-Path $userConfig.general.scrapedDataDirectory "addfriends"
+    $modelArchiveDataDir = Join-Path $dataDir "model-archive"
     # $tagsDataDir = Join-Path $dataDir "tags"
-    # $videoDataDir = Join-Path $dataDir "video"
+    $videoDataDir = Join-Path $dataDir "video"
 
     # Logging meta
     $metaScenesUpdated = 0
-
 
     # ---------------------------------------------------------------------------- #
     #                                    Scenes                                    #
@@ -90,9 +89,103 @@ function Set-AFJsonToMetaStash {
     $stashScenesToProcess = [array]$result.data.findScenes.scenes
 
     foreach ($stashScene in $stashScenesToProcess) {
-        Write-Host $stashScene.id
+        Write-Host "Updating Stash scene $($stashScene.id)" -ForegroundColor Cyan
+
+        # Get the associated data file
+        $afID = $stashScene.files.path.split("/")[4].split(" ")[0]
+        $sceneData = Get-ChildItem -Path $videoDataDir -Recurse -File -Filter "*.json" | Where-Object { $_.BaseName -match "^$afID\s" }
+        
+        if (!($sceneData)) {
+            Write-Host "FAILED: No data file found that matches Stash scene $($stashScene.id)." -ForegroundColor Red
+        }
+        else {
+            $sceneData = Get-Content $sceneData -raw | ConvertFrom-Json
+
+            # --------------------------------- Performer -------------------------------- #
+
+            # There is no dedicated performer data available, other than the
+            # data for the content creator page. Use this to create a performer.
+
+            # Get the associated data file
+            $pageID = $sceneData.site_id
+            $pageData = Get-ChildItem -Path $modelArchiveDataDir -Recurse -File -Filter "*.json" | Where-Object { $_.BaseName -match "^$pageID\s" }
+
+            if (!($pageData)) {
+                Write-Host "FAILED: No data file found that matches AddFriends page $pageID." -ForegroundColor Red
+            }
+            else {
+                # Get the most recently scraped data
+                $pageData = Get-Content $pageData[$pageData.Count - 1] -raw | ConvertFrom-Json
+
+                # Create new tags that aren't in Stash yet. 
+                if ($pageData.site.tags.Count) { $null = Set-TagsFromAFTagList -tagList $pageData.site.tags }
+
+                # Query Stash to see if the performer exists. Disambiguation is the
+                # performer ID, which we use to query.
+                $existingPerformer = Get-StashPerformerByDisambiguation -disambiguation $pageData.site.id
+
+                # If no data is found, create the new performer
+                if ($existingPerformer.data.findPerformers.performers.count -eq 0) {
+
+                    # URLs
+                    $urls = @("https://addfriends.com/$($pageData.site.site_url)")
+                    if ($pageData.site.free_snapchat) {
+                        $urls += "https://www.snapchat.com/add/$($pageData.site.free_snapchat)"
+                    }
+            
+                    # Get tags
+                    $tagIDs = @()
+                    foreach ($id in $pageData.site.tags.hashtag_id) {
+                        $result = Get-StashTagByAlias -alias "af-$id"
+                        $tagIDs += $result.data.findTags.tags.id
+                    }
+
+                    $null = Set-StashPerformer -disambiguation $pageData.site.id -name $pageData.site.site_name -details $pageData.site.news -image "https://static.addfriends.com/images/friends/$($pageData.site.site_url).jpg" -tag_ids $tagIDs -urls $urls
+                }
+            }    
+        }        
     }
 
     Write-Host `n"All updates complete" -ForegroundColor Cyan
     Write-Host "Scenes updated: $metaScenesUpdated"
+}
+
+# ---------------------------------------------------------------------------- #
+#                              AddFriends helpers                              #
+# ---------------------------------------------------------------------------- #
+
+# Create Stash tags from a list of AddFriends parent tags
+function Set-TagsFromAFTagList {
+    param (
+        [Parameter(Mandatory)]$tagList
+    )
+    foreach ($tag in $tagList) {
+        # Query Stash to see if the tag exists. Aliases include the tag ID,
+        # which we use to query. Make sure to include the "af-" prefix.
+        $existingTag = Get-StashTagByAlias -alias "af-$($tag.hashtag_id)"
+        
+        # If no data is found, also check to see if the tag exists under a
+        # different ID.
+        if ($existingTag.data.findTags.tags.count -eq 0) {
+            $existingTag = Get-StashTagByName -name $tag.hash_tag.Trim()
+        
+            # If a matching tag name is found, update it with the new alias
+            if ($existingTag.data.findTags.tags.count -gt 0) {
+                $tagAliases = $existingTag.data.findTags.tags[0].aliases
+                $tagAliases += "af-$($tag.id)"
+        
+                $existingTag = Set-StashTagUpdate -id $existingTag.data.findTags.tags[0].id -aliases $tagAliases
+            }
+        
+            # If no data is found, create the new tag
+            else {
+                # Add the "af-" prefix to the alias for the AddFriends tag.
+                $aliases = @()
+                $aliases += "af-$($tag.hashtag_id)"
+        
+                # Create the tag
+                $null = Set-StashTag -name $tag.hash_tag.Trim() -aliases $aliases
+            }
+        }
+    }
 }

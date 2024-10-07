@@ -37,6 +37,7 @@ function Set-StashPerformer {
         [String]$measurements,
         [Int]$penis_length,
         [String[]]$tag_ids,
+        [String[]]$urls,
         [Int]$weight,
         $birthdate
     )
@@ -75,6 +76,11 @@ function Set-StashPerformer {
         $tag_ids = '"tag_ids": ' + $tag_ids + ','
     }
 
+    if ($urls.count) {
+        $urls = ConvertTo-Json $urls -depth 32
+        $urls = '"urls": ' + $urls + ','
+    }
+
     if ($weight) { [string]$weight = '"weight": ' + $weight + ',' }
     else { [string]$weight = '' }
 
@@ -96,6 +102,7 @@ function Set-StashPerformer {
             '+ $penis_length + '
             '+ $tag_ids + '
             '+ $weight + '
+            '+ $urls + '
             "disambiguation": "'+ $disambiguation + '",
             "name": "'+ $name.Trim() + '",
             "ignore_auto_tag": true
