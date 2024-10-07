@@ -142,7 +142,45 @@ function Set-AFJsonToMetaStash {
 
                     $null = Set-StashPerformer -disambiguation $pageData.site.id -name $pageData.site.site_name -details $pageData.site.news -image "https://static.addfriends.com/images/friends/$($pageData.site.site_url).jpg" -tag_ids $tagIDs -urls $urls
                 }
-            }    
+
+                # ---------------------------------- Studio ---------------------------------- #
+
+                # Check if the studio is already in Stash
+                $stashStudio = Get-StashStudioByAlias "af-$($pageData.site.id)"
+
+                if ($stashStudio.data.findStudios.studios.count -eq 0) {
+                    # Check if the parent studio is already in Stash
+                    $stashParentStudioName = "+AddFriends (network)"
+                    $stashParentStudio = Get-StashStudioByName $stashParentStudioName
+            
+                    if ($stashParentStudio.data.findStudios.studios.count -eq 0) { 
+                        $stashParentStudio = Set-StashStudio -name $stashParentStudioName -url "https://addfriends.com/"
+                        $stashParentStudioID = $stashParentStudio.data.studioCreate.id
+                    }
+                    else {
+                        $stashParentStudioID = $stashParentStudio.data.findStudios.studios[0].id
+                    }
+            
+                    $aliases = @("af-$($pageData.site.id)")
+            
+                    $details = $null
+                    if ($pageData.site.news) { $details = $pageData.site.news }
+            
+                    $image = "https://static.addfriends.com/images/friends/$($pageData.site.site_url).jpg"
+                    
+                    $url = "https://addfriends.com/$($pageData.site.site_url)"
+
+                    # Get tags
+                    $tagIDs = @()
+                    foreach ($id in $pageData.site.tags.hashtag_id) {
+                        $result = Get-StashTagByAlias -alias "af-$id"
+                        $tagIDs += $result.data.findTags.tags.id
+                    }
+            
+                    $stashStudio = Set-StashStudio -name $pageData.site.site_name -aliases $aliases -details $details -image $image -parent_id $stashParentStudioID -tag_ids $tagIDs -url $url
+                    $stashStudio = Get-StashStudioByAlias "af-$($pageData.site.id)"
+                }
+            }
         }        
     }
 
