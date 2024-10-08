@@ -58,23 +58,7 @@ function Set-AyloJsonToMetaStash {
     
     # --------------------------- Ask for Stash backup --------------------------- #
     
-    do {
-        $backupConfirmation = Read-Host `n"Would you like to make a backup of your Stash Database first? [Y/N]"
-    }
-    while ($backupConfirmation -notlike "Y" -and $backupConfirmation -notlike "N")
-    
-    if (($backupConfirmation -like "Y")) {
-        $StashGQL_Query = 'mutation BackupDatabase($input: BackupDatabaseInput!) {
-            backupDatabase(input: $input)
-        }'
-        $StashGQL_QueryVariables = '{
-            "input": {}
-        }' 
-    
-        Invoke-StashGQLQuery -query $StashGQL_Query -variables $StashGQL_QueryVariables
-        Write-Host "SUCCESS: Backup created" -ForegroundColor Green
-    }
-    else { Write-Host "Backup will not be created." }
+    Invoke-StashBackupRequest
 
     $dataDir = Join-Path $userConfig.general.scrapedDataDirectory "aylo"
     $actorsDataDir = Join-Path $dataDir "actor"
@@ -351,7 +335,7 @@ function Set-AyloJsonToMetaStash {
         $metaGalleriesUpdated++
     }
 
-    Write-Host "All updates complete" -ForegroundColor Cyan
+    Write-Host `n"All updates complete" -ForegroundColor Cyan
     Write-Host "Scenes updated: $metaScenesUpdated"
     Write-Host "Galleries updated: $metaGalleriesUpdated"
 }

@@ -59,6 +59,7 @@ function Set-StashStudio {
         [String]$details,
         [String]$image,
         [String]$parent_id,
+        [String[]]$tag_ids,
         [String]$url
     )
 
@@ -75,6 +76,12 @@ function Set-StashStudio {
 
     if ($image) { $image = '"image": "' + $image + '",' }
     if ($parent_id) { $parent_id = '"parent_id": "' + $parent_id + '",' }
+
+    if ($tag_ids -and $tag_ids.Count) {
+        $tag_ids = ConvertTo-Json $tag_ids -depth 32
+        $tag_ids = '"tag_ids": ' + $tag_ids + ','
+    }
+
     if ($url) { $url = '"url": "' + $url + '",' }
 
     $StashGQL_Query = 'mutation CreateStudio($input: StudioCreateInput!) {
@@ -88,8 +95,9 @@ function Set-StashStudio {
         "input": {
             '+ $aliases + '
             '+ $details + '
-            '+ $parent_id + '
             '+ $image + '
+            '+ $parent_id + '
+            '+ $tag_ids + '
             '+ $url + '
             "ignore_auto_tag": true,
             "name": "'+ $name + '"

@@ -95,6 +95,7 @@ function Set-Entry {
     while (($operationSelection -notmatch "[1-2]"))
 
     # --------------------------- AddFriends : Download -------------------------- #
+
     if ($operationSelection -eq 1 -and $apiData.name -eq "AddFriends") {
         Write-Host `n"Which site do you want to download from?"
 
@@ -128,7 +129,16 @@ function Set-Entry {
             exit
         }
     
-    }    
+    }
+
+    # ----------------------------- AddFriend : Stash ---------------------------- #
+
+    if ($operationSelection -eq 2 -and $apiData.name -eq "AddFriends") {
+        # Load the required files
+        . "./apis/addfriends/addfriends-json-to-meta-stash.ps1"
+        
+        Set-AFJsonToMetaStash -pathToUserConfig $pathToUserConfig
+    }
 
     # ------------------------------ Aylo : Download ----------------------------- #
 

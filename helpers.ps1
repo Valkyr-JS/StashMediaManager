@@ -100,3 +100,23 @@ function Get-TextWithoutDiacritics {
 
     return $NewString.ToString()
 }
+
+function Invoke-StashBackupRequest {
+    do {
+        $backupConfirmation = Read-Host `n"Would you like to make a backup of your Stash Database first? [Y/N]"
+    }
+    while ($backupConfirmation -notlike "Y" -and $backupConfirmation -notlike "N")
+    
+    if (($backupConfirmation -like "Y")) {
+        $StashGQL_Query = 'mutation BackupDatabase($input: BackupDatabaseInput!) {
+            backupDatabase(input: $input)
+        }'
+        $StashGQL_QueryVariables = '{
+            "input": {}
+        }' 
+    
+        Invoke-StashGQLQuery -query $StashGQL_Query -variables $StashGQL_QueryVariables
+        Write-Host "SUCCESS: Backup created" -ForegroundColor Green
+    }
+    else { Write-Host "Backup will not be created." }
+}
