@@ -220,7 +220,7 @@ function Set-AFJsonToMetaStash {
             $gifUrl = "https://static.addfriends.com/vip/posters/$posterCdnFilename.gif"
 
             # Update the scene
-            $stashScene = Set-StashSceneUpdate -id $stashScene.id -code $sceneData.id -cover_image $gifUrl -performer_ids $performerIDs -studio_id $stashStudio.data.findStudios.studios[0].id -tag_ids $tagIDs -title $sceneData.title -urls $urls -date $sceneData.released_date
+            $stashScene = Set-StashSceneUpdate -id $stashScene.id -code $sceneData.id -cover_image $gifUrl -organized $true -performer_ids $performerIDs -studio_id $stashStudio.data.findStudios.studios[0].id -tag_ids $tagIDs -title $sceneData.title -urls $urls -date $sceneData.released_date
             $metaScenesUpdated++
         }
     }
