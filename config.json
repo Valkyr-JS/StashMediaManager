@@ -1,10 +1,10 @@
 {
   "addfriends": {
-    "stashUrl": ""
+    "metaStashUrl": ""
   },
   "aylo": {
     "masterSite": "",
-    "stashUrl": ""
+    "metaStashUrl": ""
   },
   "general": {
     "assetsDirectory": "",

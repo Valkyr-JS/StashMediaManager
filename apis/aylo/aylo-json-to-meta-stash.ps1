@@ -5,14 +5,14 @@ function Set-AyloJsonToMetaStash {
     $userConfig = Get-Content -Raw $pathToUserConfig | ConvertFrom-Json
 
     # Ensure the URL to the Stash instance has been setup
-    if ($userConfig.aylo.stashUrl.Length -eq 0) {
-        $userConfig = Set-ConfigAyloStashURL -pathToUserConfig $pathToUserConfig
+    if ($userConfig.aylo.metaStashUrl.Length -eq 0) {
+        $userConfig = Set-ConfigAyloMetaStashURL -pathToUserConfig $pathToUserConfig
     }
 
     # Ensure that the Stash instance can be connected to
     do {
         $StashGQL_Query = 'query version{version{version}}'
-        $stashURL = $userConfig.aylo.stashUrl
+        $stashURL = $userConfig.aylo.metaStashUrl
         $stashGQL_URL = $stashURL
         if ($stashURL[-1] -ne "/") { $stashGQL_URL += "/" }
         $stashGQL_URL += "graphql"
@@ -23,7 +23,7 @@ function Set-AyloJsonToMetaStash {
         }
         catch {
             Write-Host "ERROR: Could not connect to Stash at $stashURL" -ForegroundColor Red
-            $userConfig = Set-ConfigAyloStashURL -pathToUserConfig $pathToUserConfig
+            $userConfig = Set-ConfigAyloMetaStashURL -pathToUserConfig $pathToUserConfig
         }
     }
     while ($null -eq $stashVersion)
@@ -32,7 +32,7 @@ function Set-AyloJsonToMetaStash {
     Write-Host "Connected to Stash at $stashURL ($stashVersion)" -ForegroundColor Green
     
     # Ensure the Stash URL doesn't have a trailing forward slash
-    [string]$stashUrl = $userConfig.aylo.stashUrl
+    [string]$stashUrl = $userConfig.aylo.metaStashUrl
     if ($stashUrl[-1] -eq "/") { $stashUrl = $stashUrl.Substring(0, $stashUrl.Length - 1) }
 
     # Create a helper function for Stash GQL queries now that the connection has
