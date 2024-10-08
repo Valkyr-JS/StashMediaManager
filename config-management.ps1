@@ -104,6 +104,34 @@ function Set-ConfigStashURL {
     return $userInput
 }
 
+# Set the user config value for addfriends.metaStashUrl
+function Set-ConfigAFMetaStashURL {
+    param(
+        [String]$pathToUserConfig
+    )
+    $userInput = Set-ConfigStashURL
+
+    $userConfig = Get-Content $pathToUserConfig -raw | ConvertFrom-Json
+    $userConfig.addfriends.metaStashUrl = "$userInput"
+    $userConfig | ConvertTo-Json -depth 32 | set-content $pathToUserConfig
+
+    return $userConfig
+}
+
+# Set the user config value for addfriends.formatStashUrl
+function Set-ConfigAFFormatStashURL {
+    param(
+        [String]$pathToUserConfig
+    )
+    $userInput = Set-ConfigStashURL
+
+    $userConfig = Get-Content $pathToUserConfig -raw | ConvertFrom-Json
+    $userConfig.addfriends.formatStashUrl = "$userInput"
+    $userConfig | ConvertTo-Json -depth 32 | set-content $pathToUserConfig
+
+    return $userConfig
+}
+
 # Set the user config value for aylo.metaStashUrl
 function Set-ConfigAyloMetaStashURL {
     param(
@@ -118,17 +146,3 @@ function Set-ConfigAyloMetaStashURL {
     return $userConfig
 }
 
-
-# Set the user config value for addfriends.metaStashUrl
-function Set-ConfigAFMetaStashURL {
-    param(
-        [String]$pathToUserConfig
-    )
-    $userInput = Set-ConfigStashURL
-
-    $userConfig = Get-Content $pathToUserConfig -raw | ConvertFrom-Json
-    $userConfig.addfriends.metaStashUrl = "$userInput"
-    $userConfig | ConvertTo-Json -depth 32 | set-content $pathToUserConfig
-
-    return $userConfig
-}

@@ -90,9 +90,10 @@ function Set-Entry {
     # Next, user selects an operation
     Write-Host `n"What would you like to do?"
     Write-Host "1. Download media"
-    Write-Host "2. Update Stash"
-    do { $operationSelection = read-host "Enter your selection (1-2)" }
-    while (($operationSelection -notmatch "[1-2]"))
+    Write-Host "2. Update a meta Stash instance"
+    Write-Host "3. Update a formatting Stash instance"
+    do { $operationSelection = read-host "Enter your selection (1-3)" }
+    while (($operationSelection -notmatch "[1-3]"))
 
     # --------------------------- AddFriends : Download -------------------------- #
 
@@ -128,16 +129,24 @@ function Set-Entry {
             Write-Host "Closing the script."
             exit
         }
-    
     }
 
-    # ----------------------------- AddFriend : Stash ---------------------------- #
+    # ------------------------- Add Friends : Meta Stash ------------------------- #
 
     if ($operationSelection -eq 2 -and $apiData.name -eq "AddFriends") {
         # Load the required files
         . "./apis/addfriends/addfriends-json-to-meta-stash.ps1"
         
         Set-AFJsonToMetaStash -pathToUserConfig $pathToUserConfig
+    }
+
+    # ---------------------- Add Friends : Formatting Stash ---------------------- #
+
+    if ($operationSelection -eq 3 -and $apiData.name -eq "AddFriends") {
+        # Load the required files
+        . "./apis/addfriends/addfriends-meta-to-format-stash.ps1"
+        
+        Set-AFMetaToFormatStash -pathToUserConfig $pathToUserConfig
     }
 
     # ------------------------------ Aylo : Download ----------------------------- #

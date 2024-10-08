@@ -83,7 +83,8 @@ function Set-AFJsonToMetaStash {
         }
     }'
     $StashGQL_QueryVariables = '{
-        "filter": { "per_page": -1 }
+        "filter": { "per_page": -1 },
+        "scene_filter": { "organized": false }
     }' 
     $result = Invoke-StashGQLQuery -query $StashGQL_Query -variables $StashGQL_QueryVariables
     $stashScenesToProcess = [array]$result.data.findScenes.scenes
