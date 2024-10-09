@@ -161,8 +161,11 @@ function Set-AFMetaToFormatStash {
         $OriginGQL_Query = 'query FindMatchingOriginScene($filter: FindFilterType, $scene_filter: SceneFilterType) {
             findScenes(filter: $filter, scene_filter: $scene_filter) {
                 scenes {
+                    code
+                    date
                     files { path }
                     id
+                    paths { screenshot }
                     performers {
                         details
                         disambiguation
@@ -191,7 +194,13 @@ function Set-AFMetaToFormatStash {
                             name
                         }
                     }
+                    tags {
+                        aliases
+                        id
+                        name
+                    }
                     title
+                    urls
                 }
             }
         }'
@@ -272,7 +281,21 @@ function Set-AFMetaToFormatStash {
             $stashStudio = Get-StashStudioByAlias "$($originScene.studio.aliases[0])"
             $metaStudiosCreated++
         }
+        
+        # ----------------------------- Update the scene ----------------------------- #
 
+        # Create new tags that aren't in Stash yet
+        if ($originScene.tags.count) { $null = Set-TagsFromStashTagList -tagList $originScene.tags }
+    
+        # Fetch all tag IDs from Stash
+        $tagIDs = @()
+        foreach ($tag in $originScene.tags) {
+            $result = Get-StashTagByAlias -alias $tag.aliases[0]
+            $tagIDs += $result.data.findTags.tags.id
+        }
+    
+        # Update the scene
+        $stashScene = Set-StashSceneUpdate -id $stashScene.id -code $originScene.code -cover_image $originScene.paths.screenshot -performer_ids $performerIDs -studio_id $stashStudio.data.findStudios.studios[0].id -tag_ids $tagIDs -title $originScene.title -urls $originScene.urls -date $originScene.date
         $metaScenesUpdated++
     }
     Write-Host "Scenes updated: $metaScenesUpdated"
@@ -289,14 +312,18 @@ function Set-TagsFromStashTagList {
         [Parameter(Mandatory)]$tagList
     )
     foreach ($tag in $tagList) {
-        foreach ($tAlias in $tag.aliases) {
-            # Query the target Stash to see if the tag already exists. Aliases
-            # include the tag ID, which we use to query.
-            $existingTag = Get-StashTagByAlias -alias "$tAlias"
+        # Query the target Stash to see if the tag already exists. Aliases
+        # include the tag ID, which we use to query.
+        $existingTag = Get-StashTagByAlias -alias $tag.aliases[0]
+
+        # If no data is found, also check to see if the tag exists under a
+        # different AF ID.
+        if ($existingTag.data.findTags.tags.count -eq 0) {
+
             # If a matching tag is found, update it with the new alias
             if ($existingTag.data.findTags.tags.count -gt 0) {
                 $tagAliases = $existingTag.data.findTags.tags[0].aliases
-                $tagAliases += "$tAlias"
+                $tagAliases += $tag.aliases[0]
         
                 $existingTag = Set-StashTagUpdate -id $existingTag.data.findTags.tags[0].id -aliases $tagAliases
             }
@@ -304,7 +331,7 @@ function Set-TagsFromStashTagList {
             # If no data is found, create the new tag
             else {
                 # Add the "af-" prefix to the alias for the AddFriends tag.
-                $aliases = @("$tAlias")
+                $aliases = @($tag.aliases[0])
         
                 # Create the tag
                 $null = Set-StashTag -name $tag.name -aliases $aliases
