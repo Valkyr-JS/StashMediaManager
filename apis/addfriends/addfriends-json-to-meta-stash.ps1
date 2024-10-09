@@ -245,7 +245,7 @@ function Set-TagsFromAFTagList {
         $existingTag = Get-StashTagByAlias -alias "af-$($tag.hashtag_id)"
         
         # If no data is found, also check to see if the tag exists under a
-        # different ID.
+        # different AF ID.
         if ($existingTag.data.findTags.tags.count -eq 0) {
             $existingTag = Get-StashTagByName -name $tag.hash_tag.Trim()
         

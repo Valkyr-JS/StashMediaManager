@@ -18,6 +18,7 @@ function Set-AFMetaToFormatStash {
         $originGQL_URL = $originURL
         if ($originURL[-1] -ne "/") { $originGQL_URL += "/" }
         $originGQL_URL += "graphql"
+        
             
         Write-Host "Attempting to connect to origin Stash instance at $originURL"
         try {
@@ -25,7 +26,7 @@ function Set-AFMetaToFormatStash {
         }
         catch {
             Write-Host "ERROR: Could not connect to origin Stash instance at $originURL" -ForegroundColor Red
-            $userConfig = Set-ConfigAFFormatStashURL -pathToUserConfig $pathToUserConfig
+            $userConfig = Set-ConfigAFMetaStashURL -pathToUserConfig $pathToUserConfig
         }
     }
     while ($null -eq $originVersion)
@@ -45,7 +46,7 @@ function Set-AFMetaToFormatStash {
             [String]$variables
         )
         try {
-            Invoke-GraphQLQuery -Query $query -Uri $OriginGQL_Query -Variables $variables
+            $result = Invoke-GraphQLQuery -Query $query -Uri "$originUrl/graphql" -Variables $variables
         }
         catch {
             Write-Host "ERROR: There was an issue with the GraphQL query/mutation." -ForegroundColor Red
@@ -55,6 +56,7 @@ function Set-AFMetaToFormatStash {
             Read-Host "Press [Enter] to exit"
             exit
         }
+        return $result
     }
 
     # -------------------------- Target Stash connection ------------------------- #
@@ -127,25 +129,134 @@ function Set-AFMetaToFormatStash {
     #                                    Scenes                                    #
     # ---------------------------------------------------------------------------- #
 
-    # Fetch all target Stash scenes not marked as organized
+    # Fetch all target Stash scenes which are not marked as organized
     $StashGQL_Query = 'query FindUnorganizedScenes($filter: FindFilterType, $scene_filter: SceneFilterType) {
         findScenes(filter: $filter, scene_filter: $scene_filter) {
             scenes {
                 files { path }
                 id
+                stash_ids {
+                    endpoint
+                    stash_id
+                }
                 title
             }
         }
     }'
     $StashGQL_QueryVariables = '{
         "filter": { "per_page": -1 },
-        "scene_filter": { "organized": false }
+        "scene_filter": {
+            "organized": false
+        }
     }' 
     $result = Invoke-StashGQLQuery -query $StashGQL_Query -variables $StashGQL_QueryVariables
     $stashScenesToProcess = [array]$result.data.findScenes.scenes
 
     foreach ($stashScene in $stashScenesToProcess) {
-        Write-Host $stashScene.title
+        Write-Host "Updating Stash scene $($stashScene.id)" -ForegroundColor Cyan
+
+        # Get the matching scene in the origin stash instance
+        $OriginGQL_Query = 'query FindMatchingOriginScene($filter: FindFilterType, $scene_filter: SceneFilterType) {
+            findScenes(filter: $filter, scene_filter: $scene_filter) {
+                scenes {
+                    files { path }
+                    id
+                    performers {
+                        details
+                        disambiguation
+                        id
+                        image_path
+                        name
+                        tags {
+                            aliases
+                            id
+                            name
+                        }
+                        urls
+                    }
+                    title
+                }
+            }
+        }'
+        $OriginGQL_QueryVariables = '{
+            "filter": {},
+            "scene_filter": {
+                "path": {
+                    "value": "'+ $stashScene.files[0].path + '",
+                    "modifier": "EQUALS"
+                }
+            }
+        }'
+        $result = Get-OriginStashGQLQuery -query $OriginGQL_Query -variables $OriginGQL_QueryVariables
+        $originScene = $result.data.findScenes.scenes[0]
+
+        # -------------------------------- Performers -------------------------------- #
+
+        $performerIDs = @()
+
+        # Loop through each performer in the origin scene data 
+        foreach ($originPerformer in $originScene.performers) {
+            # Check if the performer is in the target Stash
+            $result = Get-StashPerformerByDisambiguation $originPerformer.disambiguation
+
+            # If they exist, add them to the ID list
+            if ($result.data.findPerformers.performers.count -gt 0) {
+                $performerIDs += $result.data.findPerformers.performers[0].id
+            }
+
+            # Otherwise, add them to the target Stash instance
+            else {
+                # Create new tags that aren't in Stash yet.
+                $performerTagIDS = @()
+                Set-TagsFromStashTagList $originPerformer.tags
+
+                # Fetch all tag IDs from Stash
+                foreach ($tag in $originPerformer.tags) {
+                    $result = Get-StashTagByAlias -alias $tag.aliases[0]
+                    $performerTagIDS += $result.data.findTags.tags.id
+                }
+                
+                # Create the new performer
+                $stashPerformer = Set-StashPerformer -disambiguation $originPerformer.disambiguation -name $originPerformer.name -details $originPerformer.details -image $originPerformer.image_path -tag_ids $performerTagIDS -urls $originPerformer.urls
+
+                $performerIDs += $stashPerformer.data.performerCreate.id
+            }
+        }
+        $metaScenesUpdated++
     }
     Write-Host "Scenes updated: $metaScenesUpdated"
+}
+
+# ---------------------------------------------------------------------------- #
+#                              AddFriends helpers                              #
+# ---------------------------------------------------------------------------- #
+
+# Create Stash tags from a list of Stash tags in a different instance
+function Set-TagsFromStashTagList {
+    param (
+        [Parameter(Mandatory)]$tagList
+    )
+    foreach ($tag in $tagList) {
+        foreach ($tAlias in $tag.aliases) {
+            # Query the target Stash to see if the tag already exists. Aliases
+            # include the tag ID, which we use to query.
+            $existingTag = Get-StashTagByAlias -alias "$tAlias"
+            # If a matching tag is found, update it with the new alias
+            if ($existingTag.data.findTags.tags.count -gt 0) {
+                $tagAliases = $existingTag.data.findTags.tags[0].aliases
+                $tagAliases += "$tAlias"
+        
+                $existingTag = Set-StashTagUpdate -id $existingTag.data.findTags.tags[0].id -aliases $tagAliases
+            }
+        
+            # If no data is found, create the new tag
+            else {
+                # Add the "af-" prefix to the alias for the AddFriends tag.
+                $aliases = @("$tAlias")
+        
+                # Create the tag
+                $null = Set-StashTag -name $tag.name -aliases $aliases
+            }
+        }
+    }
 }
