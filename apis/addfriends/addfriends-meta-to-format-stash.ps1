@@ -123,7 +123,9 @@ function Set-AFMetaToFormatStash {
     # $videoDataDir = Join-Path $dataDir "video"
 
     # Logging meta
+    $metaPerformersCreated = 0
     $metaScenesUpdated = 0
+    $metaStudiosCreated = 0
 
     # ---------------------------------------------------------------------------- #
     #                                    Scenes                                    #
@@ -174,6 +176,21 @@ function Set-AFMetaToFormatStash {
                         }
                         urls
                     }
+                    studio {
+                        aliases
+                        details
+                        image_path
+                        name
+                        parent_studio {
+                            name
+                            url
+                        }
+                        tags {
+                            aliases
+                            id
+                            name
+                        }
+                    }
                     title
                 }
             }
@@ -220,11 +237,46 @@ function Set-AFMetaToFormatStash {
                 $stashPerformer = Set-StashPerformer -disambiguation $originPerformer.disambiguation -name $originPerformer.name -details $originPerformer.details -image $originPerformer.image_path -tag_ids $performerTagIDS -urls $originPerformer.urls
 
                 $performerIDs += $stashPerformer.data.performerCreate.id
+
+                $metaPerformersCreated++
             }
         }
+
+        # ---------------------------------- Studio ---------------------------------- #
+
+        # Check if the studio is already in Stash
+        $stashStudio = Get-StashStudioByAlias "$($originScene.studio.aliases[0])"
+
+        if ($stashStudio.data.findStudios.studios.count -eq 0) {
+            # Check if the parent studio is already in Stash
+            $stashParentStudioName = $originScene.studio.parent_studio.name
+            $stashParentStudio = Get-StashStudioByName $stashParentStudioName
+            
+            if ($stashParentStudio.data.findStudios.studios.count -eq 0) { 
+                $stashParentStudio = Set-StashStudio -name $stashParentStudioName -url $originScene.studio.parent_studio.name.url
+                $stashParentStudioID = $stashParentStudio.data.studioCreate.id
+                $metaStudiosCreated++
+            }
+            else {
+                $stashParentStudioID = $stashParentStudio.data.findStudios.studios[0].id
+            }
+
+            # Get tags
+            $tagIDs = @()
+            foreach ($tag in $originScene.studio.tags) {
+                $result = Get-StashTagByAlias -alias $tag.aliases[0]
+                $tagIDs += $result.data.findTags.tags.id
+            }
+            
+            $stashStudio = Set-StashStudio -name $originScene.studio.name -aliases $originScene.studio.aliases -details $originScene.studio.details -image $originScene.studio.image_path -parent_id $stashParentStudioID -tag_ids $tagIDs -url $originScene.url
+            $stashStudio = Get-StashStudioByAlias "$($originScene.studio.aliases[0])"
+            $metaStudiosCreated++
+        }
+
         $metaScenesUpdated++
     }
     Write-Host "Scenes updated: $metaScenesUpdated"
+    Write-Host "Performers created: $metaPerformersCreated"
 }
 
 # ---------------------------------------------------------------------------- #
