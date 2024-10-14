@@ -81,7 +81,7 @@ function Set-ConfigAyloMasterSite {
     return $userConfig
 }
 
-# Set the user config value for aylo.stashUrl
+# Set the user config value for aylo.metaStashUrl
 function Set-ConfigAyloStashURL {
     param(
         [String]$pathToUserConfig
@@ -106,7 +106,7 @@ function Set-ConfigAyloStashURL {
     }
     while ($null -eq $stashVersion)
 
-    $userConfig.aylo.stashUrl = "$userInput"
+    $userConfig.aylo.metaStashUrl = "$userInput"
     $userConfig | ConvertTo-Json -depth 32 | set-content $pathToUserConfig
 
     return $userConfig

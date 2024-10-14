@@ -5,14 +5,14 @@ function Set-AyloJsonToMetaStash {
     $userConfig = Get-Content -Raw $pathToUserConfig | ConvertFrom-Json
 
     # Ensure the URL to the Stash instance has been setup
-    if ($userConfig.aylo.stashUrl.Length -eq 0) {
+    if ($userConfig.aylo.metaStashUrl.Length -eq 0) {
         $userConfig = Set-ConfigAyloStashURL -pathToUserConfig $pathToUserConfig
     }
 
     # Ensure that the Stash instance can be connected to
     do {
         $StashGQL_Query = 'query version{version{version}}'
-        $stashURL = $userConfig.aylo.stashUrl
+        $stashURL = $userConfig.aylo.metaStashUrl
         $stashGQL_URL = $stashURL
         if ($stashURL[-1] -ne "/") { $stashGQL_URL += "/" }
         $stashGQL_URL += "graphql"
@@ -32,7 +32,7 @@ function Set-AyloJsonToMetaStash {
     Write-Host "Connected to Stash at $stashURL ($stashVersion)" -ForegroundColor Green
     
     # Ensure the Stash URL doesn't have a trailing forward slash
-    [string]$stashUrl = $userConfig.aylo.stashUrl
+    [string]$stashUrl = $userConfig.aylo.metaStashUrl
     if ($stashUrl[-1] -eq "/") { $stashUrl = $stashUrl.Substring(0, $stashUrl.Length - 1) }
 
     # Create a helper function for Stash GQL queries now that the connection has
@@ -490,6 +490,9 @@ function Set-PerformersFromActorList {
                         }
                     }
                 }
+
+                # Get image used on profile page
+                $profileImage = $actorData.images.master_profile."0".lg.url + "?width=600&aspectRatio=3x4"
         
                 # Get tags
                 $tagIDs = @()
@@ -498,7 +501,7 @@ function Set-PerformersFromActorList {
                     $tagIDs += $result.data.findTags.tags.id
                 }
             
-                $null = Set-StashPerformer -disambiguation $actorData.id -name $actorData.name -gender $gender -alias_list $alias_list -birthdate $actorData.birthday -details $actorData.bio -height_cm ([math]::Round((Get-InchesToCm $actorData.height))) -image $actorData.images.profile."0".lg.url -measurements $measurements -penis_length $penis_length -weight ([math]::Round((Get-LbsToKilos $actorData.weight))) -tag_ids $tagIDs
+                $null = Set-StashPerformer -disambiguation $actorData.id -name $actorData.name -gender $gender -alias_list $alias_list -birthdate $actorData.birthday -details $actorData.bio -height_cm ([math]::Round((Get-InchesToCm $actorData.height))) -image $profileImage -measurements $measurements -penis_length $penis_length -weight ([math]::Round((Get-LbsToKilos $actorData.weight))) -tag_ids $tagIDs
             }
         }
     }
