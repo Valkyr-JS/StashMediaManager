@@ -5,14 +5,14 @@ function Set-AyloJsonToMetaStash {
     $userConfig = Get-Content -Raw $pathToUserConfig | ConvertFrom-Json
 
     # Ensure the URL to the Stash instance has been setup
-    if ($userConfig.aylo.stashUrl.Length -eq 0) {
+    if ($userConfig.aylo.metaStashUrl.Length -eq 0) {
         $userConfig = Set-ConfigAyloStashURL -pathToUserConfig $pathToUserConfig
     }
 
     # Ensure that the Stash instance can be connected to
     do {
         $StashGQL_Query = 'query version{version{version}}'
-        $stashURL = $userConfig.aylo.stashUrl
+        $stashURL = $userConfig.aylo.metaStashUrl
         $stashGQL_URL = $stashURL
         if ($stashURL[-1] -ne "/") { $stashGQL_URL += "/" }
         $stashGQL_URL += "graphql"
@@ -32,7 +32,7 @@ function Set-AyloJsonToMetaStash {
     Write-Host "Connected to Stash at $stashURL ($stashVersion)" -ForegroundColor Green
     
     # Ensure the Stash URL doesn't have a trailing forward slash
-    [string]$stashUrl = $userConfig.aylo.stashUrl
+    [string]$stashUrl = $userConfig.aylo.metaStashUrl
     if ($stashUrl[-1] -eq "/") { $stashUrl = $stashUrl.Substring(0, $stashUrl.Length - 1) }
 
     # Create a helper function for Stash GQL queries now that the connection has
@@ -490,6 +490,12 @@ function Set-PerformersFromActorList {
                         }
                     }
                 }
+
+                # Get image used on profile page
+                $profileImage = $null
+                if ($actorData.images.count -gt 0 -and $actorData.images.master_profile) {
+                    $profileImage = $actorData.images.master_profile."0".lg.url + "?width=600&aspectRatio=3x4"
+                }
         
                 # Get tags
                 $tagIDs = @()
@@ -498,7 +504,7 @@ function Set-PerformersFromActorList {
                     $tagIDs += $result.data.findTags.tags.id
                 }
             
-                $null = Set-StashPerformer -disambiguation $actorData.id -name $actorData.name -gender $gender -alias_list $alias_list -birthdate $actorData.birthday -details $actorData.bio -height_cm ([math]::Round((Get-InchesToCm $actorData.height))) -image $actorData.images.profile."0".lg.url -measurements $measurements -penis_length $penis_length -weight ([math]::Round((Get-LbsToKilos $actorData.weight))) -tag_ids $tagIDs
+                $null = Set-StashPerformer -disambiguation $actorData.id -name $actorData.name -gender $gender -alias_list $alias_list -birthdate $actorData.birthday -details $actorData.bio -height_cm ([math]::Round((Get-InchesToCm $actorData.height))) -image $profileImage -measurements $measurements -penis_length $penis_length -weight ([math]::Round((Get-LbsToKilos $actorData.weight))) -tag_ids $tagIDs
             }
         }
     }
@@ -517,20 +523,23 @@ function Get-StashStudioFromData {
     $studioData = Get-ChildItem -Path $collectionsDataDir -Filter "*.json" | Where-Object { $_.BaseName -match $data.brand }
     $studioData = Get-Content $studioData -raw | ConvertFrom-Json
 
+    # If collections count is null, no studio is assigned so it should be filed
+    # under a studio with the same name as the parent, without the "(network)" suffix.
     if ($data.collections.count -eq 0) {
-        # Use a studio with the same name as the parent, without the "(network)" suffix.
         $studioData = @{
             "brand"     = $data.brand
             "brandMeta" = $data.brandMeta
             "name"      = $data.brandMeta.displayName
         }
+        # There is no ID for these studios, so they need to be searched for by name
+        $stashStudio = Get-StashStudioByName $studioData.name
     }
     else {
         $studioData = $studioData.result | Where-Object { $_.name -eq $data.collections[0].name }
+        $stashStudio = Get-StashStudioByAlias "aylo-$($studioData.id)"
     }
 
     # Check if the studio is already in Stash
-    $stashStudio = Get-StashStudioByAlias "aylo-$($studioData.id)"
     if ($stashStudio.data.findStudios.studios.count -eq 0) {
         # Check if the parent studio is already in Stash
         $stashParentStudio = Get-StashStudioByName "$($studioData.brandMeta.displayName) (network)"
@@ -546,7 +555,9 @@ function Get-StashStudioFromData {
             $stashParentStudioID = $stashParentStudio.data.findStudios.studios[0].id
         }
 
-        $aliases = @("aylo-$($studioData.id)")
+        # Don't assign aliases to studios with the same name as their parent
+        $aliases = $null
+        if ($studioData.id) { $aliases = @("aylo-$($studioData.id)") }
 
         $details = $null
         if ($studioData.description) { $details = $studioData.description }
