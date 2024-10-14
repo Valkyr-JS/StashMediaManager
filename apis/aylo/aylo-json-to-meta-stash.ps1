@@ -492,7 +492,10 @@ function Set-PerformersFromActorList {
                 }
 
                 # Get image used on profile page
-                $profileImage = $actorData.images.master_profile."0".lg.url + "?width=600&aspectRatio=3x4"
+                $profileImage = $null
+                if ($actorData.images.count -gt 0 -and $actorData.images.master_profile) {
+                    $profileImage = $actorData.images.master_profile."0".lg.url + "?width=600&aspectRatio=3x4"
+                }
         
                 # Get tags
                 $tagIDs = @()
