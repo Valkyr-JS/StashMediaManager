@@ -520,20 +520,23 @@ function Get-StashStudioFromData {
     $studioData = Get-ChildItem -Path $collectionsDataDir -Filter "*.json" | Where-Object { $_.BaseName -match $data.brand }
     $studioData = Get-Content $studioData -raw | ConvertFrom-Json
 
+    # If collections count is null, no studio is assigned so it should be filed
+    # under a studio with the same name as the parent, without the "(network)" suffix.
     if ($data.collections.count -eq 0) {
-        # Use a studio with the same name as the parent, without the "(network)" suffix.
         $studioData = @{
             "brand"     = $data.brand
             "brandMeta" = $data.brandMeta
             "name"      = $data.brandMeta.displayName
         }
+        # There is no ID for these studios, so they need to be searched for by name
+        $stashStudio = Get-StashStudioByName $studioData.name
     }
     else {
         $studioData = $studioData.result | Where-Object { $_.name -eq $data.collections[0].name }
+        $stashStudio = Get-StashStudioByAlias "aylo-$($studioData.id)"
     }
 
     # Check if the studio is already in Stash
-    $stashStudio = Get-StashStudioByAlias "aylo-$($studioData.id)"
     if ($stashStudio.data.findStudios.studios.count -eq 0) {
         # Check if the parent studio is already in Stash
         $stashParentStudio = Get-StashStudioByName "$($studioData.brandMeta.displayName) (network)"
@@ -549,7 +552,9 @@ function Get-StashStudioFromData {
             $stashParentStudioID = $stashParentStudio.data.findStudios.studios[0].id
         }
 
-        $aliases = @("aylo-$($studioData.id)")
+        # Don't assign aliases to studios with the same name as their parent
+        $aliases = $null
+        if ($studioData.id) { $aliases = @("aylo-$($studioData.id)") }
 
         $details = $null
         if ($studioData.description) { $details = $studioData.description }
