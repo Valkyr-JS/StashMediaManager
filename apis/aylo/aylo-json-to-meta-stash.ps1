@@ -457,7 +457,7 @@ function Set-PerformersFromActorList {
                 # Format alias list
                 [array]$alias_list = @()
                 if ($actorData.aliases.count -gt 0) {
-                    foreach ($alias in $aliases) {
+                    foreach ($alias in $actorData.aliases) {
                         # Add each valid alias to the list
                         if ($alias.Trim().Length -gt 0) {
                             $alias_list += "$($alias.Trim())"
