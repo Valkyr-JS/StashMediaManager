@@ -8,6 +8,7 @@ function Get-AFSceneAllMedia {
 
     $userConfig = Get-Content $pathToUserConfig -raw | ConvertFrom-Json
     $assetsDir = $userConfig.general.assetsDirectory
+    $assetsDownloadDir = $userConfig.general.assetsDownloadDirectory
     $downloadDir = $userConfig.general.downloadDirectory
     $storageDir = $userConfig.general.storageDirectory
     $subDir = Join-Path "addfriends" "video" $siteName
@@ -21,12 +22,16 @@ function Get-AFSceneAllMedia {
 
     # Check if the file exists
     $existingPath = $null
-    $outputDir = Join-Path $assetsDir $subDir
-    $outputPath = Join-Path $outputDir $posterFilename
-    if (Test-Path -LiteralPath $outputPath) { $existingPath = $outputPath }
+    foreach ($dir in @($assetsDownloadDir, $assetsDir)) {
+        $testPath = Join-Path $dir $subDir $posterFilename
+        if (Test-Path -LiteralPath $testPath) { $existingPath = $testPath }
+    }
 
     # Download the file if it doesn't exist
     if ($null -eq $existingPath) {
+        $outputDir = Join-Path $assetsDownloadDir $subDir
+        $outputPath = Join-Path $outputDir $posterFilename
+
         Write-Host "Downloading poster: $outputPath"
         if (!(Test-Path $outputDir)) { New-Item -ItemType "directory" -Path $outputDir }
         try {
@@ -60,11 +65,16 @@ function Get-AFSceneAllMedia {
 
     # Check if the file exists
     $existingPath = $null
-    $outputPath = Join-Path $outputDir $gifFilename
-    if (Test-Path -LiteralPath $outputPath) { $existingPath = $outputPath }
+    foreach ($dir in @($assetsDownloadDir, $assetsDir)) {
+        $testPath = Join-Path $dir $subDir $gifFilename
+        if (Test-Path -LiteralPath $testPath) { $existingPath = $testPath }
+    }
 
     # Download the file if it doesn't exist
     if ($null -eq $existingPath) {
+        $outputDir = Join-Path $assetsDownloadDir $subDir
+        $outputPath = Join-Path $outputDir $gifFilename
+
         Write-Host "Downloading gif: $outputPath"
         if (!(Test-Path $outputDir)) { New-Item -ItemType "directory" -Path $outputDir }
         try {
@@ -140,6 +150,7 @@ function Get-AFAssets {
     )
     $userConfig = Get-Content $pathToUserConfig -raw | ConvertFrom-Json
     $assetsDir = $userConfig.general.assetsDirectory
+    $assetsDownloadDir = $userConfig.general.assetsDownloadDirectory
     $subDir = Join-Path "addfriends" "pages"
 
     Write-Host `n"Downloading assets for scene $($siteData.site_name)." -ForegroundColor Cyan
@@ -150,12 +161,16 @@ function Get-AFAssets {
 
     # Check if the file exists
     $existingPath = $null
-    $outputDir = Join-Path $assetsDir $subDir
-    $outputPath = Join-Path $outputDir $imageFilename
-    if (Test-Path -LiteralPath $outputPath) { $existingPath = $outputPath }
+    foreach ($dir in @($assetsDownloadDir, $assetsDir)) {
+        $testPath = Join-Path $dir $subDir $posterFilename
+        if (Test-Path -LiteralPath $testPath) { $existingPath = $testPath }
+    }
     
     # Download the file if it doesn't exist
     if ($null -eq $existingPath) {
+        $outputDir = Join-Path $assetsDir $subDir
+        $outputPath = Join-Path $outputDir $imageFilename
+
         Write-Host "Downloading profile image: $outputPath"
         if (!(Test-Path $outputDir)) { New-Item -ItemType "directory" -Path $outputDir }
         try {

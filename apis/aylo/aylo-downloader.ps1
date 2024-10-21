@@ -6,6 +6,7 @@ function Get-AyloSceneAllMedia {
     )
     $userConfig = Get-Content $pathToUserConfig -raw | ConvertFrom-Json
     $assetsDir = $userConfig.general.assetsDirectory
+    $assetsDownloadDir = $userConfig.general.assetsDownloadDirectory
     $dataDir = $userConfig.general.scrapedDataDirectory
     $downloadDir = $userConfig.general.downloadDirectory
     $storageDir = $userConfig.general.storageDirectory
@@ -59,7 +60,7 @@ function Get-AyloSceneAllMedia {
             $trailerData = Get-Content $pathToTrailerJson -raw | ConvertFrom-Json
             $subDir = Join-Path "aylo" "trailer" $parentStudio $studio
     
-            $null = Get-AyloSceneTrailer -downloadDir $assetsDir -trailerData $trailerData -storageDir $storageDir -subDir $subDir
+            $null = Get-AyloSceneTrailer -downloadDir $assetsDownloadDir -trailerData $trailerData -storageDir $assetsDir -subDir $subDir
         }
     }
 
@@ -101,13 +102,13 @@ function Get-AyloSceneAllMedia {
                 $trailerData = Get-Content $pathToTrailerJson -raw | ConvertFrom-Json
                 $subDir = Join-Path "aylo" "gallery" $parentStudio $seriesStudio
         
-                $null = Get-AyloSceneTrailer -downloadDir $assetsDir -trailerData $traile-trailerData -storageDir $storageDir -subDir $subDir
+                $null = Get-AyloSceneTrailer -downloadDir $assetsDownloadDir -trailerData $trailerData -storageDir $assetsDir -subDir $subDir
             }
         }
 
         # Series poster
-        $outputDir = Get-AyloSeriesPath -apiType "serie" -root $assetsDir -studio $seriesStudio
-        $null = Get-AyloMediaPoster -downloadDir $assetsDir -sceneData $seriesData -storageDir $storageDir -subDir $subDir
+        $subDir = Join-Path "aylo" "serie" $parentStudio $studio
+        $null = Get-AyloMediaPoster -downloadDir $assetsDownloadDir -sceneData $seriesData -storageDir $assetsDir -subDir $subDir
 
     }
     else { Write-Host "Scene #$($sceneData.id) is not part of a series." -ForegroundColor Yellow }
@@ -116,20 +117,19 @@ function Get-AyloSceneAllMedia {
     foreach ($aID in $sceneData.actors.id) {
         $pathToActorJson = Get-ChildItem (Join-Path $dataDir "aylo" "actor") | Where-Object { $_.BaseName -match "^$aID\s" }
         $actorData = Get-Content $pathToActorJson -raw | ConvertFrom-Json
-        $outputDir = Join-Path $assetsDir "aylo" "actor"
 
-        $null = Get-AyloActorAssets -actorData $actorData -assetsDir $outputDir
+        $subDir = Join-Path "aylo" "actor"
+        $null = Get-AyloActorAssets -actorData $actorData -downloadDir $assetsDownloadDir -storageDir $assetsDir -subDir $subDir
     }
 
     # Scene poster
     $subDir = Join-Path "aylo" "scene" $parentStudio $studio
-    $null = Get-AyloMediaPoster -downloadDir $assetsDir -sceneData $sceneData -storageDir $storageDir -subDir $subDir
+    $null = Get-AyloMediaPoster -downloadDir $assetsDownloadDir -sceneData $sceneData -storageDir $assetsDir -subDir $subDir
 
 
     # Scene
     $subDir = Join-Path "aylo" "scene" $parentStudio $studio
     $null = Get-AyloSceneVideo -downloadDir $downloadDir -sceneData $sceneData -storageDir $storageDir -subDir $subDir
-
 }
 
 # Download a media file into the appropriate directory.
@@ -328,24 +328,31 @@ function Get-AyloSceneVideo {
     return Get-AyloMediaFile -downloadDir $downloadDir -filename $filename -mediaType "scene" -storageDir $storageDir -subDir $subDir -target $fileToDownload.urls.download
 }
 
-#Download the actor assets
+# Download the actor assets
 function Get-AyloActorAssets {
     param (
         [Parameter(Mandatory)]$actorData,
-        [Parameter(Mandatory)][string]$assetsDir
+        [Parameter(Mandatory)][string]$downloadDir,
+        [Parameter(Mandatory)][string]$storageDir,
+        [Parameter(Mandatory)][string]$subDir
     )
     $actorID = $actorData.id
     $actorName = $actorData.name
+    $filename = Set-AssetFilename -assetType "profile" -extension "jpg" -id $actorID -title $actorName
 
-    # Download the actor's profile image
-    $imgUrl = $actorData.images.master_profile."0".lg.url
-    $filename = Set-AssetFilename -assetType "profile" -extension "jpg" -id $actorData.id -title $actorName
-    
-    $assetsDest = Join-Path $assetsDir $filename
-    if (Test-Path $assetsDest) { 
-        Write-Host "Profile image for actor $actorName (#$actorID) already downloaded."
+    # Check if the file exists
+    $existingPath = $null
+    foreach ($dir in @($downloadDir, $storageDir)) {
+        $testPath = Join-Path $dir $subDir $filename
+        if (Test-Path -LiteralPath $testPath) { $existingPath = $testPath }
     }
-    else {
+
+    $assetsDest = Join-Path $downloadDir $subDir $filename
+    if (Test-Path -LiteralPath $assetsDest) { $existingPath = $assetsDest }
+    
+    # Download the actor's profile image if it doesn't exist
+    $imgUrl = $actorData.images.master_profile."0".lg.url
+    if ($null -eq $existingPath) {
         try {
             Write-Host "Downloading profile image for actor $actorName (#$actorID)."
             Invoke-WebRequest -uri $imgUrl -OutFile ( New-Item -Path $assetsDest -Force ) 
@@ -355,5 +362,7 @@ function Get-AyloActorAssets {
         }
         Write-Host "SUCCESS: Downloaded the profile image for actor $actorName (#$actorID)." -ForegroundColor Green
     }
-    
+    else {
+        Write-Host "Skipping profile image for $actorName as it already exists at $existingPath."
+    }    
 }

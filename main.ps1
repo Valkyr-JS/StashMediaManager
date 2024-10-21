@@ -87,6 +87,16 @@ function Set-Entry {
         $assetsDirectory = $assetsDirectory.Substring(0, $assetsDirectory.Length - 1)
     }
 
+    if ($userConfig.general.assetsDownloadDirectory.Length -eq 0) {
+        $userConfig = Set-ConfigAssetsDownloadDirectory -pathToUserConfig $pathToUserConfig
+    }
+
+    # Ensure the assets directory doesn't have a trailing directory delimiter
+    [string]$assetsDownloadDirectory = $userConfig.general.assetsDownloadDirectory
+    if ($assetsDownloadDirectory[-1] -eq $directorydelimiter) {
+        $assetsDownloadDirectory = $assetsDownloadDirectory.Substring(0, $assetsDownloadDirectory.Length - 1)
+    }
+
     # Next, user selects an operation
     Write-Host `n"What would you like to do?"
     Write-Host "1. Download media"
