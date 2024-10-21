@@ -337,15 +337,15 @@ function Get-AyloActorAssets {
     $actorID = $actorData.id
     $actorName = $actorData.name
 
-    # Download the actor's profile image
-    $imgUrl = $actorData.images.master_profile."0".lg.url
-    $filename = Set-AssetFilename -assetType "profile" -extension "jpg" -id $actorData.id -title $actorName
-    
+    # Check if the file exists
+    $existingPath = $null
+    $filename = Set-AssetFilename -assetType "profile" -extension "jpg" -id $actorID -title $actorName
     $assetsDest = Join-Path $assetsDir $filename
-    if (Test-Path $assetsDest) { 
-        Write-Host "Profile image for actor $actorName (#$actorID) already downloaded."
-    }
-    else {
+    if (Test-Path -LiteralPath $assetsDest) { $existingPath = $assetsDest }
+    
+    # Download the actor's profile image if it doesn't exist
+    $imgUrl = $actorData.images.master_profile."0".lg.url
+    if ($null -eq $existingPath) {
         try {
             Write-Host "Downloading profile image for actor $actorName (#$actorID)."
             Invoke-WebRequest -uri $imgUrl -OutFile ( New-Item -Path $assetsDest -Force ) 
@@ -355,5 +355,7 @@ function Get-AyloActorAssets {
         }
         Write-Host "SUCCESS: Downloaded the profile image for actor $actorName (#$actorID)." -ForegroundColor Green
     }
-    
+    else {
+        Write-Host "Skipping profile image for $actorName as it already exists at $existingPath."
+    }    
 }
