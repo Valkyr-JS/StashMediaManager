@@ -8,6 +8,7 @@
   },
   "general": {
     "assetsDirectory": "",
+    "assetsDownloadDirectory": "",
     "downloadDirectory": "",
     "scrapedDataDirectory": "",
     "storageDirectory": ""

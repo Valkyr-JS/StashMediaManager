@@ -17,6 +17,21 @@ function Set-ConfigAssetsDirectory {
     return $userConfig
 }
 
+# Set the user config value for the assets download directory
+function Set-ConfigAssetsDownloadDirectory {
+    param(
+        [String]$pathToUserConfig
+    )
+
+    $userConfig = Get-Content $pathToUserConfig -raw | ConvertFrom-Json
+    do { $userInput = read-host "Please enter a valid path to your assets download folder" }
+    while (($userInput.Length -eq 0) -or !(Test-Path $userInput))
+
+    $userConfig.general.assetsDownloadDirectory = "$userInput"
+    $userConfig | ConvertTo-Json -depth 32 | set-content $pathToUserConfig
+    return $userConfig
+}
+
 # Set the user config value for the download directory
 function Set-ConfigDownloadDirectory {
     param(
