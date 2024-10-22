@@ -163,6 +163,11 @@ function Get-AyloJson {
     $dataDir = $userConfig.general.dataDirectory
     $dataDownloadDir = $userConfig.general.dataDownloadDirectory
 
+    if ($apiType -eq "trailer") {
+        $contentDir = $userConfig.general.assetsDirectory
+        $contentDownloadDir = $userConfig.general.assetsDownloadDirectory
+    }
+
     # Attempt to scrape content data
     $result = Get-AyloQueryData -apiType $apiType -contentID $contentID -pathToUserConfig $pathToUserConfig
     if ($result.meta.count -eq 0) {
