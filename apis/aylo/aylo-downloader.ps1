@@ -197,6 +197,7 @@ function Get-AyloSceneGallery {
     # If the array is empty, show a warning
     if ($files.count -eq 0) {
         Write-Host "No gallery available to download." -ForegroundColor Yellow
+        return $null
     }
     
     $fileToDownload = $files[0]
@@ -236,6 +237,7 @@ function Get-AyloSceneTrailer {
     # If the array is empty, return a warning
     if ($files.count -eq 0) {
         Write-Host "No trailer available to download." -ForegroundColor Yellow
+        return $null
     }
 
     # 1. Prefer AV1 codec
@@ -273,6 +275,7 @@ function Get-AyloSceneVideo {
     # If the array is empty, show a warning
     if ($files.count -eq 0) {
         Write-Host "ERROR: No files available to download" -ForegroundColor Red
+        return $null
     }
 
     # 1. Prefer AV1 codec
