@@ -108,7 +108,8 @@ function Get-AyloQueryData {
 
     try { $result = Invoke-RestMethod @params }
     catch {
-        Write-Host "WARNING: Scene scrape failed." -ForegroundColor Yellow
+        Write-Host "WARNING: $apiType scrape failed." -ForegroundColor Red
+        Write-Host "$_" -ForegroundColor Red
         exit
     }
 
@@ -132,12 +133,12 @@ function Get-AyloActorJson {
     # Output the actor JSON file
     $actorName = Get-SanitizedTitle -title $actorResult.name
     $filename = "$actorID $actorName.json"
-    $outputDir = Join-Path $userConfig.general.scrapedDataDirectory "aylo" "actor"
-    if (!(Test-Path $outputDir)) { New-Item -ItemType "directory" -Path $outputDir }
+    $outputDir = Join-Path $userConfig.general.dataDownloadDirectory "aylo" "actor"
+    if (!(Test-Path -LiteralPath $outputDir)) { New-Item -ItemType "directory" -Path $outputDir }
     $outputDest = Join-Path $outputDir $filename
     $actorResult | ConvertTo-Json -Depth 32 | Out-File -FilePath $outputDest
 
-    if (!(Test-Path $outputDest)) {
+    if (!(Test-Path -LiteralPath $outputDest)) {
         Write-Host "ERROR: actor JSON generation failed - $outputDest" -ForegroundColor Red
         return $null
     }  
@@ -171,7 +172,7 @@ function Get-AyloJson {
 
     # Skip creating JSON if the content already exists in either the download or
     # storage directory
-    $topDirs = @($userConfig.general.downloadDirectory, $userConfig.general.storageDirectory)
+    $topDirs = @($userConfig.general.contentDownloadDirectory, $userConfig.general.contentDirectory)
     $subDir = Join-Path "aylo" $apiType $parentStudio $studio
 
     foreach ($topDir in $topDirs) {
@@ -186,7 +187,7 @@ function Get-AyloJson {
                 # Return the path to the existing JSON file
                 $title = Get-SanitizedTitle -title $result.title
                 $filename = "$contentID $title.json"
-                $pathToExistingJson = Join-Path $userConfig.general.scrapedDataDirectory $subDir $filename
+                $pathToExistingJson = Join-Path $userConfig.general.dataDownloadDirectory $subDir $filename
                 return $pathToExistingJson
             }
         }
@@ -195,14 +196,14 @@ function Get-AyloJson {
     # Output the JSON file
     $title = Get-SanitizedTitle -title $result.title
     $filename = "$contentID $title.json"
-    $outputDir = Join-Path $userConfig.general.scrapedDataDirectory $subDir
-    if (!(Test-Path $outputDir)) { New-Item -ItemType "directory" -Path $outputDir }
+    $outputDir = Join-Path $userConfig.general.dataDownloadDirectory $subDir
+    if (!(Test-Path -LiteralPath $outputDir)) { New-Item -ItemType "directory" -Path $outputDir }
     $outputDest = Join-Path $outputDir $filename
 
     Write-Host "Generating JSON: $filename"
     $result | ConvertTo-Json -Depth 32 | Out-File -FilePath $outputDest
 
-    if (!(Test-Path $outputDest)) {
+    if (!(Test-Path -LiteralPath $outputDest)) {
         Write-Host "ERROR: $apiType JSON generation failed - $outputDest" -ForegroundColor Red
         return $null
     }  

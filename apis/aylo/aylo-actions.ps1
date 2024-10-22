@@ -15,7 +15,7 @@ function Get-AyloAllContentByActorIDs {
             Write-Host `n"Scene $sceneIndex/$($sceneIDs.Length) of actor $actorIndex/$($actorIDs.Length)" -Foreground Cyan
 
             $pathToSceneJson = Get-AyloAllJson -pathToUserConfig $pathToUserConfig -sceneID $sceneID
-            if (($null -ne $pathToSceneJson) -and !(Test-Path $pathToSceneJson)) {
+            if (($null -ne $pathToSceneJson) -and !(Test-Path -LiteralPath $pathToSceneJson)) {
                 Write-Host `n"ERROR: scene $sceneID JSON data not found - $pathToSceneJson." -ForegroundColor Red
             }
             elseif ($null -ne $pathToSceneJson) {
@@ -38,7 +38,7 @@ function Get-AyloAllContentBySceneIDs {
     foreach ($sceneID in $sceneIDs) {
         Write-Host `n"Scene $sceneIndex/$($sceneIDs.Length)" -Foreground Cyan
         $pathToSceneJson = Get-AyloAllJson -pathToUserConfig $pathToUserConfig -sceneID $sceneID
-        if (($null -ne $pathToSceneJson) -and !(Test-Path $pathToSceneJson)) {
+        if (($null -ne $pathToSceneJson) -and !(Test-Path -LiteralPath $pathToSceneJson)) {
             Write-Host `n"ERROR: scene $sceneID JSON data not found - $pathToSceneJson." -ForegroundColor Red
         }
         elseif ($null -ne $pathToSceneJson) {
@@ -64,7 +64,7 @@ function Get-AyloAllContentBySeriesIDs {
         foreach ($sceneID in $sceneIDs) {
             Write-Host `n"Scene $sceneIndex/$($sceneIDs.Length) of series $seriesIndex/$($seriesIDs.Length)" -Foreground Cyan
             $pathToSceneJson = Get-AyloAllJson -pathToUserConfig $pathToUserConfig -sceneID $sceneID
-            if (($null -ne $pathToSceneJson) -and !(Test-Path $pathToSceneJson)) {
+            if (($null -ne $pathToSceneJson) -and !(Test-Path -LiteralPath $pathToSceneJson)) {
                 Write-Host `n"ERROR: scene $sceneID JSON data not found - $pathToSceneJson." -ForegroundColor Red
             }
             elseif ($null -ne $pathToSceneJson) {

@@ -46,37 +46,7 @@ function Set-Entry {
 
     # -------------------------- General config updates -------------------------- #
     
-    # Update the config if needed
-    if ($userConfig.general.downloadDirectory.Length -eq 0) {
-        $userConfig = Set-ConfigDownloadDirectory -pathToUserConfig $pathToUserConfig
-    }
-
-    # Ensure the download directory doesn't have a trailing directory delimiter
-    [string]$downloadDirectory = $userConfig.general.downloadDirectory
-    if ($downloadDirectory[-1] -eq $directorydelimiter) {
-        $downloadDirectory = $downloadDirectory.Substring(0, $downloadDirectory.Length - 1)
-    }
-
-    if ($userConfig.general.scrapedDataDirectory.Length -eq 0) {
-        $userConfig = Set-ConfigScrapedDataDirectory -pathToUserConfig $pathToUserConfig
-    }
-
-    # Ensure the storage directory doesn't have a trailing directory delimiter
-    [string]$storageDirectory = $userConfig.general.storageDirectory
-    if ($storageDirectory[-1] -eq $directorydelimiter) {
-        $storageDirectory = $storageDirectory.Substring(0, $storageDirectory.Length - 1)
-    }
-
-    if ($userConfig.general.storageDirectory.Length -eq 0) {
-        $userConfig = Set-ConfigStorageDirectory -pathToUserConfig $pathToUserConfig
-    }
-
-    # Ensure the scraped data directory doesn't have a trailing directory delimiter
-    [string]$scrapedDataDirectory = $userConfig.general.scrapedDataDirectory
-    if ($scrapedDataDirectory[-1] -eq $directorydelimiter) {
-        $scrapedDataDirectory = $scrapedDataDirectory.Substring(0, $scrapedDataDirectory.Length - 1)
-    }
-
+    # Check that the assets directory has been set
     if ($userConfig.general.assetsDirectory.Length -eq 0) {
         $userConfig = Set-ConfigAssetsDirectory -pathToUserConfig $pathToUserConfig
     }
@@ -87,14 +57,59 @@ function Set-Entry {
         $assetsDirectory = $assetsDirectory.Substring(0, $assetsDirectory.Length - 1)
     }
 
+    # Check that the assets download directory has been set
     if ($userConfig.general.assetsDownloadDirectory.Length -eq 0) {
         $userConfig = Set-ConfigAssetsDownloadDirectory -pathToUserConfig $pathToUserConfig
     }
 
-    # Ensure the assets directory doesn't have a trailing directory delimiter
+    # Ensure the assets download directory doesn't have a trailing directory delimiter
     [string]$assetsDownloadDirectory = $userConfig.general.assetsDownloadDirectory
     if ($assetsDownloadDirectory[-1] -eq $directorydelimiter) {
         $assetsDownloadDirectory = $assetsDownloadDirectory.Substring(0, $assetsDownloadDirectory.Length - 1)
+    }
+
+    # Check that the content directory has been set
+    if ($userConfig.general.contentDirectory.Length -eq 0) {
+        $userConfig = Set-ConfigContentDirectory -pathToUserConfig $pathToUserConfig
+    }
+
+    # Ensure the content directory doesn't have a trailing directory delimiter
+    [string]$contentDirectory = $userConfig.general.contentDirectory
+    if ($contentDirectory[-1] -eq $directorydelimiter) {
+        $contentDirectory = $contentDirectory.Substring(0, $contentDirectory.Length - 1)
+    }
+
+    # Check that the content download directory has been set
+    if ($userConfig.general.contentDownloadDirectory.Length -eq 0) {
+        $userConfig = Set-ConfigContentDownloadDirectory -pathToUserConfig $pathToUserConfig
+    }
+
+    # Ensure the download directory doesn't have a trailing directory delimiter
+    [string]$contentDownloadDirectory = $userConfig.general.contentDownloadDirectory
+    if ($contentDownloadDirectory[-1] -eq $directorydelimiter) {
+        $contentDownloadDirectory = $contentDownloadDirectory.Substring(0, $contentDownloadDirectory.Length - 1)
+    }
+
+    # Check that the data directory has been set
+    if ($userConfig.general.dataDownloadDirectory.Length -eq 0) {
+        $userConfig = Set-ConfigDataDirectory -pathToUserConfig $pathToUserConfig
+    }
+
+    # Ensure the data directory doesn't have a trailing directory delimiter
+    [string]$dataDirectory = $userConfig.general.dataDownloadDirectory
+    if ($dataDirectory[-1] -eq $directorydelimiter) {
+        $dataDirectory = $dataDirectory.Substring(0, $dataDirectory.Length - 1)
+    }
+
+    # Check that the data download directory has been set
+    if ($userConfig.general.dataDownloadDirectory.Length -eq 0) {
+        $userConfig = Set-ConfigDataDownloadDirectory -pathToUserConfig $pathToUserConfig
+    }
+
+    # Ensure the data download directory doesn't have a trailing directory delimiter
+    [string]$dataDownloadDirectory = $userConfig.general.dataDownloadDirectory
+    if ($dataDownloadDirectory[-1] -eq $directorydelimiter) {
+        $dataDownloadDirectory = $dataDownloadDirectory.Substring(0, $dataDownloadDirectory.Length - 1)
     }
 
     # Next, user selects an operation

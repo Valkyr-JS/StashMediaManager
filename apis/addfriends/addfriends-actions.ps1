@@ -7,7 +7,7 @@ function Get-AFAllContentBySite {
 
     # Fetch the site data
     $modelArchive = Get-AFModelSiteJson -pathToUserConfig $pathToUserConfig -siteName $siteName -slug $slug
-    if (($null -ne $modelArchive) -and !(Test-Path $modelArchive)) {
+    if (($null -ne $modelArchive) -and !(Test-Path -LiteralPath $modelArchive)) {
         Write-Host `n"ERROR: site JSON data not found - $modelArchive." -ForegroundColor Red
         exit
     }
@@ -22,7 +22,7 @@ function Get-AFAllContentBySite {
     foreach ($id in $sceneIDs) {
         Write-Host `n"Scene $sceneIndex/$($sceneIDs.Length)" -Foreground Cyan
         $pathToSceneJson = Get-AFSceneJson -pathToUserConfig $pathToUserConfig -sceneID $id -siteName $siteName
-        if (($null -ne $pathToSceneJson) -and !(Test-Path $pathToSceneJson)) {
+        if (($null -ne $pathToSceneJson) -and !(Test-Path -LiteralPath $pathToSceneJson)) {
             Write-Host `n"ERROR: scene $sceneID JSON data not found - $pathToSceneJson." -ForegroundColor Red
         }
         elseif ($null -ne $pathToSceneJson) {

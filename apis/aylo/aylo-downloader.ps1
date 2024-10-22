@@ -7,9 +7,9 @@ function Get-AyloSceneAllMedia {
     $userConfig = Get-Content $pathToUserConfig -raw | ConvertFrom-Json
     $assetsDir = $userConfig.general.assetsDirectory
     $assetsDownloadDir = $userConfig.general.assetsDownloadDirectory
-    $dataDir = $userConfig.general.scrapedDataDirectory
-    $downloadDir = $userConfig.general.downloadDirectory
-    $storageDir = $userConfig.general.storageDirectory
+    $dataDir = $userConfig.general.dataDownloadDirectory
+    $downloadDir = $userConfig.general.contentDownloadDirectory
+    $storageDir = $userConfig.general.contentDirectory
 
     $parentStudio = $sceneData.brandMeta.displayName
     if ($sceneData.collections.count -gt 0) { $studio = $sceneData.collections[0].name }
@@ -165,7 +165,7 @@ function Get-AyloMediaFile {
             Write-Host "$_" -ForegroundColor Red
             
             # If an empty or partial file has been generated, delete it
-            if (Test-Path $outputPath) { Remove-Item $outputPath }
+            if (Test-Path -LiteralPath $outputPath) { Remove-Item $outputPath }
         }
 
         # Check the file has been downloaded successfully.

@@ -9,8 +9,9 @@
   "general": {
     "assetsDirectory": "",
     "assetsDownloadDirectory": "",
-    "downloadDirectory": "",
-    "scrapedDataDirectory": "",
-    "storageDirectory": ""
+    "contentDirectory": "",
+    "contentDownloadDirectory": "",
+    "dataDirectory": "",
+    "dataDownloadDirectory": ""
   }
 }
