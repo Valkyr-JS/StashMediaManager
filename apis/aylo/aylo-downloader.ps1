@@ -192,6 +192,7 @@ function Get-AyloSceneGallery {
         [Parameter(Mandatory)]$galleryData
     )
 
+    # TODO - Download and compress loose images if a download link is unavailable.
     [array]$files = $galleryData.galleries | Where-Object { $_.format -eq "download" }
 
     # If the array is empty, show a warning

@@ -123,29 +123,52 @@ function Get-AyloActorJson {
         [Parameter(Mandatory)][String]$pathToUserConfig
     )
     $userConfig = Get-Content $pathToUserConfig -raw | ConvertFrom-Json
+    $dataDir = $userConfig.general.dataDirectory
+    $dataDownloadDir = $userConfig.general.dataDownloadDirectory
+    $subDir = Join-Path "aylo" "actor"
 
-    Write-Host "Starting scrape for actor #$actorID."
+    Write-Host "Scraping actor #$actorID."
     
     # Attempt to scrape actor data
     $actorResult = Get-AyloQueryData -apiType "actor" -contentID $actorID -pathToUserConfig $pathToUserConfig
     $actorResult = $actorResult.result[0]
 
-    # Output the actor JSON file
-    $actorName = Get-SanitizedTitle -title $actorResult.name
-    $filename = "$actorID $actorName.json"
-    $outputDir = Join-Path $userConfig.general.dataDownloadDirectory "aylo" "actor"
-    if (!(Test-Path -LiteralPath $outputDir)) { New-Item -ItemType "directory" -Path $outputDir }
-    $outputDest = Join-Path $outputDir $filename
-    $actorResult | ConvertTo-Json -Depth 32 | Out-File -FilePath $outputDest
+    # Skip creating JSON if it already exists
+    $existingJson = $null
+    foreach ($dir in @($dataDir, $dataDownloadDir)) {
+        $testPath = Join-Path $dir $subDir
+        if (Test-Path -LiteralPath $testPath) {
+            $filename = Get-ChildItem -LiteralPath $testPath | Where-Object { $_.BaseName -match "^$actorID\s" }
+            if ($null -ne $filename -and (Test-Path -LiteralPath $filename.FullName)) {
+                $existingJson = $filename.FullName
+                break;
+            }
+        }
+    }
 
-    if (!(Test-Path -LiteralPath $outputDest)) {
-        Write-Host "ERROR: actor JSON generation failed - $outputDest" -ForegroundColor Red
-        return $null
-    }  
+    if ($null -eq $existingJson) {
+        # Output the actor JSON file
+        $actorName = Get-SanitizedTitle -title $actorResult.name
+        $filename = "$actorID $actorName.json"
+        $outputDir = Join-Path $dataDownloadDirectory $subDir
+        if (!(Test-Path -LiteralPath $outputDir)) { New-Item -ItemType "directory" -Path $outputDir }
+        $outputDest = Join-Path $outputDir $filename
+        $actorResult | ConvertTo-Json -Depth 32 | Out-File -FilePath $outputDest
+
+        if (!(Test-Path -LiteralPath $outputDest)) {
+            Write-Host "ERROR: actor JSON generation failed - $outputDest" -ForegroundColor Red
+            return $null
+        }  
+        else {
+            Write-Host "SUCCESS: actor JSON generated - $outputDest" -ForegroundColor Green
+            return $outputDest
+        }  
+    }
     else {
-        Write-Host "SUCCESS: actor JSON generated - $outputDest" -ForegroundColor Green
-        return $outputDest
-    }  
+        Write-Host "JSON already exists at $($existingJson). Skipping JSON generation for actor #$actorID."
+        return $existingJson
+    }
+
 }
 
 # Get data for a piece of content
@@ -294,6 +317,7 @@ function Get-AyloAllJson {
     }
 
     # Actors
+    Write-Host `n"Starting scrape for actors in scene #$sceneID." -ForegroundColor Cyan
     foreach ($aID in $sceneData.actors.id) {
         $null = Get-AyloActorJson -actorID $aID -pathToUserConfig $pathToUserConfig
     }
