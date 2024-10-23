@@ -101,9 +101,10 @@ function Set-ConfigAyloMasterSite {
     )
 
     $userConfig = Get-Content $pathToUserConfig -raw | ConvertFrom-Json
+    $ayloData = $apiData | Where-Object { $_.name -eq "Aylo" }
 
     do { $userInput = read-host "Which Aylo site do you login through?" }
-    while ($apiData -notcontains $userInput)
+    while ($ayloData[0].networks -notcontains $userInput)
 
     $userConfig.aylo.masterSite = "$userInput"
     $userConfig | ConvertTo-Json -depth 32 | set-content $pathToUserConfig
