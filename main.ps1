@@ -91,12 +91,12 @@ function Set-Entry {
     }
 
     # Check that the data directory has been set
-    if ($userConfig.general.dataDownloadDirectory.Length -eq 0) {
+    if ($userConfig.general.dataDirectory.Length -eq 0) {
         $userConfig = Set-ConfigDataDirectory -pathToUserConfig $pathToUserConfig
     }
 
     # Ensure the data directory doesn't have a trailing directory delimiter
-    [string]$dataDirectory = $userConfig.general.dataDownloadDirectory
+    [string]$dataDirectory = $userConfig.general.dataDirectory
     if ($dataDirectory[-1] -eq $directorydelimiter) {
         $dataDirectory = $dataDirectory.Substring(0, $dataDirectory.Length - 1)
     }

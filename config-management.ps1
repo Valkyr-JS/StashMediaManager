@@ -72,7 +72,7 @@ function Set-ConfigDataDirectory {
     do { $userInput = read-host "Please enter a valid path to your data folder" }
     while (($userInput.Length -eq 0) -or !(Test-Path -LiteralPath $userInput))
 
-    $userConfig.general.dataDownloadDirectory = "$userInput"
+    $userConfig.general.dataDirectory = "$userInput"
     $userConfig | ConvertTo-Json -depth 32 | set-content $pathToUserConfig
     return $userConfig
 }
