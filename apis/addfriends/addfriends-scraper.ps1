@@ -80,7 +80,7 @@ function Get-AFModelSiteJson {
 
     if ($result) {
         # Output the JSON file
-        $title = Get-SanitizedTitle -title $result.site.site_name
+        $title = Get-SanitizedFilename -title $result.site.site_name
         $date = Get-Date -Format "yyyy-MM-dd"
         $filename = "$($result.site.id) $title $date.json"
         $outputDir = Join-Path $userConfig.general.dataDownloadDirectory $subDir
@@ -133,7 +133,7 @@ function Get-AFSceneJson {
                 Write-Host "Media already exists at $($contentFile.FullName). Skipping JSON generation for scene #$sceneID."
 
                 # Return the path to the existing JSON file
-                $title = Get-SanitizedTitle -title $video.title
+                $title = Get-SanitizedFilename -title $video.title
                 $filename = "$($video.id) $title.json"
                 $pathToExistingJson = Join-Path $userConfig.general.dataDownloadDirectory $subDir $filename
                 return $pathToExistingJson

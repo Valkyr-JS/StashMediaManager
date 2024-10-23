@@ -148,7 +148,7 @@ function Get-AyloActorJson {
 
     if ($null -eq $existingJson) {
         # Output the actor JSON file
-        $actorName = Get-SanitizedTitle -title $actorResult.name
+        $actorName = Get-SanitizedFilename -title $actorResult.name
         $filename = "$actorID $actorName.json"
         $outputDir = Join-Path $dataDownloadDirectory $subDir
         if (!(Test-Path -LiteralPath $outputDir)) { New-Item -ItemType "directory" -Path $outputDir }
@@ -229,7 +229,7 @@ function Get-AyloJson {
 
     if ($null -eq $existingPath -or $null -eq $existingJson) {
         # Output the JSON file
-        $title = Get-SanitizedTitle -title $result.title
+        $title = Get-SanitizedFilename -title $result.title
         $filename = "$contentID $title.json"
         $outputDir = Join-Path $userConfig.general.dataDownloadDirectory $subDir
         if (!(Test-Path -LiteralPath $outputDir)) { New-Item -ItemType "directory" -Path $outputDir }

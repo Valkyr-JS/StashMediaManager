@@ -25,12 +25,13 @@ function Get-LbsToKilos {
     return $lbs * 2.54 / 2.2046226218
 }
 
-# Sanitize a string that is being used as a title.
-function Get-SanitizedTitle {
+# Sanitize a string that is being used in a filename.
+function Get-SanitizedFilename {
     param(
         [Parameter(Mandatory)][String]$title
     )
     $title = ($title.Split([IO.Path]::GetInvalidFileNameChars()) -join '')
+    $title = $title.Trim()
     $title = $title.replace("  ", " ")
     return $title
 }
@@ -47,12 +48,12 @@ function Set-MediaFilename {
         $date
     )
     # Sanitise the title string
-    $title = Get-SanitizedTitle -title $title
+    $title = Get-SanitizedFilename -title $title
 
     # If the title is too short, replace with the site name and the date
     if ($title.Length -lt 3 -and $siteName -and $date) {
         $date = Get-Date $date -Format "yyyy-MM-dd"
-        $siteName = Get-SanitizedTitle -title $siteName
+        $siteName = Get-SanitizedFilename -title $siteName
         $title = "$siteName $date"
     }
 
@@ -74,7 +75,7 @@ function Set-AssetFilename {
     )
 
     # Sanitise the title string
-    $title = Get-SanitizedTitle -title $title
+    $title = Get-SanitizedFilename -title $title
 
     $filename = "$id $title [$assetType].$extension"
     return $filename
