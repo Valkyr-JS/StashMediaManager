@@ -39,7 +39,7 @@ function Get-SanitizedFilename {
 # Create the filename for a content item.
 function Set-MediaFilename {
     param(
-        [Parameter(Mandatory)][ValidateSet('data', 'gallery', 'poster', 'scene', 'trailer')][String]$mediaType,
+        [Parameter(Mandatory)][ValidateSet('data', 'gallery', 'image', 'poster', 'scene', 'trailer')][String]$mediaType,
         [Parameter(Mandatory)][String]$extension,
         [Parameter(Mandatory)][Int]$id,
         [Parameter(Mandatory)][String]$title,

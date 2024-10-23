@@ -192,19 +192,69 @@ function Get-AyloSceneGallery {
         [Parameter(Mandatory)]$galleryData
     )
 
-    # TODO - Download and compress loose images if a download link is unavailable.
-    [array]$files = $galleryData.galleries | Where-Object { $_.format -eq "download" }
+    [array]$files = $galleryData.galleries
 
     # If the array is empty, show a warning
     if ($files.count -eq 0) {
         Write-Host "No gallery available to download." -ForegroundColor Yellow
         return $null
     }
-    
-    $fileToDownload = $files[0]
-    $filename = Set-MediaFilename -mediaType "gallery" -extension "zip" -id $galleryData.id -title $galleryData.title
 
-    return Get-AyloMediaFile -downloadDir $downloadDir -filename $filename -mediaType "gallery" -storageDir $storageDir -subDir $subDir -target $fileToDownload.urls.download
+    # 1. Download the gallery zip file if there's one available
+    [array]$filteredFiles = $files | Where-Object { $_.format -eq "download" }
+    if ($filteredFiles.Count -gt 0) {
+        $fileToDownload = $filteredFiles[0]
+        $filename = Set-MediaFilename -mediaType "gallery" -extension "zip" -id $galleryData.id -title $galleryData.title
+    
+        return Get-AyloMediaFile -downloadDir $downloadDir -filename $filename -mediaType "gallery" -storageDir $storageDir -subDir $subDir -target $fileToDownload.urls.download
+    }
+
+    # 2. Download the loose images
+    [array]$filteredFiles = $files | Where-Object { $_.format -eq "pictures" }
+    if ($filteredFiles.Count -gt 0) {
+        # No gallery.zip available. Downloading and zipping loose images.
+        $galleryObject = $filteredFiles[0]
+        $url = $galleryObject.url
+        $galleryIndex = 0
+        $folderName = Get-SanitizedFilename $galleryData.title
+        [String]$tempDest = Join-Path $downloadDir $subDir "$($galleryData.id) $folderName"
+        if (!(Test-Path -LiteralPath $tempDest)) { New-Item -ItemType "directory" -Path $tempDest }
+
+        # Check file pattern is 4 digits. Update this as needed.
+        $filePattern = ($galleryObject.filePattern.split("."))[0]
+        if ($filePattern -eq "%04d") {
+            # Loop through and download each image
+            while ($galleryIndex -lt $galleryObject.filesCount) {
+                $galleryIndex++
+                $paddedIndex = "{0:d4}" -f $galleryIndex
+                $imageUrl = $url.replace($filePattern, $paddedIndex)
+                $imageName = Set-MediaFilename -mediaType "image" -extension $galleryObject.filePattern.split(".")[1] -id $galleryData.id -title "$($galleryData.title) $paddedIndex"
+
+                try {
+                    Write-Host "Downloading gallery image $galleryIndex/$($galleryObject.filesCount)"
+                    Invoke-WebRequest -uri $imageUrl -OutFile ( New-Item -Path "$tempDest\$imageName" -Force ) 
+                }
+                catch {
+                    Write-Host "ERROR: Failed to download gallery image #$galleryIndex" -ForegroundColor Red
+                }
+            }
+            $zipName = Set-MediaFilename -mediaType "gallery" -extension "zip" -id $galleryData.id -title $galleryData.title
+            $zipPath = Join-Path $downloadDir $subDir $zipName
+
+            # ! I don't know why this throws error "Join-Path: Cannot bind
+            # argument to parameter 'Path' because it is null.", but it's fine
+            # ¯\_(ツ)_/¯
+            Get-ChildItem -LiteralPath $tempDest | Compress-Archive -DestinationPath $zipPath
+
+            # Delete the temp folder once zip is complete
+            Remove-Item -LiteralPath $tempDest -Recurse
+            return $zipPath
+        }
+    }
+
+    # Otherwise, download nothing
+    Write-Host "Script is not configured to download this gallery." -ForegroundColor Yellow
+    return $null
 }
 
 # Download the scene poster
