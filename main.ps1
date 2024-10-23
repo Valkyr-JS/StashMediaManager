@@ -33,13 +33,13 @@ function Set-Entry {
 
     # User first selects an API
     Write-Host "Which API are you working with?"
-    $apicounter = 1
+    $apicounter = 0
     foreach ($item in $apiData) {
-        Write-Host "$apicounter. $($item.name)";
         $apicounter++
+        Write-Host "$apicounter. $($item.name)";
     }
 
-    do { $apiSelection = read-host "Enter your selection (1)" }
+    do { $apiSelection = read-host "Enter your selection (1-$apicounter)" }
     while (($apiSelection -notmatch "[1-$apicounter]"))
 
     $apiData = $apiData[$apiSelection - 1]
