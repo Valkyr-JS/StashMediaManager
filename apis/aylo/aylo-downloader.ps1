@@ -252,9 +252,10 @@ function Get-AyloSceneTrailer {
         return Get-AyloMediaFile -downloadDir $downloadDir -filename $filename -mediaType "trailer" -storageDir $storageDir -subDir $subDir -target $fileToDownload.urls.view
     }
 
-    # 2. Get the highest resoltion file available
-    $filteredFiles = $files
-    $filteredFiles = $filteredFiles | Sort-Object -Property "sizeBytes" -Descending
+    # 2. Get the biggest file available. Use file size rather than resolution as
+    #    res is unavailable for most non-AV1 codec files, and file size should
+    #    filter out corrupted files.
+    $filteredFiles = $files | Sort-Object -Property "sizeBytes" -Descending
     $fileToDownload = $filteredFiles[0]
     $filename = Set-MediaFilename -mediaType "trailer" -extension "mp4" -id $trailerData.id -resolution $fileToDownload.label -title $trailerData.title
 
@@ -279,10 +280,10 @@ function Get-AyloSceneVideo {
         return $null
     }
 
-    # 1. Prefer AV1 codec
+    # 1. Prefer AV1 codec files
     [array]$filteredFiles = $files | Where-Object { $_.codec -eq "av1" }
     if ($filteredFiles.count -gt 0) {
-        # For AV1 codec files, get the biggest file
+        # For AV1 codec files, get the file with the highest resolution
         $filteredFiles = $filteredFiles | Sort-Object -Property "height" -Descending
         $fileToDownload = $filteredFiles[0]
         $filename = Set-MediaFilename -mediaType "scene" -extension "mp4" -id $sceneData.id -resolution $fileToDownload.label -title $sceneData.title
@@ -290,42 +291,10 @@ function Get-AyloSceneVideo {
         return Get-AyloMediaFile -downloadDir $downloadDir -filename $filename -mediaType "scene" -storageDir $storageDir -subDir $subDir -target $fileToDownload.urls.download
     }
 
-    # 2. Get the highest resolution file under 8GB as long as it's at least HD
-    $sizeLimitBytes = Get-GigabytesToBytes -gb 8
-    $filteredFiles = $files | Where-Object { $_.sizeBytes -le $sizeLimitBytes }
-
-    # Not all non-AV1 codec items have width and height properties. Get the height from the label if needed, and find the highest resolution file
-    $filteredFiles = $filteredFiles | Where-Object { [int]($_.label.TrimEnd('p')) -ge 1080 }
-    if ($filteredFiles.count -gt 0) {
-        $biggestHeight = [int]($filteredFiles[0].label.TrimEnd('p'))
-        $biggestFile = $filteredFiles[0]
-        foreach ($f in $filteredFiles) {
-            if ($null -ne $f.height) { $thisHeight = $f.height }
-            else { $thisHeight = [int]($f.label.TrimEnd('p')) }
-
-            if ($thisHeight -gt $biggestHeight) {
-                $biggestHeight = $thisHeight
-                $biggestFile = $f
-            }
-        }
-        $fileToDownload = $biggestFile
-        $filename = Set-MediaFilename -mediaType "scene" -extension "mp4" -id $sceneData.id -resolution $fileToDownload.label -title $sceneData.title
-
-        return Get-AyloMediaFile -downloadDir $downloadDir -filename $filename -mediaType "scene" -storageDir $storageDir -subDir $subDir -target $fileToDownload.urls.download
-    }
-
-    # 3. Get the HD file if there's one available
-    $filteredFiles = $files | Where-Object { $_.height -eq 1080 -or [int]($_.label.TrimEnd('p')) -eq 1080 }
-    if ($filteredFiles.count -gt 0) {
-        $fileToDownload = $filteredFiles[0]
-        $filename = Set-MediaFilename -mediaType "scene" -extension "mp4" -id $sceneData.id -resolution $fileToDownload.label -title $sceneData.title
-
-        return Get-AyloMediaFile -downloadDir $downloadDir -filename $filename -mediaType "scene" -storageDir $storageDir -subDir $subDir -target $fileToDownload.urls.download
-    }
-
-    # 4. Just get the biggest file available
-    $filteredFiles = $files
-    $filteredFiles = $filteredFiles | Sort-Object -Property "sizeBytes" -Descending
+    # 2. Get the biggest file available. Use file size rather than resolution as
+    #    res is unavailable for most non-AV1 codec files, and file size should
+    #    filter out corrupted files.
+    $filteredFiles = $files | Sort-Object -Property "sizeBytes" -Descending
     $fileToDownload = $filteredFiles[0]
     $filename = Set-MediaFilename -mediaType "scene" -extension "mp4" -id $sceneData.id -resolution $fileToDownload.label -title $sceneData.title
 
