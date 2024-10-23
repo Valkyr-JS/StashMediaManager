@@ -26,7 +26,7 @@ function Get-AFAllContentBySite {
             Write-Host `n"ERROR: scene $sceneID JSON data not found - $pathToSceneJson." -ForegroundColor Red
         }
         elseif ($null -ne $pathToSceneJson) {
-            $sceneData = Get-Content $pathToSceneJson -raw | ConvertFrom-Json
+            $sceneData = Get-Content -LiteralPath $pathToSceneJson -raw | ConvertFrom-Json
             Get-AFSceneAllMedia -pathToUserConfig $pathToUserConfig -sceneData $sceneData -siteName $siteName
         }
         $sceneIndex++

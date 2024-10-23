@@ -153,7 +153,7 @@ function Get-AyloActorJson {
         $outputDir = Join-Path $dataDownloadDirectory $subDir
         if (!(Test-Path -LiteralPath $outputDir)) { New-Item -ItemType "directory" -Path $outputDir }
         $outputDest = Join-Path $outputDir $filename
-        $actorResult | ConvertTo-Json -Depth 32 | Out-File -FilePath $outputDest
+        $actorResult | ConvertTo-Json -Depth 32 | Out-File -LiteralPath $outputDest
 
         if (!(Test-Path -LiteralPath $outputDest)) {
             Write-Host "ERROR: actor JSON generation failed - $outputDest" -ForegroundColor Red
@@ -236,7 +236,7 @@ function Get-AyloJson {
         $outputDest = Join-Path $outputDir $filename
 
         Write-Host "Generating JSON: $filename"
-        $result | ConvertTo-Json -Depth 32 | Out-File -FilePath $outputDest
+        $result | ConvertTo-Json -Depth 32 | Out-File -LiteralPath $outputDest
 
         if (!(Test-Path -LiteralPath $outputDest)) {
             Write-Host "ERROR: $apiType JSON generation failed - $outputDest" -ForegroundColor Red
@@ -302,7 +302,7 @@ function Get-AyloAllJson {
     )
     # Generate the scene JSON first, and use it to create the rest
     $pathToSceneJson = Get-AyloSceneJson -pathToUserConfig $pathToUserConfig -sceneID $sceneID
-    $sceneData = Get-Content $pathToSceneJson -raw | ConvertFrom-Json
+    $sceneData = Get-Content -LiteralPath $pathToSceneJson -raw | ConvertFrom-Json
 
     # Galleries
     [array]$galleries = $sceneData.children | Where-Object { $_.type -eq "gallery" }
@@ -325,7 +325,7 @@ function Get-AyloAllJson {
     # Series
     if ($sceneData.parent -and $sceneData.parent.type -eq "serie") {
         $pathToSeriesJson = Get-AyloSeriesJson -pathToUserConfig $pathToUserConfig -seriesID $sceneData.parent.id
-        $seriesData = Get-Content $pathToSeriesJson -raw | ConvertFrom-Json
+        $seriesData = Get-Content -LiteralPath $pathToSeriesJson -raw | ConvertFrom-Json
         
         # Series galleries
         [array]$galleries = $seriesData.children | Where-Object { $_.type -eq "gallery" }

@@ -19,7 +19,7 @@ function Get-AyloAllContentByActorIDs {
                 Write-Host `n"ERROR: scene $sceneID JSON data not found - $pathToSceneJson." -ForegroundColor Red
             }
             elseif ($null -ne $pathToSceneJson) {
-                $sceneData = Get-Content $pathToSceneJson -raw | ConvertFrom-Json
+                $sceneData = Get-Content -LiteralPath $pathToSceneJson -raw | ConvertFrom-Json
                 Get-AyloSceneAllMedia -sceneData $sceneData -pathToUserConfig $pathToUserConfig
             }
             $sceneIndex++
@@ -42,7 +42,7 @@ function Get-AyloAllContentBySceneIDs {
             Write-Host `n"ERROR: scene $sceneID JSON data not found - $pathToSceneJson." -ForegroundColor Red
         }
         elseif ($null -ne $pathToSceneJson) {
-            $sceneData = Get-Content $pathToSceneJson -raw | ConvertFrom-Json
+            $sceneData = Get-Content -LiteralPath $pathToSceneJson -raw | ConvertFrom-Json
             Get-AyloSceneAllMedia -sceneData $sceneData -pathToUserConfig $pathToUserConfig
         }
         $sceneIndex++
@@ -68,7 +68,7 @@ function Get-AyloAllContentBySeriesIDs {
                 Write-Host `n"ERROR: scene $sceneID JSON data not found - $pathToSceneJson." -ForegroundColor Red
             }
             elseif ($null -ne $pathToSceneJson) {
-                $sceneData = Get-Content $pathToSceneJson -raw | ConvertFrom-Json
+                $sceneData = Get-Content -LiteralPath $pathToSceneJson -raw | ConvertFrom-Json
                 Get-AyloSceneAllMedia -sceneData $sceneData -pathToUserConfig $pathToUserConfig
             }
             $sceneIndex++
