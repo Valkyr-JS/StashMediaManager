@@ -143,8 +143,6 @@ function Get-AyloMediaFile {
         [Parameter(Mandatory)][String]$target
     )
 
-    $mediaTypeCap = ( Get-Culture ).TextInfo.ToTitleCase( $mediaType.ToLower() )
-
     # Check if the file exists
     $existingPath = $null
     foreach ($dir in @($downloadDir, $storageDir)) {
@@ -179,7 +177,7 @@ function Get-AyloMediaFile {
 
     }
     else {
-        Write-Host "Skipping $mediaTypeCap as it already exists at $existingPath."
+        Write-Host "Skipping $mediaType as it already exists at $existingPath."
     }
 }
 
