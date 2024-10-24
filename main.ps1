@@ -193,8 +193,8 @@ function Set-Entry {
         Write-Host "1. All content from a list of performers"
         Write-Host "2. All content from a list of scenes"
         Write-Host "3. All content from a list of series"
-        do { $contentSelection = read-host "Enter your selection (1-2)" }
-        while (($contentSelection -notmatch "[1-2]"))
+        do { $contentSelection = read-host "Enter your selection (1-3)" }
+        while (($contentSelection -notmatch "[1-3]"))
 
         # Load the required files
         . "./apis/aylo/aylo-scraper.ps1"
