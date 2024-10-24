@@ -217,7 +217,7 @@ function Get-AyloJson {
 
                     # Check if there is additional data in the newly scraped data
                     $existingData = Get-Content -LiteralPath $existingJson -raw | ConvertFrom-Json
-                    if ($existingData.children.Length -lt $result.children.Length) {
+                    if ($existingData.children.Count -lt $result.children.Count) {
                         $existingJsonUpdated = $true
                     }
                 }
