@@ -209,10 +209,23 @@ function Get-AyloSceneGallery {
         return Get-AyloMediaFile -downloadDir $downloadDir -filename $filename -mediaType "gallery" -storageDir $storageDir -subDir $subDir -target $fileToDownload.urls.download
     }
 
-    # 2. Download the loose images
+    # 2. Download the loose images then zip them up
     [array]$filteredFiles = $files | Where-Object { $_.format -eq "pictures" }
+    $zipName = Set-MediaFilename -mediaType "gallery" -extension "zip" -id $galleryData.id -title $galleryData.title
+
+    # Requires a separate check to see if the gallery already exists
+    foreach ($dir in @($downloadDir, $storageDir)) {
+        $testPath = Join-Path $dir $subDir $zipName
+        if (Test-Path -LiteralPath $testPath) { $existingPath = $testPath }
+    }
+    if ($null -ne $existingPath) {
+        Write-Host "Skipping gallery as it already exists at $existingPath."
+        return $existingPath
+    }
+
+    # Download if a zip file doesn't exist already, and there are loose files
+    # available to download.
     if ($filteredFiles.Count -gt 0) {
-        # No gallery.zip available. Downloading and zipping loose images.
         $galleryObject = $filteredFiles[0]
         $url = $galleryObject.url
         $galleryIndex = 0
@@ -238,7 +251,6 @@ function Get-AyloSceneGallery {
                     Write-Host "ERROR: Failed to download gallery image #$galleryIndex" -ForegroundColor Red
                 }
             }
-            $zipName = Set-MediaFilename -mediaType "gallery" -extension "zip" -id $galleryData.id -title $galleryData.title
             $zipPath = Join-Path $downloadDir $subDir $zipName
 
             # ! I don't know why this throws error "Join-Path: Cannot bind
@@ -251,7 +263,6 @@ function Get-AyloSceneGallery {
             return $zipPath
         }
     }
-
     # Otherwise, download nothing
     Write-Host "Script is not configured to download this gallery." -ForegroundColor Yellow
     return $null
