@@ -100,7 +100,7 @@ function Get-AyloSceneAllMedia {
             foreach ($tID in $seriesTrailers.id) {
                 $pathToTrailerJson = Get-ChildItem -LiteralPath (Get-AyloSeriesPath -apiType "trailer" -root $dataDir -studio $seriesStudio) | Where-Object { $_.BaseName -match "^$tID\s" }
                 $trailerData = Get-Content -LiteralPath $pathToTrailerJson -raw | ConvertFrom-Json
-                $subDir = Join-Path "aylo" "gallery" $parentStudio $seriesStudio
+                $subDir = Join-Path "aylo" "trailer" $parentStudio $seriesStudio
         
                 $null = Get-AyloSceneTrailer -downloadDir $assetsDownloadDir -trailerData $trailerData -storageDir $assetsDir -subDir $subDir
             }
