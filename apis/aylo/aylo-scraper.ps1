@@ -203,6 +203,53 @@ function Get-AyloJson {
     else { $studio = $parentStudio }
     $subDir = Join-Path "aylo" $apiType $parentStudio $studio
 
+    # Series JSON - skip if it already exists and no new content is available
+    if ($apiType -eq "serie") {
+        $existingJson = $null
+        $existingJsonUpdated = $false
+        foreach ($dDir in @($dataDir, $dataDownloadDir)) {
+            $dataTestPath = Join-Path $dDir $subDir
+            if (Test-Path -LiteralPath $dataTestPath) {
+                $jsonFilename = Get-ChildItem -LiteralPath $dataTestPath | Where-Object { $_.BaseName -match "^$contentID\s" }
+                # Check the file exists in the directory
+                if ($null -ne $jsonFilename -and (Test-Path -LiteralPath $jsonFilename.FullName)) {
+                    $existingJson = $jsonFilename.FullName
+
+                    # Check if there is additional data in the newly scraped data
+                    $existingData = Get-Content -LiteralPath $existingJson -raw | ConvertFrom-Json
+                    if ($existingData.children.Length -lt $result.children.Length) {
+                        $existingJsonUpdated = $true
+                    }
+                }
+            }
+        }
+
+        # Scrape series data if it doesn't already exist, or it has been updated
+        if (($null -eq $existingJson) -or $existingJsonUpdated) {
+            $title = Get-SanitizedFilename -title $result.title
+            $filename = "$contentID $title.json"
+            $outputDir = Join-Path $userConfig.general.dataDownloadDirectory $subDir
+            if (!(Test-Path -LiteralPath $outputDir)) { New-Item -ItemType "directory" -Path $outputDir }
+            $outputDest = Join-Path $outputDir $filename
+
+            Write-Host "Generating JSON: $filename"
+            $result | ConvertTo-Json -Depth 32 | Out-File -LiteralPath $outputDest
+
+            if (!(Test-Path -LiteralPath $outputDest)) {
+                Write-Host "ERROR: series JSON generation failed - $outputDest" -ForegroundColor Red
+                return $null
+            }  
+            else {
+                Write-Host "SUCCESS: series JSON generated - $outputDest" -ForegroundColor Green
+                return $outputDest
+            }  
+        }
+        else {
+            Write-Host "Series data already exists at $($existingJson). Skipping JSON generation for series #$contentID."
+            return $existingJson
+        }    
+    }
+
     # Skip creating JSON if both the JSON and the content already exist in either directory
     $existingPath = $null
     $existingJson = $null
