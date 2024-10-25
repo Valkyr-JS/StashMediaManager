@@ -60,7 +60,7 @@ function Set-AyloJsonToMetaStash {
     
     Invoke-StashBackupRequest
 
-    $dataDir = Join-Path $userConfig.general.scrapedDataDirectory "aylo"
+    $dataDir = Join-Path $userConfig.general.dataDownloadDirectory "aylo"
     $actorsDataDir = Join-Path $dataDir "actor"
     $collectionsDataDir = Join-Path $dataDir "collection"
     $galleriesDataDir = Join-Path $dataDir "gallery"

@@ -10,7 +10,7 @@ function Set-ConfigAssetsDirectory {
 
     $userConfig = Get-Content $pathToUserConfig -raw | ConvertFrom-Json
     do { $userInput = read-host "Please enter a valid path to your assets folder" }
-    while (($userInput.Length -eq 0) -or !(Test-Path $userInput))
+    while (($userInput.Length -eq 0) -or !(Test-Path -LiteralPath $userInput))
 
     $userConfig.general.assetsDirectory = "$userInput"
     $userConfig | ConvertTo-Json -depth 32 | set-content $pathToUserConfig
@@ -25,54 +25,69 @@ function Set-ConfigAssetsDownloadDirectory {
 
     $userConfig = Get-Content $pathToUserConfig -raw | ConvertFrom-Json
     do { $userInput = read-host "Please enter a valid path to your assets download folder" }
-    while (($userInput.Length -eq 0) -or !(Test-Path $userInput))
+    while (($userInput.Length -eq 0) -or !(Test-Path -LiteralPath $userInput))
 
     $userConfig.general.assetsDownloadDirectory = "$userInput"
     $userConfig | ConvertTo-Json -depth 32 | set-content $pathToUserConfig
     return $userConfig
 }
 
-# Set the user config value for the download directory
-function Set-ConfigDownloadDirectory {
+# Set the user config value for the content directory
+function Set-ConfigContentDirectory {
     param(
         [String]$pathToUserConfig
     )
 
     $userConfig = Get-Content $pathToUserConfig -raw | ConvertFrom-Json
-    do { $userInput = read-host "Please enter a valid path to your download folder" }
-    while (($userInput.Length -eq 0) -or !(Test-Path $userInput))
+    do { $userInput = read-host "Please enter a valid path to your content folder" }
+    while (($userInput.Length -eq 0) -or !(Test-Path -Literal $userInput))
 
-    $userConfig.general.downloadDirectory = "$userInput"
+    $userConfig.general.contentDirectory = "$userInput"
     $userConfig | ConvertTo-Json -depth 32 | set-content $pathToUserConfig
     return $userConfig
 }
 
-# Set the user config value for the scraped data directory
-function Set-ConfigScrapedDataDirectory {
+# Set the user config value for the content download directory
+function Set-ConfigContentDownloadDirectory {
     param(
         [String]$pathToUserConfig
     )
 
     $userConfig = Get-Content $pathToUserConfig -raw | ConvertFrom-Json
-    do { $userInput = read-host "Please enter a valid path to your scraped data folder" }
-    while (($userInput.Length -eq 0) -or !(Test-Path $userInput))
+    do { $userInput = read-host "Please enter a valid path to your content download folder" }
+    while (($userInput.Length -eq 0) -or !(Test-Path -LiteralPath $userInput))
 
-    $userConfig.general.scrapedDataDirectory = "$userInput"
+    $userConfig.general.contentDownloadDirectory = "$userInput"
     $userConfig | ConvertTo-Json -depth 32 | set-content $pathToUserConfig
     return $userConfig
 }
 
-# Set the user config value for the storage directory
-function Set-ConfigStorageDirectory {
+# Set the user config value for the data directory
+function Set-ConfigDataDirectory {
     param(
         [String]$pathToUserConfig
     )
 
     $userConfig = Get-Content $pathToUserConfig -raw | ConvertFrom-Json
-    do { $userInput = read-host "Please enter a valid path to your storage folder" }
-    while (($userInput.Length -eq 0) -or !(Test-Path $userInput))
+    do { $userInput = read-host "Please enter a valid path to your data folder" }
+    while (($userInput.Length -eq 0) -or !(Test-Path -LiteralPath $userInput))
 
-    $userConfig.general.storageDirectory = "$userInput"
+    $userConfig.general.dataDirectory = "$userInput"
+    $userConfig | ConvertTo-Json -depth 32 | set-content $pathToUserConfig
+    return $userConfig
+}
+
+# Set the user config value for the data directory
+function Set-ConfigDataDownloadDirectory {
+    param(
+        [String]$pathToUserConfig
+    )
+
+    $userConfig = Get-Content $pathToUserConfig -raw | ConvertFrom-Json
+    do { $userInput = read-host "Please enter a valid path to your data download folder" }
+    while (($userInput.Length -eq 0) -or !(Test-Path -LiteralPath $userInput))
+
+    $userConfig.general.dataDownloadDirectory = "$userInput"
     $userConfig | ConvertTo-Json -depth 32 | set-content $pathToUserConfig
     return $userConfig
 }
@@ -86,9 +101,10 @@ function Set-ConfigAyloMasterSite {
     )
 
     $userConfig = Get-Content $pathToUserConfig -raw | ConvertFrom-Json
+    $ayloData = $apiData | Where-Object { $_.name -eq "Aylo" }
 
     do { $userInput = read-host "Which Aylo site do you login through?" }
-    while ($apiData -notcontains $userInput)
+    while ($ayloData[0].networks -notcontains $userInput)
 
     $userConfig.aylo.masterSite = "$userInput"
     $userConfig | ConvertTo-Json -depth 32 | set-content $pathToUserConfig

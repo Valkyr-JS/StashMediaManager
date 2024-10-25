@@ -60,7 +60,7 @@ function Set-AFJsonToMetaStash {
     
     Invoke-StashBackupRequest
 
-    $dataDir = Join-Path $userConfig.general.scrapedDataDirectory "addfriends"
+    $dataDir = Join-Path $userConfig.general.dataDownloadDirectory "addfriends"
     $modelArchiveDataDir = Join-Path $dataDir "model-archive"
     $tagsDataDir = Join-Path $dataDir "tags"
     $videoDataDir = Join-Path $dataDir "video"

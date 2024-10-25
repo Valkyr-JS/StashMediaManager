@@ -80,13 +80,13 @@ function Get-AFModelSiteJson {
 
     if ($result) {
         # Output the JSON file
-        $title = Get-SanitizedTitle -title $result.site.site_name
+        $title = Get-SanitizedFilename -title $result.site.site_name
         $date = Get-Date -Format "yyyy-MM-dd"
         $filename = "$($result.site.id) $title $date.json"
-        $outputDir = Join-Path $userConfig.general.scrapedDataDirectory $subDir
-        if (!(Test-Path $outputDir)) { New-Item -ItemType "directory" -Path $outputDir }
+        $outputDir = Join-Path $userConfig.general.dataDownloadDirectory $subDir
+        if (!(Test-Path -LiteralPath $outputDir)) { New-Item -ItemType "directory" -Path $outputDir }
         $outputDest = Join-Path $outputDir $filename
-        if (Test-Path $outputDest) { 
+        if (Test-Path -LiteralPath $outputDest) { 
             Write-Host "Site data already generated for today. Skipping."
             return $outputDest
         }
@@ -94,7 +94,7 @@ function Get-AFModelSiteJson {
         Write-Host "Generating site JSON: $filename"
         $result | ConvertTo-Json -Depth 32 | Out-File -FilePath $outputDest
 
-        if (!(Test-Path $outputDest)) {
+        if (!(Test-Path -LiteralPath $outputDest)) {
             Write-Host "ERROR: site JSON generation failed - $outputDest" -ForegroundColor Red
             return $null
         }  
@@ -120,7 +120,7 @@ function Get-AFSceneJson {
 
     # Skip creating JSON if the content already exists in either the download or
     # storage directory
-    $topDirs = @($userConfig.general.downloadDirectory, $userConfig.general.storageDirectory)
+    $topDirs = @($userConfig.general.contentDownloadDirectory, $userConfig.general.contentDirectory)
     $subDir = Join-Path "addfriends" "video" $siteName
 
     foreach ($topDir in $topDirs) {
@@ -133,9 +133,9 @@ function Get-AFSceneJson {
                 Write-Host "Media already exists at $($contentFile.FullName). Skipping JSON generation for scene #$sceneID."
 
                 # Return the path to the existing JSON file
-                $title = Get-SanitizedTitle -title $video.title
+                $title = Get-SanitizedFilename -title $video.title
                 $filename = "$($video.id) $title.json"
-                $pathToExistingJson = Join-Path $userConfig.general.scrapedDataDirectory $subDir $filename
+                $pathToExistingJson = Join-Path $userConfig.general.dataDownloadDirectory $subDir $filename
                 return $pathToExistingJson
             }
         }
@@ -144,14 +144,14 @@ function Get-AFSceneJson {
     if ($video) {
         # Output the JSON file
         $filename = Set-MediaFilename -mediaType "data" -extension "json" -id $video.id -title $video.title -siteName $siteName -date $video.released_date
-        $outputDir = Join-Path $userConfig.general.scrapedDataDirectory $subDir
-        if (!(Test-Path $outputDir)) { New-Item -ItemType "directory" -Path $outputDir }
+        $outputDir = Join-Path $userConfig.general.dataDownloadDirectory $subDir
+        if (!(Test-Path -LiteralPath $outputDir)) { New-Item -ItemType "directory" -Path $outputDir }
         $videoDest = Join-Path $outputDir $filename
         
         Write-Host "Generating site JSON: $filename"
         $video | ConvertTo-Json -Depth 32 | Out-File -FilePath $videoDest
         
-        if (!(Test-Path $videoDest)) {
+        if (!(Test-Path -LiteralPath $videoDest)) {
             Write-Host "ERROR: site JSON generation failed - $videoDest" -ForegroundColor Red
             return $null
         }  
@@ -161,8 +161,8 @@ function Get-AFSceneJson {
 
         if ($tags.success) {
             $subDir = Join-Path "addfriends" "tags" $siteName
-            $outputDir = Join-Path $userConfig.general.scrapedDataDirectory $subDir
-            if (!(Test-Path $outputDir)) { New-Item -ItemType "directory" -Path $outputDir }
+            $outputDir = Join-Path $userConfig.general.dataDownloadDirectory $subDir
+            if (!(Test-Path -LiteralPath $outputDir)) { New-Item -ItemType "directory" -Path $outputDir }
             $tagsDest = Join-Path $outputDir $filename
             $tags.success | ConvertTo-Json -Depth 32 | Out-File -FilePath $tagsDest
         }

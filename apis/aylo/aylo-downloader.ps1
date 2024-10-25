@@ -7,9 +7,9 @@ function Get-AyloSceneAllMedia {
     $userConfig = Get-Content $pathToUserConfig -raw | ConvertFrom-Json
     $assetsDir = $userConfig.general.assetsDirectory
     $assetsDownloadDir = $userConfig.general.assetsDownloadDirectory
-    $dataDir = $userConfig.general.scrapedDataDirectory
-    $downloadDir = $userConfig.general.downloadDirectory
-    $storageDir = $userConfig.general.storageDirectory
+    $dataDir = $userConfig.general.dataDownloadDirectory
+    $downloadDir = $userConfig.general.contentDownloadDirectory
+    $storageDir = $userConfig.general.contentDirectory
 
     $parentStudio = $sceneData.brandMeta.displayName
     if ($sceneData.collections.count -gt 0) { $studio = $sceneData.collections[0].name }
@@ -22,7 +22,7 @@ function Get-AyloSceneAllMedia {
             [Parameter(Mandatory)][ValidateSet('actor', 'gallery', 'movie', 'scene', 'serie', 'trailer')][String]$apiType,
             [Parameter(Mandatory)][String]$root
         )
-        return Join-Path $root "aylo" $apiType $parentStudio $studio
+        return [String](Join-Path $root "aylo" $apiType $parentStudio $studio)
     }
 
     function Get-AyloSeriesPath {
@@ -31,7 +31,7 @@ function Get-AyloSceneAllMedia {
             [Parameter(Mandatory)][String]$root,
             [Parameter(Mandatory)][String]$studio
         )
-        return Join-Path $root "aylo" $apiType $parentStudio $studio
+        return [String](Join-Path $root "aylo" $apiType $parentStudio $studio)
     }
 
 
@@ -42,8 +42,8 @@ function Get-AyloSceneAllMedia {
     }
     else {
         foreach ($gID in $galleries.id) {
-            $pathToGalleryJson = Get-ChildItem (Get-AyloPath -apiType "gallery" -root $dataDir) | Where-Object { $_.BaseName -match "^$gID\s" }
-            $galleryData = Get-Content $pathToGalleryJson -raw | ConvertFrom-Json
+            $pathToGalleryJson = Get-ChildItem -LiteralPath (Get-AyloPath -apiType "gallery" -root $dataDir) | Where-Object { $_.BaseName -match "^$gID\s" }
+            $galleryData = Get-Content -LiteralPath $pathToGalleryJson -raw | ConvertFrom-Json
             $subDir = Join-Path "aylo" "gallery" $parentStudio $studio
             $null = Get-AyloSceneGallery -downloadDir $downloadDir -galleryData $galleryData -storageDir $storageDir -subDir $subDir
         }
@@ -56,8 +56,8 @@ function Get-AyloSceneAllMedia {
     }
     else {
         foreach ($tID in $trailers.id) {
-            $pathToTrailerJson = Get-ChildItem (Get-AyloPath -apiType "trailer" -root $dataDir) | Where-Object { $_.BaseName -match "^$tID\s" }
-            $trailerData = Get-Content $pathToTrailerJson -raw | ConvertFrom-Json
+            $pathToTrailerJson = Get-ChildItem -LiteralPath (Get-AyloPath -apiType "trailer" -root $dataDir) | Where-Object { $_.BaseName -match "^$tID\s" }
+            $trailerData = Get-Content -LiteralPath $pathToTrailerJson -raw | ConvertFrom-Json
             $subDir = Join-Path "aylo" "trailer" $parentStudio $studio
     
             $null = Get-AyloSceneTrailer -downloadDir $assetsDownloadDir -trailerData $trailerData -storageDir $assetsDir -subDir $subDir
@@ -73,8 +73,8 @@ function Get-AyloSceneAllMedia {
         }
         else { $seriesStudio = $parentStudio }
     
-        $pathToSeriesJson = Get-ChildItem (Get-AyloSeriesPath -apiType "serie" -root $dataDir -studio $seriesStudio) | Where-Object { $_.BaseName -match "^$($seriesData.id)\s" }
-        $seriesData = Get-Content $pathToSeriesJson -raw | ConvertFrom-Json
+        $pathToSeriesJson = Get-ChildItem -LiteralPath (Get-AyloSeriesPath -apiType "serie" -root $dataDir -studio $seriesStudio) | Where-Object { $_.BaseName -match "^$($seriesData.id)\s" }
+        $seriesData = Get-Content -LiteralPath $pathToSeriesJson -raw | ConvertFrom-Json
 
         # Series galleries
         [array]$seriesGalleries = $seriesData.children | Where-Object { $_.type -eq "gallery" }
@@ -83,8 +83,8 @@ function Get-AyloSceneAllMedia {
         }
         else {
             foreach ($gID in $seriesGalleries.id) {
-                $pathToGalleryJson = Get-ChildItem (Get-AyloSeriesPath -apiType "gallery" -root $dataDir -studio $seriesStudio) | Where-Object { $_.BaseName -match "^$gID\s" }
-                $galleryData = Get-Content $pathToGalleryJson -raw | ConvertFrom-Json
+                $pathToGalleryJson = Get-ChildItem -LiteralPath (Get-AyloSeriesPath -apiType "gallery" -root $dataDir -studio $seriesStudio) | Where-Object { $_.BaseName -match "^$gID\s" }
+                $galleryData = Get-Content -LiteralPath $pathToGalleryJson -raw | ConvertFrom-Json
                 $subDir = Join-Path "aylo" "gallery" $parentStudio $seriesStudio
         
                 $null = Get-AyloSceneGallery -downloadDir $downloadDir -galleryData $galleryData -storageDir $storageDir -subDir $subDir
@@ -98,9 +98,9 @@ function Get-AyloSceneAllMedia {
         }
         else {
             foreach ($tID in $seriesTrailers.id) {
-                $pathToTrailerJson = Get-ChildItem (Get-AyloSeriesPath -apiType "trailer" -root $dataDir -studio $seriesStudio) | Where-Object { $_.BaseName -match "^$tID\s" }
-                $trailerData = Get-Content $pathToTrailerJson -raw | ConvertFrom-Json
-                $subDir = Join-Path "aylo" "gallery" $parentStudio $seriesStudio
+                $pathToTrailerJson = Get-ChildItem -LiteralPath (Get-AyloSeriesPath -apiType "trailer" -root $dataDir -studio $seriesStudio) | Where-Object { $_.BaseName -match "^$tID\s" }
+                $trailerData = Get-Content -LiteralPath $pathToTrailerJson -raw | ConvertFrom-Json
+                $subDir = Join-Path "aylo" "trailer" $parentStudio $seriesStudio
         
                 $null = Get-AyloSceneTrailer -downloadDir $assetsDownloadDir -trailerData $trailerData -storageDir $assetsDir -subDir $subDir
             }
@@ -115,8 +115,8 @@ function Get-AyloSceneAllMedia {
 
     # Actors
     foreach ($aID in $sceneData.actors.id) {
-        $pathToActorJson = Get-ChildItem (Join-Path $dataDir "aylo" "actor") | Where-Object { $_.BaseName -match "^$aID\s" }
-        $actorData = Get-Content $pathToActorJson -raw | ConvertFrom-Json
+        $pathToActorJson = Get-ChildItem -LiteralPath (Join-Path $dataDir "aylo" "actor") | Where-Object { $_.BaseName -match "^$aID\s" }
+        $actorData = Get-Content -LiteralPath $pathToActorJson -raw | ConvertFrom-Json
 
         $subDir = Join-Path "aylo" "actor"
         $null = Get-AyloActorAssets -actorData $actorData -downloadDir $assetsDownloadDir -storageDir $assetsDir -subDir $subDir
@@ -143,8 +143,6 @@ function Get-AyloMediaFile {
         [Parameter(Mandatory)][String]$target
     )
 
-    $mediaTypeCap = ( Get-Culture ).TextInfo.ToTitleCase( $mediaType.ToLower() )
-
     # Check if the file exists
     $existingPath = $null
     foreach ($dir in @($downloadDir, $storageDir)) {
@@ -165,7 +163,7 @@ function Get-AyloMediaFile {
             Write-Host "$_" -ForegroundColor Red
             
             # If an empty or partial file has been generated, delete it
-            if (Test-Path $outputPath) { Remove-Item $outputPath }
+            if (Test-Path -LiteralPath $outputPath) { Remove-Item $outputPath }
         }
 
         # Check the file has been downloaded successfully.
@@ -179,7 +177,7 @@ function Get-AyloMediaFile {
 
     }
     else {
-        Write-Host "Skipping $mediaTypeCap as it already exists at $existingPath."
+        Write-Host "Skipping $mediaType as it already exists at $existingPath."
     }
 }
 
@@ -192,17 +190,80 @@ function Get-AyloSceneGallery {
         [Parameter(Mandatory)]$galleryData
     )
 
-    [array]$files = $galleryData.galleries | Where-Object { $_.format -eq "download" }
+    [array]$files = $galleryData.galleries
 
     # If the array is empty, show a warning
     if ($files.count -eq 0) {
         Write-Host "No gallery available to download." -ForegroundColor Yellow
+        return $null
     }
-    
-    $fileToDownload = $files[0]
-    $filename = Set-MediaFilename -mediaType "gallery" -extension "zip" -id $galleryData.id -title $galleryData.title
 
-    return Get-AyloMediaFile -downloadDir $downloadDir -filename $filename -mediaType "gallery" -storageDir $storageDir -subDir $subDir -target $fileToDownload.urls.download
+    # 1. Download the gallery zip file if there's one available
+    [array]$filteredFiles = $files | Where-Object { $_.format -eq "download" }
+    if ($filteredFiles.Count -gt 0) {
+        $fileToDownload = $filteredFiles[0]
+        $filename = Set-MediaFilename -mediaType "gallery" -extension "zip" -id $galleryData.id -title $galleryData.title
+    
+        return Get-AyloMediaFile -downloadDir $downloadDir -filename $filename -mediaType "gallery" -storageDir $storageDir -subDir $subDir -target $fileToDownload.urls.download
+    }
+
+    # 2. Download the loose images then zip them up
+    [array]$filteredFiles = $files | Where-Object { $_.format -eq "pictures" }
+    $zipName = Set-MediaFilename -mediaType "gallery" -extension "zip" -id $galleryData.id -title $galleryData.title
+
+    # Requires a separate check to see if the gallery already exists
+    foreach ($dir in @($downloadDir, $storageDir)) {
+        $testPath = Join-Path $dir $subDir $zipName
+        if (Test-Path -LiteralPath $testPath) { $existingPath = $testPath }
+    }
+    if ($null -ne $existingPath) {
+        Write-Host "Skipping gallery as it already exists at $existingPath."
+        return $existingPath
+    }
+
+    # Download if a zip file doesn't exist already, and there are loose files
+    # available to download.
+    if ($filteredFiles.Count -gt 0) {
+        $galleryObject = $filteredFiles[0]
+        $url = $galleryObject.url
+        $galleryIndex = 0
+        $folderName = Get-SanitizedFilename $galleryData.title
+        [String]$tempDest = Join-Path $downloadDir $subDir "$($galleryData.id) $folderName"
+        if (!(Test-Path -LiteralPath $tempDest)) { New-Item -ItemType "directory" -Path $tempDest }
+
+        # Check file pattern is 4 digits. Update this as needed.
+        $filePattern = ($galleryObject.filePattern.split("."))[0]
+        if ($filePattern -eq "%04d") {
+            # Loop through and download each image
+            while ($galleryIndex -lt $galleryObject.filesCount) {
+                $galleryIndex++
+                $paddedIndex = "{0:d4}" -f $galleryIndex
+                $imageUrl = $url.replace($filePattern, $paddedIndex)
+                $imageName = Set-MediaFilename -mediaType "image" -extension $galleryObject.filePattern.split(".")[1] -id $galleryData.id -title "$($galleryData.title) $paddedIndex"
+
+                try {
+                    Write-Host "Downloading gallery image $galleryIndex/$($galleryObject.filesCount)"
+                    Invoke-WebRequest -uri $imageUrl -OutFile ( New-Item -Path "$tempDest\$imageName" -Force ) 
+                }
+                catch {
+                    Write-Host "ERROR: Failed to download gallery image #$galleryIndex" -ForegroundColor Red
+                }
+            }
+            $zipPath = Join-Path $downloadDir $subDir $zipName
+
+            # ! I don't know why this throws error "Join-Path: Cannot bind
+            # argument to parameter 'Path' because it is null.", but it's fine
+            # ¯\_(ツ)_/¯
+            Get-ChildItem -LiteralPath $tempDest | Compress-Archive -DestinationPath $zipPath
+
+            # Delete the temp folder once zip is complete
+            Remove-Item -LiteralPath $tempDest -Recurse
+            return $zipPath
+        }
+    }
+    # Otherwise, download nothing
+    Write-Host "Script is not configured to download this gallery." -ForegroundColor Yellow
+    return $null
 }
 
 # Download the scene poster
@@ -236,6 +297,7 @@ function Get-AyloSceneTrailer {
     # If the array is empty, return a warning
     if ($files.count -eq 0) {
         Write-Host "No trailer available to download." -ForegroundColor Yellow
+        return $null
     }
 
     # 1. Prefer AV1 codec
@@ -249,9 +311,10 @@ function Get-AyloSceneTrailer {
         return Get-AyloMediaFile -downloadDir $downloadDir -filename $filename -mediaType "trailer" -storageDir $storageDir -subDir $subDir -target $fileToDownload.urls.view
     }
 
-    # 2. Get the highest resoltion file available
-    $filteredFiles = $files
-    $filteredFiles = $filteredFiles | Sort-Object -Property "sizeBytes" -Descending
+    # 2. Get the biggest file available. Use file size rather than resolution as
+    #    res is unavailable for most non-AV1 codec files, and file size should
+    #    filter out corrupted files.
+    $filteredFiles = $files | Sort-Object -Property "sizeBytes" -Descending
     $fileToDownload = $filteredFiles[0]
     $filename = Set-MediaFilename -mediaType "trailer" -extension "mp4" -id $trailerData.id -resolution $fileToDownload.label -title $trailerData.title
 
@@ -273,12 +336,13 @@ function Get-AyloSceneVideo {
     # If the array is empty, show a warning
     if ($files.count -eq 0) {
         Write-Host "ERROR: No files available to download" -ForegroundColor Red
+        return $null
     }
 
-    # 1. Prefer AV1 codec
+    # 1. Prefer AV1 codec files
     [array]$filteredFiles = $files | Where-Object { $_.codec -eq "av1" }
     if ($filteredFiles.count -gt 0) {
-        # For AV1 codec files, get the biggest file
+        # For AV1 codec files, get the file with the highest resolution
         $filteredFiles = $filteredFiles | Sort-Object -Property "height" -Descending
         $fileToDownload = $filteredFiles[0]
         $filename = Set-MediaFilename -mediaType "scene" -extension "mp4" -id $sceneData.id -resolution $fileToDownload.label -title $sceneData.title
@@ -286,42 +350,10 @@ function Get-AyloSceneVideo {
         return Get-AyloMediaFile -downloadDir $downloadDir -filename $filename -mediaType "scene" -storageDir $storageDir -subDir $subDir -target $fileToDownload.urls.download
     }
 
-    # 2. Get the highest resolution file under 8GB as long as it's at least HD
-    $sizeLimitBytes = Get-GigabytesToBytes -gb 8
-    $filteredFiles = $files | Where-Object { $_.sizeBytes -le $sizeLimitBytes }
-
-    # Not all non-AV1 codec items have width and height properties. Get the height from the label if needed, and find the highest resolution file
-    $filteredFiles = $filteredFiles | Where-Object { [int]($_.label.TrimEnd('p')) -ge 1080 }
-    if ($filteredFiles.count -gt 0) {
-        $biggestHeight = [int]($filteredFiles[0].label.TrimEnd('p'))
-        $biggestFile = $filteredFiles[0]
-        foreach ($f in $filteredFiles) {
-            if ($null -ne $f.height) { $thisHeight = $f.height }
-            else { $thisHeight = [int]($f.label.TrimEnd('p')) }
-
-            if ($thisHeight -gt $biggestHeight) {
-                $biggestHeight = $thisHeight
-                $biggestFile = $f
-            }
-        }
-        $fileToDownload = $biggestFile
-        $filename = Set-MediaFilename -mediaType "scene" -extension "mp4" -id $sceneData.id -resolution $fileToDownload.label -title $sceneData.title
-
-        return Get-AyloMediaFile -downloadDir $downloadDir -filename $filename -mediaType "scene" -storageDir $storageDir -subDir $subDir -target $fileToDownload.urls.download
-    }
-
-    # 3. Get the HD file if there's one available
-    $filteredFiles = $files | Where-Object { $_.height -eq 1080 -or [int]($_.label.TrimEnd('p')) -eq 1080 }
-    if ($filteredFiles.count -gt 0) {
-        $fileToDownload = $filteredFiles[0]
-        $filename = Set-MediaFilename -mediaType "scene" -extension "mp4" -id $sceneData.id -resolution $fileToDownload.label -title $sceneData.title
-
-        return Get-AyloMediaFile -downloadDir $downloadDir -filename $filename -mediaType "scene" -storageDir $storageDir -subDir $subDir -target $fileToDownload.urls.download
-    }
-
-    # 4. Just get the biggest file available
-    $filteredFiles = $files
-    $filteredFiles = $filteredFiles | Sort-Object -Property "sizeBytes" -Descending
+    # 2. Get the biggest file available. Use file size rather than resolution as
+    #    res is unavailable for most non-AV1 codec files, and file size should
+    #    filter out corrupted files.
+    $filteredFiles = $files | Sort-Object -Property "sizeBytes" -Descending
     $fileToDownload = $filteredFiles[0]
     $filename = Set-MediaFilename -mediaType "scene" -extension "mp4" -id $sceneData.id -resolution $fileToDownload.label -title $sceneData.title
 

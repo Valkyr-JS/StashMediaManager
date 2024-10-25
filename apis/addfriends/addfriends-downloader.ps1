@@ -9,8 +9,8 @@ function Get-AFSceneAllMedia {
     $userConfig = Get-Content $pathToUserConfig -raw | ConvertFrom-Json
     $assetsDir = $userConfig.general.assetsDirectory
     $assetsDownloadDir = $userConfig.general.assetsDownloadDirectory
-    $downloadDir = $userConfig.general.downloadDirectory
-    $storageDir = $userConfig.general.storageDirectory
+    $downloadDir = $userConfig.general.contentDownloadDirectory
+    $storageDir = $userConfig.general.contentDirectory
     $subDir = Join-Path "addfriends" "video" $siteName
     
     Write-Host `n"Downloading all media for scene #$($sceneData.id) - $($sceneData.title)." -ForegroundColor Cyan
@@ -33,7 +33,7 @@ function Get-AFSceneAllMedia {
         $outputPath = Join-Path $outputDir $posterFilename
 
         Write-Host "Downloading poster: $outputPath"
-        if (!(Test-Path $outputDir)) { New-Item -ItemType "directory" -Path $outputDir }
+        if (!(Test-Path -LiteralPath $outputDir)) { New-Item -ItemType "directory" -Path $outputDir }
         try {
             Invoke-WebRequest -uri $posterUrl -OutFile ( New-Item -Path $outputPath -Force ) 
         }
@@ -42,7 +42,7 @@ function Get-AFSceneAllMedia {
             Write-Host "$_" -ForegroundColor Red
             
             # If an empty or partial file has been generated, delete it
-            if (Test-Path $outputPath) { Remove-Item $outputPath }
+            if (Test-Path -LiteralPath $outputPath) { Remove-Item $outputPath }
         }
 
         # Check the file has been downloaded successfully.
@@ -76,7 +76,7 @@ function Get-AFSceneAllMedia {
         $outputPath = Join-Path $outputDir $gifFilename
 
         Write-Host "Downloading gif: $outputPath"
-        if (!(Test-Path $outputDir)) { New-Item -ItemType "directory" -Path $outputDir }
+        if (!(Test-Path -LiteralPath $outputDir)) { New-Item -ItemType "directory" -Path $outputDir }
         try {
             Invoke-WebRequest -uri $gifUrl -OutFile ( New-Item -Path $outputPath -Force ) 
         }
@@ -85,7 +85,7 @@ function Get-AFSceneAllMedia {
             Write-Host "$_" -ForegroundColor Red
             
             # If an empty or partial file has been generated, delete it
-            if (Test-Path $outputPath) { Remove-Item $outputPath }
+            if (Test-Path -LiteralPath $outputPath) { Remove-Item $outputPath }
         }
 
         # Check the file has been downloaded successfully.
@@ -117,7 +117,7 @@ function Get-AFSceneAllMedia {
         $outputPath = Join-Path $downloadDir $subDir $filename
 
         Write-Host "Downloading scene: $outputPath"
-        if (!(Test-Path $outputDir)) { New-Item -ItemType "directory" -Path $outputDir }
+        if (!(Test-Path -LiteralPath $outputDir)) { New-Item -ItemType "directory" -Path $outputDir }
         try {
             Invoke-WebRequest -uri $sceneData.dl -OutFile ( New-Item -Path $outputPath -Force ) 
         }
@@ -126,7 +126,7 @@ function Get-AFSceneAllMedia {
             Write-Host "$_" -ForegroundColor Red
             
             # If an empty or partial file has been generated, delete it
-            if (Test-Path $outputPath) { Remove-Item $outputPath }
+            if (Test-Path -LiteralPath $outputPath) { Remove-Item $outputPath }
         }
 
         # Check the file has been downloaded successfully.
@@ -172,7 +172,7 @@ function Get-AFAssets {
         $outputPath = Join-Path $outputDir $imageFilename
 
         Write-Host "Downloading profile image: $outputPath"
-        if (!(Test-Path $outputDir)) { New-Item -ItemType "directory" -Path $outputDir }
+        if (!(Test-Path -LiteralPath $outputDir)) { New-Item -ItemType "directory" -Path $outputDir }
         try {
             Invoke-WebRequest -uri $imageUrl -OutFile ( New-Item -Path $outputPath -Force ) 
         }
@@ -181,7 +181,7 @@ function Get-AFAssets {
             Write-Host "$_" -ForegroundColor Red
                 
             # If an empty or partial file has been generated, delete it
-            if (Test-Path $outputPath) { Remove-Item $outputPath }
+            if (Test-Path -LiteralPath $outputPath) { Remove-Item $outputPath }
         }
     
         # Check the file has been downloaded successfully.

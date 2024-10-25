@@ -108,7 +108,8 @@ function Get-AyloQueryData {
 
     try { $result = Invoke-RestMethod @params }
     catch {
-        Write-Host "WARNING: Scene scrape failed." -ForegroundColor Yellow
+        Write-Host "WARNING: $apiType scrape failed." -ForegroundColor Red
+        Write-Host "$_" -ForegroundColor Red
         exit
     }
 
@@ -122,41 +123,73 @@ function Get-AyloActorJson {
         [Parameter(Mandatory)][String]$pathToUserConfig
     )
     $userConfig = Get-Content $pathToUserConfig -raw | ConvertFrom-Json
+    $dataDir = $userConfig.general.dataDirectory
+    $dataDownloadDir = $userConfig.general.dataDownloadDirectory
+    $subDir = Join-Path "aylo" "actor"
 
-    Write-Host "Starting scrape for actor #$actorID."
+    Write-Host "Scraping actor #$actorID."
     
     # Attempt to scrape actor data
     $actorResult = Get-AyloQueryData -apiType "actor" -contentID $actorID -pathToUserConfig $pathToUserConfig
     $actorResult = $actorResult.result[0]
 
-    # Output the actor JSON file
-    $actorName = Get-SanitizedTitle -title $actorResult.name
-    $filename = "$actorID $actorName.json"
-    $outputDir = Join-Path $userConfig.general.scrapedDataDirectory "aylo" "actor"
-    if (!(Test-Path $outputDir)) { New-Item -ItemType "directory" -Path $outputDir }
-    $outputDest = Join-Path $outputDir $filename
-    $actorResult | ConvertTo-Json -Depth 32 | Out-File -FilePath $outputDest
+    # Skip creating JSON if it already exists
+    $existingJson = $null
+    foreach ($dir in @($dataDir, $dataDownloadDir)) {
+        $testPath = Join-Path $dir $subDir
+        if (Test-Path -LiteralPath $testPath) {
+            $filename = Get-ChildItem -LiteralPath $testPath | Where-Object { $_.BaseName -match "^$actorID\s" }
+            if ($null -ne $filename -and (Test-Path -LiteralPath $filename.FullName)) {
+                $existingJson = $filename.FullName
+                break;
+            }
+        }
+    }
 
-    if (!(Test-Path $outputDest)) {
-        Write-Host "ERROR: actor JSON generation failed - $outputDest" -ForegroundColor Red
-        return $null
-    }  
+    if ($null -eq $existingJson) {
+        # Output the actor JSON file
+        $actorName = Get-SanitizedFilename -title $actorResult.name
+        $filename = "$actorID $actorName.json"
+        $outputDir = Join-Path $dataDownloadDirectory $subDir
+        if (!(Test-Path -LiteralPath $outputDir)) { New-Item -ItemType "directory" -Path $outputDir }
+        $outputDest = Join-Path $outputDir $filename
+        $actorResult | ConvertTo-Json -Depth 32 | Out-File -LiteralPath $outputDest
+
+        if (!(Test-Path -LiteralPath $outputDest)) {
+            Write-Host "ERROR: actor JSON generation failed - $outputDest" -ForegroundColor Red
+            return $null
+        }  
+        else {
+            Write-Host "SUCCESS: actor JSON generated - $outputDest" -ForegroundColor Green
+            return $outputDest
+        }  
+    }
     else {
-        Write-Host "SUCCESS: actor JSON generated - $outputDest" -ForegroundColor Green
-        return $outputDest
-    }  
+        Write-Host "JSON already exists at $($existingJson). Skipping JSON generation for actor #$actorID."
+        return $existingJson
+    }
+
 }
 
 # Get data for a piece of content
 function Get-AyloJson {
     param (
-        [Parameter(Mandatory)][ValidateSet('actor', 'gallery', 'movie', 'scene', 'serie', 'trailer')][String]$apiType,
+        [Parameter(Mandatory)][ValidateSet('gallery', 'movie', 'scene', 'serie', 'trailer')][String]$apiType,
         [Parameter(Mandatory)][Int]$contentID,
         [Parameter(Mandatory)][String]$pathToUserConfig
     )
     Write-Host `n"Starting scrape for $apiType #$contentID." -ForegroundColor Cyan
 
     $userConfig = Get-Content $pathToUserConfig -raw | ConvertFrom-Json
+    $contentDir = $userConfig.general.contentDirectory
+    $contentDownloadDir = $userConfig.general.contentDownloadDirectory
+    $dataDir = $userConfig.general.dataDirectory
+    $dataDownloadDir = $userConfig.general.dataDownloadDirectory
+
+    if ($apiType -eq "trailer") {
+        $contentDir = $userConfig.general.assetsDirectory
+        $contentDownloadDir = $userConfig.general.assetsDownloadDirectory
+    }
 
     # Attempt to scrape content data
     $result = Get-AyloQueryData -apiType $apiType -contentID $contentID -pathToUserConfig $pathToUserConfig
@@ -168,48 +201,103 @@ function Get-AyloJson {
     $parentStudio = $result.brandMeta.displayName
     if ($result.collections.count -gt 0) { $studio = $result.collections[0].name }
     else { $studio = $parentStudio }
-
-    # Skip creating JSON if the content already exists in either the download or
-    # storage directory
-    $topDirs = @($userConfig.general.downloadDirectory, $userConfig.general.storageDirectory)
     $subDir = Join-Path "aylo" $apiType $parentStudio $studio
 
-    foreach ($topDir in $topDirs) {
-        $contentDir = Join-Path $topDir $subDir
-        
-        # Skip creating JSON if the content already exists
-        if (Test-Path -LiteralPath $contentDir) {
-            $contentFile = Get-ChildItem $contentDir | Where-Object { $_.BaseName -match "^$contentID\s" }
-            if ($contentFile.Length -gt 0) {
-                Write-Host "Media already exists at $($contentFile.FullName). Skipping JSON generation for $apiType #$contentID."
+    # Series JSON - skip if it already exists and no new content is available
+    if ($apiType -eq "serie") {
+        $existingJson = $null
+        $existingJsonUpdated = $false
+        foreach ($dDir in @($dataDir, $dataDownloadDir)) {
+            $dataTestPath = Join-Path $dDir $subDir
+            if (Test-Path -LiteralPath $dataTestPath) {
+                $jsonFilename = Get-ChildItem -LiteralPath $dataTestPath | Where-Object { $_.BaseName -match "^$contentID\s" }
+                # Check the file exists in the directory
+                if ($null -ne $jsonFilename -and (Test-Path -LiteralPath $jsonFilename.FullName)) {
+                    $existingJson = $jsonFilename.FullName
 
-                # Return the path to the existing JSON file
-                $title = Get-SanitizedTitle -title $result.title
-                $filename = "$contentID $title.json"
-                $pathToExistingJson = Join-Path $userConfig.general.scrapedDataDirectory $subDir $filename
-                return $pathToExistingJson
+                    # Check if there is additional data in the newly scraped data
+                    $existingData = Get-Content -LiteralPath $existingJson -raw | ConvertFrom-Json
+                    if ($existingData.children.Count -lt $result.children.Count) {
+                        $existingJsonUpdated = $true
+                    }
+                }
+            }
+        }
+
+        # Scrape series data if it doesn't already exist, or it has been updated
+        if (($null -eq $existingJson) -or $existingJsonUpdated) {
+            $title = Get-SanitizedFilename -title $result.title
+            $filename = "$contentID $title.json"
+            $outputDir = Join-Path $userConfig.general.dataDownloadDirectory $subDir
+            if (!(Test-Path -LiteralPath $outputDir)) { New-Item -ItemType "directory" -Path $outputDir }
+            $outputDest = Join-Path $outputDir $filename
+
+            Write-Host "Generating JSON: $filename"
+            $result | ConvertTo-Json -Depth 32 | Out-File -LiteralPath $outputDest
+
+            if (!(Test-Path -LiteralPath $outputDest)) {
+                Write-Host "ERROR: series JSON generation failed - $outputDest" -ForegroundColor Red
+                return $null
+            }  
+            else {
+                Write-Host "SUCCESS: series JSON generated - $outputDest" -ForegroundColor Green
+                return $outputDest
+            }  
+        }
+        else {
+            Write-Host "Series data already exists at $($existingJson). Skipping JSON generation for series #$contentID."
+            return $existingJson
+        }    
+    }
+
+    # Skip creating JSON if both the JSON and the content already exist in either directory
+    $existingPath = $null
+    $existingJson = $null
+    foreach ($dir in @($contentDir, $contentDownloadDir)) {
+        $testPath = Join-Path $dir $subDir
+        if (Test-Path -LiteralPath $testPath) {
+            $filename = Get-ChildItem -LiteralPath $testPath | Where-Object { $_.BaseName -match "^$contentID\s" }
+            if ($null -ne $filename -and (Test-Path -LiteralPath $filename.FullName)) {
+                # Check the associated JSON also exists
+                foreach ($dDir in @($dataDir, $dataDownloadDir)) {
+                    $dataTestPath = Join-Path $dDir $subDir
+                    if (Test-Path -LiteralPath $dataTestPath) {
+                        $jsonFilename = Get-ChildItem -LiteralPath $dataTestPath | Where-Object { $_.BaseName -match "^$contentID\s" }
+                        if ($null -ne $jsonFilename -and (Test-Path -LiteralPath $jsonFilename.FullName)) {
+                            # Check the file exists in the directory
+                            $existingPath = $filename.FullName
+                            $existingJson = $jsonFilename.FullName
+                        }
+                    }
+                }
             }
         }
     }
 
-    # Output the JSON file
-    $title = Get-SanitizedTitle -title $result.title
-    $filename = "$contentID $title.json"
-    $outputDir = Join-Path $userConfig.general.scrapedDataDirectory $subDir
-    if (!(Test-Path $outputDir)) { New-Item -ItemType "directory" -Path $outputDir }
-    $outputDest = Join-Path $outputDir $filename
+    if ($null -eq $existingPath -or $null -eq $existingJson) {
+        # Output the JSON file
+        $title = Get-SanitizedFilename -title $result.title
+        $filename = "$contentID $title.json"
+        $outputDir = Join-Path $userConfig.general.dataDownloadDirectory $subDir
+        if (!(Test-Path -LiteralPath $outputDir)) { New-Item -ItemType "directory" -Path $outputDir }
+        $outputDest = Join-Path $outputDir $filename
 
-    Write-Host "Generating JSON: $filename"
-    $result | ConvertTo-Json -Depth 32 | Out-File -FilePath $outputDest
+        Write-Host "Generating JSON: $filename"
+        $result | ConvertTo-Json -Depth 32 | Out-File -LiteralPath $outputDest
 
-    if (!(Test-Path $outputDest)) {
-        Write-Host "ERROR: $apiType JSON generation failed - $outputDest" -ForegroundColor Red
-        return $null
-    }  
+        if (!(Test-Path -LiteralPath $outputDest)) {
+            Write-Host "ERROR: $apiType JSON generation failed - $outputDest" -ForegroundColor Red
+            return $null
+        }  
+        else {
+            Write-Host "SUCCESS: $apiType JSON generated - $outputDest" -ForegroundColor Green
+            return $outputDest
+        }  
+    }
     else {
-        Write-Host "SUCCESS: $apiType JSON generated - $outputDest" -ForegroundColor Green
-        return $outputDest
-    }  
+        Write-Host "Media already exists at $($existingPath). Skipping JSON generation for $apiType #$contentID."
+        return $existingJson
+    }
 }
 
 # Get data for content related to the given Aylo gallery and output it to a JSON
@@ -261,7 +349,7 @@ function Get-AyloAllJson {
     )
     # Generate the scene JSON first, and use it to create the rest
     $pathToSceneJson = Get-AyloSceneJson -pathToUserConfig $pathToUserConfig -sceneID $sceneID
-    $sceneData = Get-Content $pathToSceneJson -raw | ConvertFrom-Json
+    $sceneData = Get-Content -LiteralPath $pathToSceneJson -raw | ConvertFrom-Json
 
     # Galleries
     [array]$galleries = $sceneData.children | Where-Object { $_.type -eq "gallery" }
@@ -276,6 +364,7 @@ function Get-AyloAllJson {
     }
 
     # Actors
+    Write-Host `n"Starting scrape for actors in scene #$sceneID." -ForegroundColor Cyan
     foreach ($aID in $sceneData.actors.id) {
         $null = Get-AyloActorJson -actorID $aID -pathToUserConfig $pathToUserConfig
     }
@@ -283,7 +372,7 @@ function Get-AyloAllJson {
     # Series
     if ($sceneData.parent -and $sceneData.parent.type -eq "serie") {
         $pathToSeriesJson = Get-AyloSeriesJson -pathToUserConfig $pathToUserConfig -seriesID $sceneData.parent.id
-        $seriesData = Get-Content $pathToSeriesJson -raw | ConvertFrom-Json
+        $seriesData = Get-Content -LiteralPath $pathToSeriesJson -raw | ConvertFrom-Json
         
         # Series galleries
         [array]$galleries = $seriesData.children | Where-Object { $_.type -eq "gallery" }
