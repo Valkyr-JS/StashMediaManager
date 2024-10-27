@@ -105,11 +105,15 @@ function Get-AyloSceneAllMedia {
             Write-Host "No series gallery available to download." -ForegroundColor Yellow
         }
         else {
+            $parentDir = Join-Path $dataDir "aylo" "gallery"
             foreach ($gID in $seriesGalleries.id) {
-                $pathToGalleryJson = Get-ChildItem -LiteralPath (Get-AyloSeriesPath -apiType "gallery" -root $dataDir -studio $seriesStudio) | Where-Object { $_.BaseName -match "^$gID\s" }
+                $pathToGalleryJson = Get-ChildItem -LiteralPath $parentDir -Recurse | Where-Object { $_.BaseName -match "^$gID\s" }
                 $galleryData = Get-Content -LiteralPath $pathToGalleryJson -raw | ConvertFrom-Json
-                $subDir = Join-Path "aylo" "gallery" $parentStudio $seriesStudio
-        
+                $galleryStudioHierarchy = Get-AyloStudioHierarchy $galleryData
+                $galleryParentStudio = $galleryStudioHierarchy.parentStudio
+                $galleryStudio = $galleryStudioHierarchy.studio
+                $subDir = Join-Path "aylo" "gallery" $galleryParentStudio $galleryStudio
+            
                 $null = Get-AyloSceneGallery -downloadDir $downloadDir -galleryData $galleryData -storageDir $storageDir -subDir $subDir
             }
         }
@@ -120,10 +124,14 @@ function Get-AyloSceneAllMedia {
             Write-Host "No series trailer available to download." -ForegroundColor Yellow
         }
         else {
+            $parentDir = Join-Path $dataDir "aylo" "trailer"
             foreach ($tID in $seriesTrailers.id) {
-                $pathToTrailerJson = Get-ChildItem -LiteralPath (Get-AyloSeriesPath -apiType "trailer" -root $dataDir -studio $seriesStudio) | Where-Object { $_.BaseName -match "^$tID\s" }
+                $pathToTrailerJson = Get-ChildItem -LiteralPath $parentDir -Recurse | Where-Object { $_.BaseName -match "^$tID\s" }
                 $trailerData = Get-Content -LiteralPath $pathToTrailerJson -raw | ConvertFrom-Json
-                $subDir = Join-Path "aylo" "trailer" $parentStudio $seriesStudio
+                $trailerStudioHierarchy = Get-AyloStudioHierarchy $trailerData
+                $trailerParentStudio = $trailerStudioHierarchy.parentStudio
+                $trailerStudio = $trailerStudioHierarchy.studio
+                $subDir = Join-Path "aylo" "trailer" $trailerParentStudio $trailerStudio
         
                 $null = Get-AyloSceneTrailer -downloadDir $assetsDownloadDir -trailerData $trailerData -storageDir $assetsDir -subDir $subDir
             }
