@@ -11,9 +11,24 @@ function Get-AyloSceneAllMedia {
     $downloadDir = $userConfig.general.contentDownloadDirectory
     $storageDir = $userConfig.general.contentDirectory
 
-    $parentStudio = $sceneData.brandMeta.displayName
-    if ($sceneData.collections.count -gt 0) { $studio = $sceneData.collections[0].name }
-    else { $studio = $parentStudio }
+    function Get-AyloStudioHierarchy {
+        param(
+            [Parameter(Mandatory)]$dataFile
+        )
+        
+        $dataParent = $dataFile.brandMeta.displayName
+        if ($dataFile.collections.count -gt 0) { $dataStudio = $dataFile.collections[0].name }
+        else { $dataStudio = $dataParent }
+    
+        return @{
+            parentStudio = $dataParent
+            studio       = $dataStudio
+        }
+    }
+
+    $sceneStudioHierarchy = Get-AyloStudioHierarchy $sceneData
+    $parentStudio = $sceneStudioHierarchy.parentStudio
+    $studio = $sceneStudioHierarchy.studio
     
     Write-Host `n"Downloading all media for scene #$($sceneData.id) - $($sceneData.title)." -ForegroundColor Cyan
 
@@ -34,17 +49,21 @@ function Get-AyloSceneAllMedia {
         return [String](Join-Path $root "aylo" $apiType $parentStudio $studio)
     }
 
-
     # Galleries
     [array]$galleries = $sceneData.children | Where-Object { $_.type -eq "gallery" }
     if ($galleries.count -eq 0) {
         Write-Host "No gallery available to download." -ForegroundColor Yellow
     }
     else {
+        $parentDir = Join-Path $dataDir "aylo" "gallery"
         foreach ($gID in $galleries.id) {
-            $pathToGalleryJson = Get-ChildItem -LiteralPath (Get-AyloPath -apiType "gallery" -root $dataDir) | Where-Object { $_.BaseName -match "^$gID\s" }
+            $pathToGalleryJson = Get-ChildItem -LiteralPath $parentDir -Recurse | Where-Object { $_.BaseName -match "^$gID\s" }
             $galleryData = Get-Content -LiteralPath $pathToGalleryJson -raw | ConvertFrom-Json
-            $subDir = Join-Path "aylo" "gallery" $parentStudio $studio
+            $galleryStudioHierarchy = Get-AyloStudioHierarchy $galleryData
+            $galleryParentStudio = $galleryStudioHierarchy.parentStudio
+            $galleryStudio = $galleryStudioHierarchy.studio
+            $subDir = Join-Path "aylo" "gallery" $galleryParentStudio $galleryStudio
+
             $null = Get-AyloSceneGallery -downloadDir $downloadDir -galleryData $galleryData -storageDir $storageDir -subDir $subDir
         }
     }
@@ -55,11 +74,15 @@ function Get-AyloSceneAllMedia {
         Write-Host "No trailer available to download." -ForegroundColor Yellow
     }
     else {
+        $parentDir = Join-Path $dataDir "aylo" "trailer"
         foreach ($tID in $trailers.id) {
-            $pathToTrailerJson = Get-ChildItem -LiteralPath (Get-AyloPath -apiType "trailer" -root $dataDir) | Where-Object { $_.BaseName -match "^$tID\s" }
+            $pathToTrailerJson = Get-ChildItem -LiteralPath $parentDir -Recurse | Where-Object { $_.BaseName -match "^$tID\s" }
             $trailerData = Get-Content -LiteralPath $pathToTrailerJson -raw | ConvertFrom-Json
-            $subDir = Join-Path "aylo" "trailer" $parentStudio $studio
-    
+            $trailerStudioHierarchy = Get-AyloStudioHierarchy $trailerData
+            $trailerParentStudio = $trailerStudioHierarchy.parentStudio
+            $trailerStudio = $trailerStudioHierarchy.studio
+            $subDir = Join-Path "aylo" "trailer" $trailerParentStudio $trailerStudio
+
             $null = Get-AyloSceneTrailer -downloadDir $assetsDownloadDir -trailerData $trailerData -storageDir $assetsDir -subDir $subDir
         }
     }
@@ -82,11 +105,15 @@ function Get-AyloSceneAllMedia {
             Write-Host "No series gallery available to download." -ForegroundColor Yellow
         }
         else {
+            $parentDir = Join-Path $dataDir "aylo" "gallery"
             foreach ($gID in $seriesGalleries.id) {
-                $pathToGalleryJson = Get-ChildItem -LiteralPath (Get-AyloSeriesPath -apiType "gallery" -root $dataDir -studio $seriesStudio) | Where-Object { $_.BaseName -match "^$gID\s" }
+                $pathToGalleryJson = Get-ChildItem -LiteralPath $parentDir -Recurse | Where-Object { $_.BaseName -match "^$gID\s" }
                 $galleryData = Get-Content -LiteralPath $pathToGalleryJson -raw | ConvertFrom-Json
-                $subDir = Join-Path "aylo" "gallery" $parentStudio $seriesStudio
-        
+                $galleryStudioHierarchy = Get-AyloStudioHierarchy $galleryData
+                $galleryParentStudio = $galleryStudioHierarchy.parentStudio
+                $galleryStudio = $galleryStudioHierarchy.studio
+                $subDir = Join-Path "aylo" "gallery" $galleryParentStudio $galleryStudio
+            
                 $null = Get-AyloSceneGallery -downloadDir $downloadDir -galleryData $galleryData -storageDir $storageDir -subDir $subDir
             }
         }
@@ -97,10 +124,14 @@ function Get-AyloSceneAllMedia {
             Write-Host "No series trailer available to download." -ForegroundColor Yellow
         }
         else {
+            $parentDir = Join-Path $dataDir "aylo" "trailer"
             foreach ($tID in $seriesTrailers.id) {
-                $pathToTrailerJson = Get-ChildItem -LiteralPath (Get-AyloSeriesPath -apiType "trailer" -root $dataDir -studio $seriesStudio) | Where-Object { $_.BaseName -match "^$tID\s" }
+                $pathToTrailerJson = Get-ChildItem -LiteralPath $parentDir -Recurse | Where-Object { $_.BaseName -match "^$tID\s" }
                 $trailerData = Get-Content -LiteralPath $pathToTrailerJson -raw | ConvertFrom-Json
-                $subDir = Join-Path "aylo" "trailer" $parentStudio $seriesStudio
+                $trailerStudioHierarchy = Get-AyloStudioHierarchy $trailerData
+                $trailerParentStudio = $trailerStudioHierarchy.parentStudio
+                $trailerStudio = $trailerStudioHierarchy.studio
+                $subDir = Join-Path "aylo" "trailer" $trailerParentStudio $trailerStudio
         
                 $null = Get-AyloSceneTrailer -downloadDir $assetsDownloadDir -trailerData $trailerData -storageDir $assetsDir -subDir $subDir
             }
