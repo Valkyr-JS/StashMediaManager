@@ -413,6 +413,11 @@ function Get-AyloActorAssets {
     $assetsDest = Join-Path $downloadDir $subDir $filename
     if (Test-Path -LiteralPath $assetsDest) { $existingPath = $assetsDest }
     
+    # Check if an image is available to download
+    if ($actorData.images.count -eq 0) {
+        return Write-Host "No image available for actor $actorName (#$actorID)." -ForegroundColor Yellow
+    }
+
     # Download the actor's profile image if it doesn't exist
     $imgUrl = $actorData.images.master_profile."0".lg.url
     if ($null -eq $existingPath) {
