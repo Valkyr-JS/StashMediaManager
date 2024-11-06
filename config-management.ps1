@@ -112,14 +112,9 @@ function Set-ConfigAyloMasterSite {
     return $userConfig
 }
 
-# Set the user config value for aylo.metaStashUrl
-function Set-ConfigAyloStashURL {
-    param(
-        [String]$pathToUserConfig
-    )
-
-    $userConfig = Get-Content $pathToUserConfig -raw | ConvertFrom-Json
-
+# helper function to set the user config value for a stash instance URL. Returns
+# the user input.
+function Set-ConfigStashURL {
     do {
         $userInput = read-host "Please check your connection, or correct the link to your Stash instance"
 
@@ -137,6 +132,18 @@ function Set-ConfigAyloStashURL {
     }
     while ($null -eq $stashVersion)
 
+    return $userInput
+}
+
+# Set the user config value for aylo.metaStashUrl
+function Set-ConfigAyloStashURL {
+    param(
+        [String]$pathToUserConfig
+    )
+
+    $userInput = Set-ConfigStashURL
+
+    $userConfig = Get-Content $pathToUserConfig -raw | ConvertFrom-Json
     $userConfig.aylo.metaStashUrl = "$userInput"
     $userConfig | ConvertTo-Json -depth 32 | set-content $pathToUserConfig
 
@@ -150,25 +157,10 @@ function Set-ConfigAddFriendsStashURL {
         [String]$pathToUserConfig
     )
 
+    $userInput = Set-ConfigStashURL
+
     $userConfig = Get-Content $pathToUserConfig -raw | ConvertFrom-Json
-
-    do {
-        $userInput = read-host "Please check your connection, or correct the link to your Stash instance"
-
-        $StashGQL_Query = 'query version{version{version}}'
-        try {
-            $stashUrl = $userInput
-            if ($stashUrl[-1] -ne "/") { $stashUrl += "/" }
-            $stashUrl += "graphql"
-            $stashVersion = Invoke-GraphQLQuery -Query $StashGQL_Query -Uri $stashUrl
-        }
-        catch {
-            write-host "ERROR: Could not connect to Stash at $userInput" -ForegroundColor Red
-        }
-    }
-    while ($null -eq $stashVersion)
-
-    $userConfig.addfriends.stashUrl = "$userInput"
+    $userConfig.addfriends.metaStashUrl = "$userInput"
     $userConfig | ConvertTo-Json -depth 32 | set-content $pathToUserConfig
 
     return $userConfig
