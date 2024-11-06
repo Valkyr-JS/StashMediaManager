@@ -115,9 +115,10 @@ function Set-Entry {
     # Next, user selects an operation
     Write-Host `n"What would you like to do?"
     Write-Host "1. Download media"
-    Write-Host "2. Update Stash"
-    do { $operationSelection = read-host "Enter your selection (1-2)" }
-    while (($operationSelection -notmatch "[1-2]"))
+    Write-Host "2. Update a meta Stash instance"
+    Write-Host "3. Update a Stashbox instance"
+    do { $operationSelection = read-host "Enter your selection (1-3)" }
+    while (($operationSelection -notmatch "[1-3]"))
 
     # --------------------------- AddFriends : Download -------------------------- #
 
@@ -156,7 +157,7 @@ function Set-Entry {
     
     }
 
-    # ----------------------------- AddFriend : Stash ---------------------------- #
+    # ------------------ AddFriends : Update meta Stash instance ----------------- #
 
     if ($operationSelection -eq 2 -and $apiData.name -eq "AddFriends") {
         # Load the required files
@@ -229,7 +230,7 @@ function Set-Entry {
         }
     }
 
-    # ------------------------------- Aylo : Stash ------------------------------- #
+    # --------------------- Aylo : Update meta Stash instance -------------------- #
 
     if ($operationSelection -eq 2 -and $apiData.name -eq "Aylo") {
         # Load the required files
@@ -237,8 +238,21 @@ function Set-Entry {
         
         Set-AyloJsonToMetaStash -pathToUserConfig $pathToUserConfig
     }
-    
-    else { Write-Host "This feature is awaiting development." }
+
+    # ---------------------------------------------------------------------------- #
+    #                              Stashbox instances                              #
+    # ---------------------------------------------------------------------------- #
+
+    if ($operationSelection -eq 3) {
+
+        # ------------------ AddFriends ==> FansDB Stashbox instance ----------------- #
+
+        if ($apiData.name -eq "AddFriends") {
+            Write-Host "Updating FansDB Stashbox content from the AddFriends API"
+        }
+
+        exit
+    }
 }
 
 Set-Entry
