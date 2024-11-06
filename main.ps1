@@ -248,7 +248,9 @@ function Set-Entry {
         # ------------------ AddFriends ==> FansDB Stashbox instance ----------------- #
 
         if ($apiData.name -eq "AddFriends") {
-            Write-Host "Updating FansDB Stashbox content from the AddFriends API"
+            . "./boxes/fansdb/addfriends-to-fansdb.ps1"
+            
+            Set-AFMetaToFansDBStashbox -pathToUserConfig $pathToUserConfig
         }
 
         exit

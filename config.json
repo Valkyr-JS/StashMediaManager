@@ -6,6 +6,9 @@
     "masterSite": "",
     "stashUrl": ""
   },
+  "boxes": {
+    "fansDbUrl": ""
+  },
   "general": {
     "assetsDirectory": "",
     "assetsDownloadDirectory": "",

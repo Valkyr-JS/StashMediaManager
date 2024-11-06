@@ -115,8 +115,12 @@ function Set-ConfigAyloMasterSite {
 # helper function to set the user config value for a stash instance URL. Returns
 # the user input.
 function Set-ConfigStashURL {
+    param(
+        [String]$instanceName
+    )
+
     do {
-        $userInput = read-host "Please check your connection, or correct the link to your Stash instance"
+        $userInput = read-host "Please check your connection, or correct the link to your $instanceName Stash instance"
 
         #Now we can check to ensure this address is valid-- we'll use a very simple GQL query and get the Stash version
         $StashGQL_Query = 'query version{version{version}}'
@@ -141,10 +145,10 @@ function Set-ConfigAyloStashURL {
         [String]$pathToUserConfig
     )
 
-    $userInput = Set-ConfigStashURL
+    $userInput = Set-ConfigStashURL "Aylo meta"
 
     $userConfig = Get-Content $pathToUserConfig -raw | ConvertFrom-Json
-    $userConfig.aylo.metaStashUrl = "$userInput"
+    $userConfig.aylo.stashUrl = "$userInput"
     $userConfig | ConvertTo-Json -depth 32 | set-content $pathToUserConfig
 
     return $userConfig
@@ -157,10 +161,25 @@ function Set-ConfigAddFriendsStashURL {
         [String]$pathToUserConfig
     )
 
-    $userInput = Set-ConfigStashURL
+    $userInput = Set-ConfigStashURL "AddFriends meta"
 
     $userConfig = Get-Content $pathToUserConfig -raw | ConvertFrom-Json
-    $userConfig.addfriends.metaStashUrl = "$userInput"
+    $userConfig.addfriends.stashUrl = "$userInput"
+    $userConfig | ConvertTo-Json -depth 32 | set-content $pathToUserConfig
+
+    return $userConfig
+}
+
+# Set the user config value for boxes.fansDbUrl
+function Set-ConfigFansDbStashboxURL {
+    param(
+        [String]$pathToUserConfig
+    )
+
+    $userInput = Set-ConfigStashURL "FansDB box"
+
+    $userConfig = Get-Content $pathToUserConfig -raw | ConvertFrom-Json
+    $userConfig.boxes.fansDbUrl = "$userInput"
     $userConfig | ConvertTo-Json -depth 32 | set-content $pathToUserConfig
 
     return $userConfig
