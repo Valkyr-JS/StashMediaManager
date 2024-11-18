@@ -72,7 +72,7 @@ function Set-AFJsonToMetaStash {
     #                                    Scenes                                    #
     # ---------------------------------------------------------------------------- #
 
-    # Fetch all Stash scenes not marked as organized
+    # Fetch all Stash scenes not marked as organized and have not been tagged (i.e. no process tags)
     $StashGQL_Query = 'query FindUnorganizedScenes($filter: FindFilterType, $scene_filter: SceneFilterType) {
         findScenes(filter: $filter, scene_filter: $scene_filter) {
             scenes {
@@ -83,7 +83,18 @@ function Set-AFJsonToMetaStash {
         }
     }'
     $StashGQL_QueryVariables = '{
-        "filter": { "per_page": -1 }
+        "filter": { "per_page": -1 },
+        "scene_filter": {
+            "organized": false,
+            "path": {
+                "value": "^/data/addfriends/",
+                "modifier": "MATCHES_REGEX"
+            },
+            "tag_count": {
+                "value": 0,
+                "modifier": "EQUALS"
+            }
+        }
     }' 
     $result = Invoke-StashGQLQuery -query $StashGQL_Query -variables $StashGQL_QueryVariables
     $stashScenesToProcess = [array]$result.data.findScenes.scenes
@@ -92,14 +103,16 @@ function Set-AFJsonToMetaStash {
         Write-Host "Updating Stash scene $($stashScene.id)" -ForegroundColor Cyan
 
         # Get the associated data file
-        $afID = $stashScene.files.path.split("/")[4].split(" ")[0]
-        $sceneData = Get-ChildItem -Path $videoDataDir -Recurse -File -Filter "*.json" | Where-Object { $_.BaseName -match "^$afID\s" }
+        $afID = $stashScene.files.path.split("/")[5].split(" ")[0]
+        Write-Host $afID $videoDataDir
+
+        $sceneData = Get-ChildItem -LiteralPath $videoDataDir -Recurse -File -Filter "*.json" | Where-Object { $_.BaseName -match "^$afID\s" }
         
         if (!($sceneData)) {
             Write-Host "FAILED: No data file found that matches Stash scene $($stashScene.id)." -ForegroundColor Red
         }
         else {
-            $sceneData = Get-Content $sceneData -raw | ConvertFrom-Json
+            $sceneData = Get-Content -LiteralPath $sceneData -raw | ConvertFrom-Json
 
             # --------------------------------- Performer -------------------------------- #
 
@@ -108,7 +121,7 @@ function Set-AFJsonToMetaStash {
 
             # Get the associated data file
             $pageID = $sceneData.site_id
-            $pageData = Get-ChildItem -Path $modelArchiveDataDir -Recurse -File -Filter "*.json" | Where-Object { $_.BaseName -match "^$pageID\s" }
+            $pageData = Get-ChildItem -LiteralPath $modelArchiveDataDir -Recurse -File -Filter "*.json" | Where-Object { $_.BaseName -match "^$pageID\s" }
 
             $performerIDs = @()
 
@@ -117,7 +130,7 @@ function Set-AFJsonToMetaStash {
             }
             else {
                 # Get the most recently scraped data
-                $pageData = Get-Content $pageData[$pageData.Count - 1] -raw | ConvertFrom-Json
+                $pageData = Get-Content -LiteralPath $pageData[$pageData.Count - 1] -raw | ConvertFrom-Json
 
                 # Create new tags that aren't in Stash yet. 
                 if ($pageData.site.tags.Count) { $null = Set-TagsFromAFTagList -tagList $pageData.site.tags }
@@ -192,8 +205,9 @@ function Set-AFJsonToMetaStash {
             # ----------------------------------- Tags ----------------------------------- #
 
             # Get the associated tags data file
-            $tagsData = Get-ChildItem -Path $tagsDataDir -Recurse -File -Filter "*.json" | Where-Object { $_.BaseName -match "^$afID\s" }
-            $tagsData = Get-Content $tagsData -raw | ConvertFrom-Json
+            $tagsData = Get-ChildItem -LiteralPath $tagsDataDir -Recurse -File -Filter "*.json" | Where-Object { $_.BaseName -match "^$afID\s" }
+            $tagsData = Get-Content -LiteralPath $tagsData -raw | ConvertFrom-Json
+
             $tagIDs = @()
 
             if (!($tagsData)) {
