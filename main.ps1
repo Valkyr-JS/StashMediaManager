@@ -160,7 +160,7 @@ function Set-Entry {
 
     if ($operationSelection -eq 2 -and $apiData.name -eq "AddFriends") {
         # Load the required files
-        . "./apis/addfriends/addfriends-json-to-meta-stash.ps1"
+        . "./apis/addfriends/addfriends-json-to-stash-staging.ps1"
         
         Set-AFJsonToMetaStash -pathToUserConfig $pathToUserConfig
     }
