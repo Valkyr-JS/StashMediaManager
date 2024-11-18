@@ -5,14 +5,14 @@ function Set-AyloJsonToMetaStash {
     $userConfig = Get-Content -Raw $pathToUserConfig | ConvertFrom-Json
 
     # Ensure the URL to the Stash instance has been setup
-    if ($userConfig.aylo.metaStashUrl.Length -eq 0) {
+    if ($userConfig.aylo.stashUrl.Length -eq 0) {
         $userConfig = Set-ConfigAyloStashURL -pathToUserConfig $pathToUserConfig
     }
 
     # Ensure that the Stash instance can be connected to
     do {
         $StashGQL_Query = 'query version{version{version}}'
-        $stashURL = $userConfig.aylo.metaStashUrl
+        $stashURL = $userConfig.aylo.stashUrl
         $stashGQL_URL = $stashURL
         if ($stashURL[-1] -ne "/") { $stashGQL_URL += "/" }
         $stashGQL_URL += "graphql"
@@ -32,7 +32,7 @@ function Set-AyloJsonToMetaStash {
     Write-Host "Connected to Stash at $stashURL ($stashVersion)" -ForegroundColor Green
     
     # Ensure the Stash URL doesn't have a trailing forward slash
-    [string]$stashUrl = $userConfig.aylo.metaStashUrl
+    [string]$stashUrl = $userConfig.aylo.stashUrl
     if ($stashUrl[-1] -eq "/") { $stashUrl = $stashUrl.Substring(0, $stashUrl.Length - 1) }
 
     # Create a helper function for Stash GQL queries now that the connection has
@@ -90,7 +90,7 @@ function Set-AyloJsonToMetaStash {
         "scene_filter": {
             "organized": false,
             "path": {
-                "value": "/scene/",
+                "value": "^/data/aylo/",
                 "modifier": "MATCHES_REGEX"
             }
         }
@@ -103,14 +103,14 @@ function Set-AyloJsonToMetaStash {
         Write-Host "Updating Stash scene $($stashScene.id)" -ForegroundColor Cyan
 
         # Get the associated data file
-        $ayloID = $stashScene.files.path.split("/")[5].split(" ")[0]
-        $sceneData = Get-ChildItem -Path $scenesDataDir -Recurse -File -Filter "*.json" | Where-Object { $_.BaseName -match "^$ayloID\s" }
+        $ayloID = $stashScene.files.path.split("/")[6].split(" ")[0]
+        $sceneData = Get-ChildItem -LiteralPath $scenesDataDir -Recurse -File -Filter "*.json" | Where-Object { $_.BaseName -match "^$ayloID\s" }
 
         if (!($sceneData)) {
             Write-Host "FAILED: No data file found that matches Stash scene $($stashScene.id)." -ForegroundColor Red
         }
         else {
-            $sceneData = Get-Content $sceneData -raw | ConvertFrom-Json
+            $sceneData = Get-Content -LiteralPath $sceneData -raw | ConvertFrom-Json
 
             # ---------------------------------- Groups ---------------------------------- #
 
@@ -121,8 +121,8 @@ function Set-AyloJsonToMetaStash {
             $stashGroup_webseries = $null
             if ($sceneData.parent -and $sceneData.parent.type -eq "serie") {
                 # Get the web series data
-                $seriesData = Get-ChildItem -Path $seriesDataDir -Recurse -File -Filter "*.json" | Where-Object { $_.BaseName -match "^$($sceneData.parent.id)\s" }
-                $seriesData = Get-Content $seriesData -raw | ConvertFrom-Json
+                $seriesData = Get-ChildItem -LiteralPath $seriesDataDir -Recurse -File -Filter "*.json" | Where-Object { $_.BaseName -match "^$($sceneData.parent.id)\s" }
+                $seriesData = Get-Content -LiteralPath $seriesData -raw | ConvertFrom-Json
 
                 $sceneGroupIndex = $seriesData.children | Where-Object { $_.id -eq $sceneData.id }
                 $sceneGroupIndex = $sceneGroupIndex.position
@@ -286,7 +286,11 @@ function Set-AyloJsonToMetaStash {
             "per_page": -1
         },
         "gallery_filter": {
-            "organized": false
+            "organized": false,
+            "path": {
+                "value": "^/data/aylo/",
+                "modifier": "MATCHES_REGEX"
+            }
         }
     }'
 
@@ -296,14 +300,15 @@ function Set-AyloJsonToMetaStash {
         Write-Host "Updating Stash gallery $($stashGallery.id)" -ForegroundColor Cyan
 
         # Get the associated data file
-        $ayloID = $stashGallery.files.path.split("/")[5].split(" ")[0]
-        $galleryData = Get-ChildItem -Path $galleriesDataDir -Recurse -File -Filter "*.json" | Where-Object { $_.BaseName -match "^$ayloID\s" }
+        $ayloID = $stashGallery.files.path.split("/")[6].split(" ")[0]
+
+        $galleryData = Get-ChildItem -LiteralPath $galleriesDataDir -Recurse -File -Filter "*.json" | Where-Object { $_.BaseName -match "^$ayloID\s" }
 
         if (!($galleryData)) {
             Write-Host "FAILED: No data file found that matches Stash gallery $($stashGallery.id)." -ForegroundColor Red
         }
         else {
-            $galleryData = Get-Content $galleryData -raw | ConvertFrom-Json
+            $galleryData = Get-Content -LiteralPath $galleryData -raw | ConvertFrom-Json
 
             # -------------------------------- Performers -------------------------------- #
 
@@ -428,13 +433,13 @@ function Set-PerformersFromActorList {
     foreach ($actor in $actorList) {
         # Get the associated data file
         $ayloID = $actor.id
-        $actorData = Get-ChildItem -Path $actorsDataDir -Recurse -File -Filter "*.json" | Where-Object { $_.BaseName -match "^$ayloID\s" }
+        $actorData = Get-ChildItem -LiteralPath $actorsDataDir -Recurse -File -Filter "*.json" | Where-Object { $_.BaseName -match "^$ayloID\s" }
         
         if (!($actorData)) {
             Write-Host "FAILED: No data file found that matches Aylo performer $ayloID." -ForegroundColor Red
         }
         else {
-            $actorData = Get-Content $actorData -raw | ConvertFrom-Json
+            $actorData = Get-Content -LiteralPath $actorData -raw | ConvertFrom-Json
 
             # ------------------------------ Performer tags ------------------------------ #
 
@@ -520,8 +525,8 @@ function Get-StashStudioFromData {
     $stashParentStudioID = $null
 
     # Get the studio data from the manually-scraped collections file
-    $studioData = Get-ChildItem -Path $collectionsDataDir -Filter "*.json" | Where-Object { $_.BaseName -match $data.brand }
-    $studioData = Get-Content $studioData -raw | ConvertFrom-Json
+    $studioData = Get-ChildItem -LiteralPath $collectionsDataDir -Filter "*.json" | Where-Object { $_.BaseName -match $data.brand }
+    $studioData = Get-Content -LiteralPath $studioData -raw | ConvertFrom-Json
 
     # If collections count is null, no studio is assigned so it should be filed
     # under a studio with the same name as the parent, without the "(network)" suffix.

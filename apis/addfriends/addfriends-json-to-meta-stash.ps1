@@ -99,12 +99,14 @@ function Set-AFJsonToMetaStash {
     $result = Invoke-StashGQLQuery -query $StashGQL_Query -variables $StashGQL_QueryVariables
     $stashScenesToProcess = [array]$result.data.findScenes.scenes
 
+    # Get the ID for the scraped process tag to apply to all content
+    $processTagID = Get-ProcessTagIDByName "0020 Local scrape | AddFriends"
+
     foreach ($stashScene in $stashScenesToProcess) {
         Write-Host "Updating Stash scene $($stashScene.id)" -ForegroundColor Cyan
 
         # Get the associated data file
         $afID = $stashScene.files.path.split("/")[5].split(" ")[0]
-        Write-Host $afID $videoDataDir
 
         $sceneData = Get-ChildItem -LiteralPath $videoDataDir -Recurse -File -Filter "*.json" | Where-Object { $_.BaseName -match "^$afID\s" }
         
@@ -149,13 +151,13 @@ function Set-AFJsonToMetaStash {
                     }
             
                     # Get tags
-                    $tagIDs = @()
+                    $tagIDs = @($processTagID)
                     foreach ($id in $pageData.site.tags.hashtag_id) {
                         $result = Get-StashTagByAlias -alias "af-$id"
                         $tagIDs += $result.data.findTags.tags.id
                     }
 
-                    $stashPerformer = Set-StashPerformer -disambiguation $pageData.site.id -name $pageData.site.site_name -details $pageData.site.news -image "https://static.addfriends.com/images/friends/$($pageData.site.site_url).jpg" -tag_ids $tagIDs -urls $urls
+                    $stashPerformer = Set-StashPerformer -disambiguation "AddFriends #$pageData.site.id" -name $pageData.site.site_name -details $pageData.site.news -image "https://static.addfriends.com/images/friends/$($pageData.site.site_url).jpg" -tag_ids $tagIDs -urls $urls
 
                     $performerIDs += $stashPerformer.data.performerCreate.id
                 }
@@ -174,7 +176,7 @@ function Set-AFJsonToMetaStash {
                     $stashParentStudio = Get-StashStudioByName $stashParentStudioName
             
                     if ($stashParentStudio.data.findStudios.studios.count -eq 0) { 
-                        $stashParentStudio = Set-StashStudio -name $stashParentStudioName -url "https://addfriends.com/"
+                        $stashParentStudio = Set-StashStudio -name $stashParentStudioName -url "https://addfriends.com/" -tag_ids @($processTagID)
                         $stashParentStudioID = $stashParentStudio.data.studioCreate.id
                     }
                     else {
@@ -191,7 +193,7 @@ function Set-AFJsonToMetaStash {
                     $url = "https://addfriends.com/$($pageData.site.site_url)"
 
                     # Get tags
-                    $tagIDs = @()
+                    $tagIDs = @($processTagID)
                     foreach ($id in $pageData.site.tags.hashtag_id) {
                         $result = Get-StashTagByAlias -alias "af-$id"
                         $tagIDs += $result.data.findTags.tags.id
@@ -208,7 +210,7 @@ function Set-AFJsonToMetaStash {
             $tagsData = Get-ChildItem -LiteralPath $tagsDataDir -Recurse -File -Filter "*.json" | Where-Object { $_.BaseName -match "^$afID\s" }
             $tagsData = Get-Content -LiteralPath $tagsData -raw | ConvertFrom-Json
 
-            $tagIDs = @()
+            $tagIDs = @($processTagID)
 
             if (!($tagsData)) {
                 Write-Host "FAILED: No tags data file found that matches Stash scene $($stashScene.id)." -ForegroundColor Red
@@ -234,7 +236,7 @@ function Set-AFJsonToMetaStash {
             $gifUrl = "https://static.addfriends.com/vip/posters/$posterCdnFilename.gif"
 
             # Update the scene
-            $stashScene = Set-StashSceneUpdate -id $stashScene.id -code $sceneData.id -cover_image $gifUrl -organized $true -performer_ids $performerIDs -studio_id $stashStudio.data.findStudios.studios[0].id -tag_ids $tagIDs -title $sceneData.title -urls $urls -date $sceneData.released_date
+            $stashScene = Set-StashSceneUpdate -id $stashScene.id -code $sceneData.id -cover_image $gifUrl -performer_ids $performerIDs -studio_id $stashStudio.data.findStudios.studios[0].id -tag_ids $tagIDs -title $sceneData.title -urls $urls -date $sceneData.released_date
             $metaScenesUpdated++
         }
     }

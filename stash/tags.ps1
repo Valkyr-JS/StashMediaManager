@@ -31,6 +31,7 @@ function Get-StashTagByName {
     )
     $StashGQL_Query = 'query FindTags($tag_filter: TagFilterType) {
         findTags(tag_filter: $tag_filter) {
+            count
             tags {
                 aliases
                 id
@@ -123,4 +124,24 @@ function Set-StashTagUpdate {
     $updatedTag = $result.data.tagUpdate
     Write-Host "SUCCESS: Updated tag $($updatedTag.name) (Stash ID $($updatedTag.id))." -ForegroundColor Green
     return $result
+}
+
+# Returns the ID for a process tag applied to a content item. If the tag does
+# not exist, it will create it.
+function Get-ProcessTagIDByName {
+    param(
+        [Parameter(Mandatory)][String]$tagName
+    )
+
+    $tagName = "| Process | $($tagName)"
+    $tag = Get-StashTagByName $tagName
+    
+    if ($tag.data.findTags.count -eq 0) {
+        $tag = Set-StashTag $tagName
+        $tag = $tag.data.tagCreate
+    } else {
+        $tag = $tag.data.findTags.tags[0]
+    }
+
+    return $tag.id
 }
