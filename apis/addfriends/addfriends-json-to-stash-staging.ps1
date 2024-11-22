@@ -133,13 +133,14 @@ function Set-AFJsonToMetaStash {
             else {
                 # Get the most recently scraped data
                 $pageData = Get-Content -LiteralPath $pageData[$pageData.Count - 1] -raw | ConvertFrom-Json
+                $disambiguation = "AddFriends #$($pageData.site.id)"
 
                 # Create new tags that aren't in Stash yet. 
                 if ($pageData.site.tags.Count) { $null = Set-TagsFromAFTagList -tagList $pageData.site.tags }
 
                 # Query Stash to see if the performer exists. Disambiguation is the
                 # performer ID, which we use to query.
-                $existingPerformer = Get-StashPerformerByDisambiguation -disambiguation $pageData.site.id
+                $existingPerformer = Get-StashPerformerByDisambiguation -disambiguation $disambiguation
 
                 # If no data is found, create the new performer
                 if ($existingPerformer.data.findPerformers.performers.count -eq 0) {
@@ -157,7 +158,7 @@ function Set-AFJsonToMetaStash {
                         $tagIDs += $result.data.findTags.tags.id
                     }
 
-                    $stashPerformer = Set-StashPerformer -disambiguation "AddFriends #$pageData.site.id" -name $pageData.site.site_name -details $pageData.site.news -image "https://static.addfriends.com/images/friends/$($pageData.site.site_url).jpg" -tag_ids $tagIDs -urls $urls
+                    $stashPerformer = Set-StashPerformer -disambiguation $disambiguation -name $pageData.site.site_name -details $pageData.site.news -image "https://static.addfriends.com/images/friends/$($pageData.site.site_url).jpg" -tag_ids $tagIDs -urls $urls
 
                     $performerIDs += $stashPerformer.data.performerCreate.id
                 }
