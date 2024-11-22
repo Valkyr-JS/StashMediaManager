@@ -68,6 +68,11 @@ function Set-AFJsonToMetaStash {
     # Logging meta
     $metaScenesUpdated = 0
 
+    # ----------------------------------------- Get user data ---------------------------------------- #
+
+    $userInitDir = Join-Path $dataDir "user-init"
+    $userInitData = Get-ChildItem -LiteralPath $userInitDir -File -Filter "*.json"
+
     # ---------------------------------------------------------------------------- #
     #                                    Scenes                                    #
     # ---------------------------------------------------------------------------- #
@@ -89,10 +94,6 @@ function Set-AFJsonToMetaStash {
             "path": {
                 "value": "^/data/addfriends/",
                 "modifier": "MATCHES_REGEX"
-            },
-            "tag_count": {
-                "value": 0,
-                "modifier": "EQUALS"
             }
         }
     }' 
@@ -152,6 +153,14 @@ function Set-AFJsonToMetaStash {
                     $urls = @("https://addfriends.com/$($pageData.site.site_url)")
                     if ($pageData.site.free_snapchat) {
                         $urls += "https://www.snapchat.com/add/$($pageData.site.free_snapchat)"
+                    }
+
+                    if ($userInitData.Count) {
+                        $userInitData = Get-Content -LiteralPath $userInitData[0] -raw | ConvertFrom-Json
+                        $subData = $userInitData.subs | Where-Object { $_.siteid -eq $pageData.site.id }
+                        if ($subData) {
+                            $urls += "https://www.snapchat.com/add/$($subData.snapname)"
+                        }
                     }
             
                     # Get tags
