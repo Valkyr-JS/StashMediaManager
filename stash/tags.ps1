@@ -133,13 +133,14 @@ function Get-ProcessTagIDByName {
         [Parameter(Mandatory)][String]$tagName
     )
 
-    $tagName = "| Process | $($tagName)"
+    $tagName = "| Process | $($tagName) |"
     $tag = Get-StashTagByName $tagName
     
     if ($tag.data.findTags.count -eq 0) {
         $tag = Set-StashTag $tagName
         $tag = $tag.data.tagCreate
-    } else {
+    }
+    else {
         $tag = $tag.data.findTags.tags[0]
     }
 
