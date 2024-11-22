@@ -145,6 +145,9 @@ function Set-AFJsonToMetaStash {
                 # If no data is found, create the new performer
                 if ($existingPerformer.data.findPerformers.performers.count -eq 0) {
 
+                    # Alias list
+                    $alias_list = @("| AddFriends | $($pageData.site.id)")
+
                     # URLs
                     $urls = @("https://addfriends.com/$($pageData.site.site_url)")
                     if ($pageData.site.free_snapchat) {
@@ -158,7 +161,7 @@ function Set-AFJsonToMetaStash {
                         $tagIDs += $result.data.findTags.tags.id
                     }
 
-                    $stashPerformer = Set-StashPerformer -disambiguation $disambiguation -name $pageData.site.site_name -details $pageData.site.news -image "https://static.addfriends.com/images/friends/$($pageData.site.site_url).jpg" -tag_ids $tagIDs -urls $urls
+                    $stashPerformer = Set-StashPerformer -disambiguation $disambiguation -name $pageData.site.site_name -alias_list $alias_list -details $pageData.site.news -image "https://static.addfriends.com/images/friends/$($pageData.site.site_url).jpg" -tag_ids $tagIDs -urls $urls
 
                     $performerIDs += $stashPerformer.data.performerCreate.id
                 }
