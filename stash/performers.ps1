@@ -42,7 +42,7 @@ function Set-StashPerformer {
         $birthdate
     )
     if ($alias_list -and $alias_list.Count) {
-        $alias_list = ConvertTo-Json $aliases -depth 32
+        $alias_list = ConvertTo-Json $alias_list -depth 32
         $alias_list = '"alias_list": ' + $alias_list + ','
     }
 

@@ -147,7 +147,7 @@ function Set-AFJsonToMetaStash {
                 if ($existingPerformer.data.findPerformers.performers.count -eq 0) {
 
                     # Alias list
-                    $alias_list = @("| AddFriends | $($pageData.site.id)")
+                    $alias_list = @("| AddFriends | $($pageData.site.id) |")
 
                     # URLs
                     $urls = @("https://addfriends.com/$($pageData.site.site_url)")
