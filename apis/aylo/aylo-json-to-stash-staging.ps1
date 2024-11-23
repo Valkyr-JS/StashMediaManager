@@ -458,6 +458,7 @@ function Set-PerformersFromActorList {
         }
         else {
             $actorData = Get-Content -LiteralPath $actorData -raw | ConvertFrom-Json
+            $actorName = $actorData.name.Trim()
 
             # ------------------------------ Performer tags ------------------------------ #
 
@@ -484,8 +485,9 @@ function Set-PerformersFromActorList {
                 [array]$alias_list = @($performerMetaAlias)
                 if ($actorData.aliases.count -gt 0) {
                     foreach ($alias in $actorData.aliases) {
-                        # Add each valid alias to the list
-                        if ($alias.Trim().Length -gt 0) {
+                        $alias = $alias.Trim()
+                        # Filter out duplicate aliases and null values
+                        if ($alias.Length -gt 0 -and $alias -ne $actorName -and $alias_list -notcontains $alias) {
                             $alias_list += "$($alias.Trim())"
                         }
                     }
@@ -530,7 +532,7 @@ function Set-PerformersFromActorList {
                     $tagIDs += $result.data.findTags.tags.id
                 }
             
-                $null = Set-StashPerformer -disambiguation $disambiguation -name $actorData.name -gender $gender -alias_list $alias_list -birthdate $actorData.birthday -details $actorData.bio -height_cm ([math]::Round((Get-InchesToCm $actorData.height))) -image $profileImage -measurements $measurements -penis_length $penis_length -weight ([math]::Round((Get-LbsToKilos $actorData.weight))) -tag_ids $tagIDs
+                $null = Set-StashPerformer -disambiguation $disambiguation -name $actorName -gender $gender -alias_list $alias_list -birthdate $actorData.birthday -details $actorData.bio -height_cm ([math]::Round((Get-InchesToCm $actorData.height))) -image $profileImage -measurements $measurements -penis_length $penis_length -weight ([math]::Round((Get-LbsToKilos $actorData.weight))) -tag_ids $tagIDs
             }
         }
     }
