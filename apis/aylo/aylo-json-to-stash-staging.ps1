@@ -144,7 +144,7 @@ function Set-AyloJsonToStashStaging {
                     # Create new tags that aren't in Stash yet
                     if ($seriesData.tags.Count) { $null = Set-TagsFromTagList -tagList $seriesData.tags }
 
-                    $aliases = "aylo-$($seriesData.id)"
+                    $aliases = "| Aylo | #group $($seriesData.id) |"
 
                     $stashStudio = Get-StashStudioFromData -collectionsDataDir $collectionsDataDir -data $seriesData
                     if ($stashStudio.data.findStudios) { $stashStudioID = $stashStudio.data.findStudios.studios.id }
@@ -152,7 +152,7 @@ function Set-AyloJsonToStashStaging {
                     
                     $tagIDs = @()
                     foreach ($id in $seriesData.tags.id) {
-                        $result = Get-StashTagByAlias -alias "aylo-$id"
+                        $result = Get-StashTagByAlias -alias "| Aylo | #tag $id |"
                         $tagIDs += $result.data.findTags.tags.id
                     }
     
@@ -203,7 +203,7 @@ function Set-AyloJsonToStashStaging {
             # Fetch all tag IDs from Stash
             $tagIDs = @()
             foreach ($id in $sceneData.tags.id) {
-                $result = Get-StashTagByAlias -alias "aylo-$id"
+                $result = Get-StashTagByAlias -alias "| Aylo | #tag $id |"
                 $tagIDs += $result.data.findTags.tags.id
             }
 
@@ -245,7 +245,7 @@ function Set-AyloJsonToStashStaging {
                 # ID at the same start time.
                 $matchingMarker = $existingMarkers | Where-Object { $_.primary_tag.name -eq $markerData.name -and $_.seconds -eq $markerData.startTime }
                 if (!($matchingMarker)) {
-                    $primaryTag = Get-StashTagByAlias "aylo-$($markerData.id)"
+                    $primaryTag = Get-StashTagByAlias "| Aylo | #tag $($markerData.id) |"
                     # Create the new marker
                     $StashGQL_Query = 'mutation CreateSceneMarker($input: SceneMarkerCreateInput!) {
                         sceneMarkerCreate(input: $input) {
@@ -385,8 +385,8 @@ function Set-TagsFromTagList {
     )
     foreach ($tag in $tagList) {
         # Query Stash to see if the tag exists. Aliases include the tag ID,
-        # which we use to query. Make sure to include the "aylo-" prefix.
-        $existingTag = Get-StashTagByAlias -alias "aylo-$($tag.id)"
+        # which we use to query.
+        $existingTag = Get-StashTagByAlias -alias "| Aylo | #tag $($tag.id) |"
         
         # If no data is found, also check to see if the tag exists under a
         # different ID.
@@ -396,7 +396,7 @@ function Set-TagsFromTagList {
             # If a matching tag name is found, update it with the new alias
             if ($existingTag.data.findTags.tags.count -gt 0) {
                 $tagAliases = $existingTag.data.findTags.tags[0].aliases
-                $tagAliases += "aylo-$($tag.id)"
+                $tagAliases += "| Aylo | #tag $($tag.id) |"
         
                 $existingTag = Set-StashTagUpdate -id $existingTag.data.findTags.tags[0].id -aliases $tagAliases
             }
@@ -412,9 +412,9 @@ function Set-TagsFromTagList {
                     }
                 }
 
-                # Add the "aylo-" prefix to the alias for the Aylo tag.
+                # Add the prefix to the alias for the Aylo tag.
                 $aliases = @()
-                $aliases += "aylo-$($tag.id)"
+                $aliases += "| Aylo | #tag $($tag.id) |"
         
                 # Create the tag
                 $null = Set-StashTag -name $tag.name.Trim() -aliases $aliases -parent_ids $parentTagID
@@ -505,7 +505,7 @@ function Set-PerformersFromActorList {
                 # Get tags
                 $tagIDs = @()
                 foreach ($id in $actorData.tags.id) {
-                    $result = Get-StashTagByAlias -alias "aylo-$id"
+                    $result = Get-StashTagByAlias -alias "| Aylo | #tag $id |"
                     $tagIDs += $result.data.findTags.tags.id
                 }
             
@@ -541,7 +541,7 @@ function Get-StashStudioFromData {
     }
     else {
         $studioData = $studioData.result | Where-Object { $_.name -eq $data.collections[0].name }
-        $stashStudio = Get-StashStudioByAlias "aylo-$($studioData.id)"
+        $stashStudio = Get-StashStudioByAlias "| Aylo | #studio $($studioData.id) |"
     }
 
     # Check if the studio is already in Stash
@@ -562,7 +562,7 @@ function Get-StashStudioFromData {
 
         # Don't assign aliases to studios with the same name as their parent
         $aliases = $null
-        if ($studioData.id) { $aliases = @("aylo-$($studioData.id)") }
+        if ($studioData.id) { $aliases = @("| Aylo | #studio $($studioData.id) |") }
 
         $details = $null
         if ($studioData.description) { $details = $studioData.description }
@@ -581,7 +581,7 @@ function Get-StashStudioFromData {
         }
 
         $stashStudio = Set-StashStudio -name $studioData.name -aliases $aliases -details $details -image $image -parent_id $stashParentStudioID -url $url
-        $stashStudio = Get-StashStudioByAlias "aylo-$($studioData.id)"
+        $stashStudio = Get-StashStudioByAlias "| Aylo | #studio $($studioData.id) |"
     }
     return $stashStudio
 }
