@@ -8,6 +8,7 @@ function Set-StashGalleryUpdate {
         [String[]]$performer_ids,
         [String[]]$scene_ids,
         [String]$studio_id,
+        [String[]]$tag_ids,
         [String]$title,
         $date
     )
@@ -38,6 +39,12 @@ function Set-StashGalleryUpdate {
     }
 
     if ($studio_id) { $studio_id = '"studio_id": "' + $studio_id + '",' }
+
+    if ($tag_ids -and $tag_ids.Count) {
+        $tag_ids = ConvertTo-Json $tag_ids -depth 32
+        $tag_ids = '"tag_ids": ' + $tag_ids + ','
+    }
+
     if ($title) { $title = '"title": "' + $title + '",' }
 
     $StashGQL_Query = 'mutation UpdateGallery($input: GalleryUpdateInput!) {
@@ -71,6 +78,7 @@ function Set-StashGalleryUpdate {
             '+ $performer_ids + '
             '+ $scene_ids + '
             '+ $studio_id + '
+            '+ $tag_ids + '
             '+ $title + '
             "id": "'+ $id + '"
         }

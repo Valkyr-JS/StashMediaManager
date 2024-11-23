@@ -99,6 +99,9 @@ function Set-AyloJsonToStashStaging {
     $result = Invoke-StashGQLQuery -query $StashGQL_Query -variables $StashGQL_QueryVariables
     $stashScenesToProcess = [array]$result.data.findScenes.scenes
 
+    # Get the ID for the scraped process tag to apply to all content
+    $processTagID = Get-ProcessTagIDByName "0020 Local scrape | Aylo"
+
     foreach ($stashScene in $stashScenesToProcess) {
         Write-Host "Updating Stash scene $($stashScene.id)" -ForegroundColor Cyan
 
@@ -201,7 +204,7 @@ function Set-AyloJsonToStashStaging {
             if ($sceneData.tags.Count) { $null = Set-TagsFromTagList -tagList $sceneData.tags }
     
             # Fetch all tag IDs from Stash
-            $tagIDs = @()
+            $tagIDs = @($processTagID)
             foreach ($id in $sceneData.tags.id) {
                 $result = Get-StashTagByAlias -alias "| Aylo #tag $id"
                 $tagIDs += $result.data.findTags.tags.id
@@ -255,10 +258,11 @@ function Set-AyloJsonToStashStaging {
                     }'
                     $StashGQL_QueryVariables = '{
                         "input": {
-                            "primary_tag_id": "'+ $primaryTag.data.findTags.tags[0].id + '",
-                            "scene_id": "'+ $stashScene.data.sceneUpdate.id + '",
-                            "seconds": '+ $markerData.startTime + ',
-                            "title": "'+ $markerData.name + '"
+                            "primary_tag_id": "' + $primaryTag.data.findTags.tags[0].id + '",
+                            "scene_id": "' + $stashScene.data.sceneUpdate.id + '",
+                            "seconds": ' + $markerData.startTime + ',
+                            "tag_ids": [' + $processTagID + '],
+                            "title": "' + $markerData.name + '"
                         }
                     }'
                     $null = Invoke-StashGQLQuery -query $StashGQL_Query -variables $StashGQL_QueryVariables
@@ -339,7 +343,7 @@ function Set-AyloJsonToStashStaging {
 
             # ---------------------------- Update the gallery ---------------------------- #
 
-            $null = Set-StashGalleryUpdate -id $stashGallery.id -code $galleryData.id -details $galleryData.description -organized $true -performer_ids $performerIDs -scene_ids $stashScene.data.findScenes.scenes.id -studio_id $stashStudio.data.findStudios.studios[0].id -title $galleryData.title -date $galleryData.dateReleased
+            $null = Set-StashGalleryUpdate -id $stashGallery.id -code $galleryData.id -details $galleryData.description -organized $true -performer_ids $performerIDs -scene_ids $stashScene.data.findScenes.scenes.id -studio_id $stashStudio.data.findStudios.studios[0].id -tag_ids @($processTagID) -title $galleryData.title -date $galleryData.dateReleased
         }
         $metaGalleriesUpdated++
     }
@@ -509,9 +513,6 @@ function Set-PerformersFromActorList {
                     $profileImage = $actorData.images.master_profile."0".lg.url + "?width=600&aspectRatio=3x4"
                 }
 
-                # Get the ID for the scraped process tag to apply to all content
-                $processTagID = Get-ProcessTagIDByName "0020 Local scrape | Aylo"
-        
                 # Get tags
                 $tagIDs = @($processTagID)
                 foreach ($id in $actorData.tags.id) {
@@ -590,7 +591,7 @@ function Get-StashStudioFromData {
             $url = $studioData.domainName
         }
 
-        $stashStudio = Set-StashStudio -name $studioData.name -aliases $aliases -details $details -image $image -parent_id $stashParentStudioID -url $url
+        $stashStudio = Set-StashStudio -name $studioData.name -aliases $aliases -details $details -image $image -parent_id $stashParentStudioID -url $url -tag_ids @($processTagID)
         $stashStudio = Get-StashStudioByAlias "| Aylo #studio $($studioData.id)"
     }
     return $stashStudio
