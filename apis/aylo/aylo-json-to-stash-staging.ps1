@@ -92,6 +92,9 @@ function Set-AyloJsonToStashStaging {
             "path": {
                 "value": "^/data/aylo/",
                 "modifier": "MATCHES_REGEX"
+            },
+            "tags": {
+                "modifier": "IS_NULL"
             }
         }
     }' 
@@ -242,13 +245,20 @@ function Set-AyloJsonToStashStaging {
             # Scene markers can't be created as part of a scene update, it needs to
             # be done as a separate graphql query afterwards.
 
-            $existingMarkers = $stashScene.data.sceneUpdate.scene_markers
-            foreach ($markerData in $sceneData.timeTags) {
-                # First, check if a marker already exists with the same aylo tag
-                # ID at the same start time.
-                $matchingMarker = $existingMarkers | Where-Object { $_.primary_tag.name -eq $markerData.name -and $_.seconds -eq $markerData.startTime }
-                if (!($matchingMarker)) {
-                    $primaryTag = Get-StashTagByAlias "| Aylo #tag $($markerData.id)"
+            # First filter out duplicate markers in the scene data and existing Stash data
+            $markerData = @()
+            foreach ($m in $sceneData.timeTags) {
+                $matchingMarker = $markerData | Where-Object { $_.name -eq $m.name -and $_.seconds -eq $m.seconds }
+                $stashMarker = $stashScene.data.sceneUpdate.scene_markers | Where-Object { $_.primary_tag.name -eq $m.name -and $_.seconds -eq $m.startTime }
+
+                if ($matchingMarker.count -eq 0 -and $stashMarker.count -eq 0) {
+                    $markerData += $m
+                }
+            }
+
+            foreach ($m in $markerData) {
+                if ($matchingMarker.count -eq 0) {
+                    $primaryTag = Get-StashTagByAlias "| Aylo #tag $($m.id)"
                     # Create the new marker
                     $StashGQL_Query = 'mutation CreateSceneMarker($input: SceneMarkerCreateInput!) {
                         sceneMarkerCreate(input: $input) {
@@ -260,9 +270,9 @@ function Set-AyloJsonToStashStaging {
                         "input": {
                             "primary_tag_id": "' + $primaryTag.data.findTags.tags[0].id + '",
                             "scene_id": "' + $stashScene.data.sceneUpdate.id + '",
-                            "seconds": ' + $markerData.startTime + ',
+                            "seconds": ' + $m.startTime + ',
                             "tag_ids": [' + $processTagID + '],
-                            "title": "' + $markerData.name + '"
+                            "title": "' + $m.name + '"
                         }
                     }'
                     $null = Invoke-StashGQLQuery -query $StashGQL_Query -variables $StashGQL_QueryVariables
