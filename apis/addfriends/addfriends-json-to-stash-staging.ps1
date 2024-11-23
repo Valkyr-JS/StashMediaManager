@@ -94,6 +94,9 @@ function Set-AFJsonToMetaStash {
             "path": {
                 "value": "^/data/addfriends/",
                 "modifier": "MATCHES_REGEX"
+            },
+            "tags": {
+                "modifier": "IS_NULL"
             }
         }
     }' 
@@ -139,15 +142,15 @@ function Set-AFJsonToMetaStash {
                 # Create new tags that aren't in Stash yet. 
                 if ($pageData.site.tags.Count) { $null = Set-TagsFromAFTagList -tagList $pageData.site.tags }
 
-                # Query Stash to see if the performer exists. Disambiguation is the
-                # performer ID, which we use to query.
-                $existingPerformer = Get-StashPerformerByDisambiguation -disambiguation $disambiguation
+                # Query Stash to see if the performer exists. Use the pipeline alias entry to query
+                $performerMetaAlias = "| AddFriends #performer $($pageData.site.id)"
+                $existingPerformer = Get-StashPerformerByAlias -alias $performerMetaAlias
 
                 # If no data is found, create the new performer
                 if ($existingPerformer.data.findPerformers.performers.count -eq 0) {
 
                     # Alias list
-                    $alias_list = @("| AddFriends #performer $($pageData.site.id)")
+                    $alias_list = @($performerMetaAlias)
 
                     # URLs
                     $urls = @("https://addfriends.com/$($pageData.site.site_url)")

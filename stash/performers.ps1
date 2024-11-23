@@ -1,3 +1,28 @@
+# Get Stash performer data with the given alias. Returns the graphql query.
+function Get-StashPerformerByAlias {
+    param(
+        [Parameter(Mandatory)][String]$alias
+    )
+    $StashGQL_Query = 'query FindPerformers($performer_filter: PerformerFilterType) {
+        findPerformers(performer_filter: $performer_filter) {
+            performers {
+                id
+                name
+            }
+        }
+    }'
+    $StashGQL_QueryVariables = '{
+        "performer_filter": {
+            "aliases": {
+                "value": "'+ $alias + '",
+                "modifier": "EQUALS"
+            }
+        }
+    }' 
+
+    Invoke-StashGQLQuery -query $StashGQL_Query -variables $StashGQL_QueryVariables
+}
+
 # Get Stash performer data with the given disambiguation. Returns the graphql
 # query.
 function Get-StashPerformerByDisambiguation {

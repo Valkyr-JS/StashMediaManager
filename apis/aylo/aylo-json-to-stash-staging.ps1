@@ -183,7 +183,7 @@ function Set-AyloJsonToStashStaging {
             # Fetch all performer IDs from Stash
             $performerIDs = @()
             foreach ($id in $sceneData.actors.id) {
-                $result = Get-StashPerformerByDisambiguation -disambiguation "Aylo #$id"
+                $result = Get-StashPerformerByAlias -alias "| Aylo #performer $id"
                 $performerIDs += $result.data.findPerformers.performers.id
             }
 
@@ -231,7 +231,7 @@ function Set-AyloJsonToStashStaging {
             $urls += $publicUrl
 
             # Update the scene
-            $stashScene = Set-StashSceneUpdate -id $stashScene.id -code $sceneData.id -cover_image $sceneData.images.poster."0".xx.url -details $sceneData.description -groups $groups -organized $true -performer_ids $performerIDs -studio_id $stashStudio.data.findStudios.studios[0].id -tag_ids $tagIDs -title $sceneData.title -urls $urls -date $sceneData.dateReleased
+            $stashScene = Set-StashSceneUpdate -id $stashScene.id -code $sceneData.id -cover_image $sceneData.images.poster."0".xx.url -details $sceneData.description -groups $groups -performer_ids $performerIDs -studio_id $stashStudio.data.findStudios.studios[0].id -tag_ids $tagIDs -title $sceneData.title -urls $urls -date $sceneData.dateReleased
             $metaScenesUpdated++
             
             # ------------------------------- Scene markers ------------------------------ #
@@ -271,7 +271,7 @@ function Set-AyloJsonToStashStaging {
     #                                   Galleries                                  #
     # ---------------------------------------------------------------------------- #
 
-    # Fetch all Stash galleries not marked as organized
+    # Fetch all Stash scenes not marked as organized and have not been tagged (i.e. no process tags)
     $StashGQL_Query = 'query FindUnorganizedGalleries($filter: FindFilterType, $gallery_filter: GalleryFilterType) {
         findGalleries(filter: $filter, gallery_filter: $gallery_filter) {
             galleries {
@@ -290,13 +290,17 @@ function Set-AyloJsonToStashStaging {
             "path": {
                 "value": "^/data/aylo/",
                 "modifier": "MATCHES_REGEX"
+            },
+            "tags": {
+                "modifier": "IS_NULL"
             }
         }
     }'
 
     $result = Invoke-StashGQLQuery -query $StashGQL_Query -variables $StashGQL_QueryVariables
+    $stashScenesToProcess = [array]$result.data.findScenes.scenes
 
-    foreach ($stashGallery in $result.data.findGalleries.galleries) {
+    foreach ($stashGallery in $stashScenesToProcess) {
         Write-Host "Updating Stash gallery $($stashGallery.id)" -ForegroundColor Cyan
 
         # Get the associated data file
@@ -320,7 +324,7 @@ function Set-AyloJsonToStashStaging {
             # Fetch all performer IDs from Stash
             $performerIDs = @()
             foreach ($id in $galleryData.parent.actors.id) {
-                $result = Get-StashPerformerByDisambiguation -disambiguation "Aylo #$id"
+                $result = Get-StashPerformerByAlias -alias "| Aylo #performer $id"
                 $performerIDs += $result.data.findPerformers.performers.id
             }
 
@@ -452,9 +456,9 @@ function Set-PerformersFromActorList {
 
             # --------------------------------- Performer -------------------------------- #
 
-            # Query Stash to see if the performer exists. Disambiguation is the
-            # performer ID, which we use to query.
-            $existingPerformer = Get-StashPerformerByDisambiguation "Aylo #$($actorData.id)"
+            # Query Stash to see if the performer exists.
+            $performerMetaAlias = "| Aylo #performer $($actorData.id)"
+            $existingPerformer = Get-StashPerformerByAlias $performerMetaAlias
 
             # If no data is found, create the new performer
             if ($existingPerformer.data.findPerformers.performers.count -eq 0) {
@@ -463,7 +467,7 @@ function Set-PerformersFromActorList {
                 $disambiguation = "Aylo #$($actorData.id)"
 
                 # Format alias list
-                [array]$alias_list = @("| Aylo #performer $($actorData.id) |")
+                [array]$alias_list = @($performerMetaAlias)
                 if ($actorData.aliases.count -gt 0) {
                     foreach ($alias in $actorData.aliases) {
                         # Add each valid alias to the list
@@ -504,9 +508,12 @@ function Set-PerformersFromActorList {
                 if ($actorData.images.count -gt 0 -and $actorData.images.master_profile) {
                     $profileImage = $actorData.images.master_profile."0".lg.url + "?width=600&aspectRatio=3x4"
                 }
+
+                # Get the ID for the scraped process tag to apply to all content
+                $processTagID = Get-ProcessTagIDByName "0020 Local scrape | Aylo"
         
                 # Get tags
-                $tagIDs = @()
+                $tagIDs = @($processTagID)
                 foreach ($id in $actorData.tags.id) {
                     $result = Get-StashTagByAlias -alias "| Aylo #tag $id"
                     $tagIDs += $result.data.findTags.tags.id
