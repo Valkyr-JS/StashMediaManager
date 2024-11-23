@@ -147,7 +147,7 @@ function Set-AFJsonToMetaStash {
                 if ($existingPerformer.data.findPerformers.performers.count -eq 0) {
 
                     # Alias list
-                    $alias_list = @("| AddFriends | #studio $($pageData.site.id) |")
+                    $alias_list = @("| AddFriends #performer $($pageData.site.id)")
 
                     # URLs
                     $urls = @("https://addfriends.com/$($pageData.site.site_url)")
@@ -166,7 +166,7 @@ function Set-AFJsonToMetaStash {
                     # Get tags
                     $tagIDs = @($processTagID)
                     foreach ($id in $pageData.site.tags.hashtag_id) {
-                        $result = Get-StashTagByAlias -alias "| AddFriends | #tag $id |"
+                        $result = Get-StashTagByAlias -alias "| AddFriends #tag $id"
                         $tagIDs += $result.data.findTags.tags.id
                     }
 
@@ -181,7 +181,7 @@ function Set-AFJsonToMetaStash {
                 # ---------------------------------- Studio ---------------------------------- #
 
                 # Check if the studio is already in Stash
-                $stashStudio = Get-StashStudioByAlias "| AddFriends | #studio $($pageData.site.id) |"
+                $stashStudio = Get-StashStudioByAlias "| AddFriends #studio $($pageData.site.id)"
 
                 if ($stashStudio.data.findStudios.studios.count -eq 0) {
                     # Check if the parent studio is already in Stash
@@ -196,7 +196,7 @@ function Set-AFJsonToMetaStash {
                         $stashParentStudioID = $stashParentStudio.data.findStudios.studios[0].id
                     }
             
-                    $aliases = @("| AddFriends | #studio $($pageData.site.id) |")
+                    $aliases = @("| AddFriends #studio $($pageData.site.id)")
             
                     $details = $null
                     if ($pageData.site.news) { $details = $pageData.site.news }
@@ -208,12 +208,12 @@ function Set-AFJsonToMetaStash {
                     # Get tags
                     $tagIDs = @($processTagID)
                     foreach ($id in $pageData.site.tags.hashtag_id) {
-                        $result = Get-StashTagByAlias -alias "| AddFriends | #tag $id |"
+                        $result = Get-StashTagByAlias -alias "| AddFriends #tag $id"
                         $tagIDs += $result.data.findTags.tags.id
                     }
             
                     $stashStudio = Set-StashStudio -name $pageData.site.site_name -aliases $aliases -details $details -image $image -parent_id $stashParentStudioID -tag_ids $tagIDs -url $url
-                    $stashStudio = Get-StashStudioByAlias "| AddFriends | #studio $($pageData.site.id) |"
+                    $stashStudio = Get-StashStudioByAlias "| AddFriends #studio $($pageData.site.id)"
                 }
             }
 
@@ -234,7 +234,7 @@ function Set-AFJsonToMetaStash {
     
                 # Fetch all tag IDs from Stash
                 foreach ($id in $tagsData.hashtag_id) {
-                    $result = Get-StashTagByAlias -alias "| AddFriends | #tag $id |"
+                    $result = Get-StashTagByAlias -alias "| AddFriends #tag $id"
                     $tagIDs += $result.data.findTags.tags.id
                 }
             }
@@ -270,7 +270,7 @@ function Set-TagsFromAFTagList {
     foreach ($tag in $tagList) {
         # Query Stash to see if the tag exists. Aliases include the tag ID,
         # which we use to query.
-        $existingTag = Get-StashTagByAlias -alias "| AddFriends | #tag $($tag.hashtag_id) |"
+        $existingTag = Get-StashTagByAlias -alias "| AddFriends #tag $($tag.hashtag_id)"
         
         # If no data is found, also check to see if the tag exists under a
         # different ID.
@@ -280,7 +280,7 @@ function Set-TagsFromAFTagList {
             # If a matching tag name is found, update it with the new alias
             if ($existingTag.data.findTags.tags.count -gt 0) {
                 $tagAliases = $existingTag.data.findTags.tags[0].aliases
-                $tagAliases += "| AddFriends | #tag $($tag.id) |"
+                $tagAliases += "| AddFriends #tag $($tag.id)"
         
                 $existingTag = Set-StashTagUpdate -id $existingTag.data.findTags.tags[0].id -aliases $tagAliases
             }
@@ -288,7 +288,7 @@ function Set-TagsFromAFTagList {
             # If no data is found, create the new tag
             else {
                 $aliases = @()
-                $aliases += "| AddFriends | #tag $($tag.hashtag_id) |"
+                $aliases += "| AddFriends #tag $($tag.hashtag_id)"
         
                 # Create the tag
                 $null = Set-StashTag -name $tag.hash_tag.Trim() -aliases $aliases
