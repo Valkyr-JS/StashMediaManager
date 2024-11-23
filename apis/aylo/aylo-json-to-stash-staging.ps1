@@ -1,4 +1,4 @@
-function Set-AyloJsonToMetaStash {
+function Set-AyloJsonToStashStaging {
     param(
         [Parameter(Mandatory)][String]$pathToUserConfig
     )

@@ -115,7 +115,7 @@ function Set-Entry {
     # Next, user selects an operation
     Write-Host `n"What would you like to do?"
     Write-Host "1. Download media"
-    Write-Host "2. Update Stash"
+    Write-Host "2. Update Stash staging environment"
     do { $operationSelection = read-host "Enter your selection (1-2)" }
     while (($operationSelection -notmatch "[1-2]"))
 
@@ -233,9 +233,9 @@ function Set-Entry {
 
     if ($operationSelection -eq 2 -and $apiData.name -eq "Aylo") {
         # Load the required files
-        . "./apis/aylo/aylo-json-to-meta-stash.ps1"
+        . "./apis/aylo/aylo-json-to-stash-staging.ps1"
         
-        Set-AyloJsonToMetaStash -pathToUserConfig $pathToUserConfig
+        Set-AyloJsonToStashStaging -pathToUserConfig $pathToUserConfig
     }
     
     else { Write-Host "This feature is awaiting development." }
