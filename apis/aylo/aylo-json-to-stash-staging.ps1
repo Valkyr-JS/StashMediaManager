@@ -312,9 +312,9 @@ function Set-AyloJsonToStashStaging {
     }'
 
     $result = Invoke-StashGQLQuery -query $StashGQL_Query -variables $StashGQL_QueryVariables
-    $stashScenesToProcess = [array]$result.data.findScenes.scenes
+    $stashGalleriesToProcess = [array]$result.data.findGalleries.galleries
 
-    foreach ($stashGallery in $stashScenesToProcess) {
+    foreach ($stashGallery in $stashGalleriesToProcess) {
         Write-Host "Updating Stash gallery $($stashGallery.id)" -ForegroundColor Cyan
 
         # Get the associated data file
@@ -353,7 +353,7 @@ function Set-AyloJsonToStashStaging {
 
             # ---------------------------- Update the gallery ---------------------------- #
 
-            $null = Set-StashGalleryUpdate -id $stashGallery.id -code $galleryData.id -details $galleryData.description -organized $true -performer_ids $performerIDs -scene_ids $stashScene.data.findScenes.scenes.id -studio_id $stashStudio.data.findStudios.studios[0].id -tag_ids @($processTagID) -title $galleryData.title -date $galleryData.dateReleased
+            $null = Set-StashGalleryUpdate -id $stashGallery.id -code $galleryData.id -details $galleryData.description -performer_ids $performerIDs -scene_ids $stashScene.data.findScenes.scenes.id -studio_id $stashStudio.data.findStudios.studios[0].id -tag_ids @($processTagID) -title $galleryData.title -date $galleryData.dateReleased
         }
         $metaGalleriesUpdated++
     }
