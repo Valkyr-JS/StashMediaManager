@@ -237,7 +237,49 @@ function Set-Entry {
         
         Set-AyloJsonToStashStaging -pathToUserConfig $pathToUserConfig
     }
-    
+
+    # ---------------------------------------- VMG : Download ---------------------------------------- #
+
+    if ($operationSelection -eq 1 -and $apiData.name -eq "Vixen Media Group") {
+        Write-Host `n"Specify the networks you wish to download from in a space-separated list, e.g. 'vixen blacked deeper'. Leave blank to scan all networks you have access to."
+        Write-Host "Accepted networks are: $($apiData.networks)"
+        do {
+            $networks = read-host "Networks"
+            $networksValid = $true
+
+            # Check if the answer is an empty string
+            if ($networks.Length -ne 0) {
+                # If not, check all networks are valid
+                foreach ($s in ($networks -split " ")) {
+                    if ($apiData.networks -notcontains $s.Trim()) {
+                        $networksValid = $false
+                    }
+                }
+            }
+        }
+        while ($networksValid -eq $false)
+
+        $networks = $networks -split (" ")
+        # Next, user specifies what to download
+        Write-Host `n"What content do you want to download?"
+        Write-Host "2. All content from a list of scenes"
+        do { $contentSelection = read-host "Enter your selection (2)" }
+        while (($contentSelection -notmatch "[2]"))
+        
+        # Load the required files
+        . "./apis/vmg/vmg-actions.ps1"
+        . "./apis/vmg/vmg-scraper.ps1"
+
+        if ($contentSelection -eq 2) {
+            # Next, user specifies scene IDs
+            Write-Host `n"Specify all scene IDs you wish to download in a space-separated list, e.g. '123 2534 1563'."
+            $sceneIDs = read-host "Scene IDs"
+            $sceneIDs = $sceneIDs -split (" ")
+
+            Get-VMGAllContentBySceneIDs -pathToUserConfig $pathToUserConfig -sceneIDs $sceneIDs
+        }
+    }
+
     else { Write-Host "This feature is awaiting development." }
 }
 

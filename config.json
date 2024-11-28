@@ -6,6 +6,9 @@
     "masterSite": "",
     "stashUrl": ""
   },
+  "vmg": {
+    "stashUrl": ""
+  },
   "general": {
     "assetsDirectory": "",
     "assetsDownloadDirectory": "",
