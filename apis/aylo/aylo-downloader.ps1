@@ -16,8 +16,8 @@ function Get-AyloSceneAllMedia {
             [Parameter(Mandatory)]$dataFile
         )
         
-        $dataParent = $dataFile.brandMeta.displayName
-        if ($dataFile.collections.count -gt 0) { $dataStudio = $dataFile.collections[0].name }
+        $dataParent = $dataFile.brandMeta.displayName.Trim()
+        if ($dataFile.collections.count -gt 0) { $dataStudio = $dataFile.collections[0].name.Trim() }
         else { $dataStudio = $dataParent }
     
         return @{

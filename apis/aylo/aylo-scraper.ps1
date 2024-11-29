@@ -198,8 +198,8 @@ function Get-AyloJson {
     }
 
     $result = $result.result[0]
-    $parentStudio = $result.brandMeta.displayName
-    if ($result.collections.count -gt 0) { $studio = $result.collections[0].name }
+    $parentStudio = $result.brandMeta.displayName.Trim()
+    if ($result.collections.count -gt 0) { $studio = $result.collections[0].name.Trim() }
     else { $studio = $parentStudio }
     $subDir = Join-Path "aylo" $apiType $parentStudio $studio
 
