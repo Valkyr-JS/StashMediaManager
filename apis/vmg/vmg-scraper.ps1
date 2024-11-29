@@ -1,17 +1,20 @@
 $headers = @{
-    "Cookie" = $null
-    "dnt"    = "1"
+    "Content-Length" = $null
+    "Content-Type"   = "application/json"
+    "Cookie"         = $null
+    "Host"           = "members.vixen.com"
+    "User-Agent"     = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
 }
 
 # Get headers for a VMG web request
-function Get-VGMHeaders {
+function Get-VMGHeaders {
     return $headers
 }
 
 # Set the data required for headers in a VMG web request
 function Set-VMGHeaders {
-    param(
-        [Parameter(Mandatory)][String]$pathToUserConfig
+    param (
+        [Parameter(Mandatory)][Int]$contentLength
     )
     Write-Host `n"Please copy-paste the access_token and refresh_token from the login cookie" -ForegroundColor Cyan
     do { $access_token = read-host "access_token" }
@@ -19,47 +22,18 @@ function Set-VMGHeaders {
     do { $refresh_token = read-host "refresh_token" }
     while ($refresh_token.Length -eq 0)
     $headers.Cookie = "access_token=$access_token; refresh_token=$refresh_token"
+    $headers["Content-Length"] = $contentLength
 }
 
-# --------------------------------------------- ===== -------------------------------------------- #
-
 # Set the query parameters for the web request
-function Set-AyloQueryParameters {
+function Set-VMGQueryParameters {
     param (
-        [Parameter(Mandatory)][ValidateSet('actor', 'gallery', 'movie', 'scene', 'serie', 'trailer')][String]$apiType,
-        [Parameter(Mandatory)][String]$pathToUserConfig,
-        [Int]$actorID,
-        [Int]$id,
-        [Int]$parentId,
-        [string]$parentStudio,
-        [Int]$offset
+        [Parameter(Mandatory)]$body
     )
     
-    $header = Get-AyloHeaders
-    $body = @{
-        limit  = 100
-        offset = $offset
-    }
+    $urlapi = "https://members.vixen.com/graphql"
+    $header = Get-VMGHeaders
 
-    # The API call for actors is different from other content types
-    if ($apiType -eq "actor") {
-        $urlapi = "https://site-api.project1service.com/v1/actors"
-        $body.Add('id', $id)
-    }
-    else {
-        $urlapi = "https://site-api.project1service.com/v2/releases"
-        $body.Add("orderBy", "-dateReleased")
-        $body.Add('type', $apiType)
-
-        # Allow all unlocked sites to be queried
-        $body.Add("groupFilter", "unlocked")
-
-        if ($actorID) { $body.Add('actorId', $actorID) }
-        if ($id) { $body.Add('id', $id) }
-        if ($parentId) { $body.Add('parentId', $parentId) }
-        if ($parentStudio) { $body.Add('brand', $parentStudio) }
-    }
-    
     $params = @{
         "Uri"     = $urlapi
         "Body"    = $body
@@ -68,34 +42,33 @@ function Set-AyloQueryParameters {
     return $params
 }
 
-
-# Attempt to fetch the given data from the Aylo API
-function Get-AyloQueryData {
+# Attempt to fetch the given data from the VMG API
+function Get-VMGQueryData {
     param(
-        [Parameter(Mandatory)][ValidateSet('actor', 'gallery', 'movie', 'scene', 'serie', 'trailer')][String]$apiType,
-        [Parameter(Mandatory)][String]$pathToUserConfig,
-        [Int]$actorID,
-        [Int]$contentID,
-        [Int]$offset,
-        [Int]$parentId,
-        [string]$parentStudio
+        [Parameter(Mandatory)][String]$query,
+        [Parameter(Mandatory)][String]$variables
     )
 
-    $params = Set-AyloQueryParameters -actorID $actorID -apiType $apiType -id $contentID -offset $offset -parentId $parentId -parentStudio $parentStudio -pathToUserConfig $pathToUserConfig
+    # Create the body here so we can get the file size for the header request
+    $body = @{
+        "query"     = $query
+        "variables" = $variables
+    } | ConvertTo-Json
 
-    if (($null -eq $headers.authorization) -or ($null -eq $headers.instance)) {
-        Set-AyloHeaders -pathToUserConfig $pathToUserConfig
-    }
-
-    try { $result = Invoke-RestMethod @params }
+    $params = Set-VMGQueryParameters $body
+    if ($null -eq $headers.Cookie) { Set-VMGHeaders $body.Length }
+    
+    try { $result = Invoke-RestMethod -Method Post @params }
     catch {
-        Write-Host "WARNING: $apiType scrape failed." -ForegroundColor Red
+        Write-Host "WARNING: Scrape failed." -ForegroundColor Red
         Write-Host "$_" -ForegroundColor Red
-        exit
+        $result = $null
     }
 
     return $result
 }
+
+# --------------------------------------------- ===== -------------------------------------------- #
 
 # Get data for all content related to the given Aylo actor and output it to a JSON file
 function Get-AyloActorJson {
