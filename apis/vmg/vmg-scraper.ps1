@@ -1,3 +1,8 @@
+# This is the API name used in the string, akin to "aylo" in the Aylo paths.
+# This distinguishes from the parent studio "Vixen Media Group", which will sit
+# alongside "Channels" as the other parent studio.
+$apiName = "VMG"
+
 $headers = @{
     "Content-Length" = $null
     "Content-Type"   = "application/json"
@@ -45,14 +50,16 @@ function Set-VMGQueryParameters {
 # Attempt to fetch the given data from the VMG API
 function Get-VMGQueryData {
     param(
+        [Parameter(Mandatory)][String]$operation,
         [Parameter(Mandatory)][String]$query,
-        [Parameter(Mandatory)][String]$variables
+        [Parameter(Mandatory)][Object]$variables
     )
 
     # Create the body here so we can get the file size for the header request
     $body = @{
-        "query"     = $query
-        "variables" = $variables
+        "operationName" = $operation
+        "query"         = $query
+        "variables"     = $variables
     } | ConvertTo-Json
 
     $params = Set-VMGQueryParameters $body
@@ -68,141 +75,47 @@ function Get-VMGQueryData {
     return $result
 }
 
-# --------------------------------------------- ===== -------------------------------------------- #
-
-# Get data for all content related to the given Aylo actor and output it to a JSON file
-function Get-AyloActorJson {
+# Get data for a piece of content
+function Get-VMGJson {
     param (
-        [Parameter(Mandatory)][Int]$actorID,
-        [Parameter(Mandatory)][String]$pathToUserConfig
+        [Parameter(Mandatory)][ValidateSet('scene')][String]$contentType,
+        [Parameter(Mandatory)][Int]$contentID,
+        [Parameter(Mandatory)][String]$operation,
+        [Parameter(Mandatory)][String]$query,
+        [Object]$variables
     )
-    $userConfig = Get-Content $pathToUserConfig -raw | ConvertFrom-Json
-    $dataDir = $userConfig.general.dataDirectory
-    $dataDownloadDir = $userConfig.general.dataDownloadDirectory
-    $subDir = Join-Path "aylo" "actor"
+    Write-Host `n"Starting scrape for $contentType #$contentID." -ForegroundColor Cyan
 
-    Write-Host "Scraping actor #$actorID."
-    
-    # Attempt to scrape actor data
-    $actorResult = Get-AyloQueryData -apiType "actor" -contentID $actorID -pathToUserConfig $pathToUserConfig
-    $actorResult = $actorResult.result[0]
-
-    # Skip creating JSON if it already exists
-    $existingJson = $null
-    foreach ($dir in @($dataDir, $dataDownloadDir)) {
-        $testPath = Join-Path $dir $subDir
-        if (Test-Path -LiteralPath $testPath) {
-            $filename = Get-ChildItem -LiteralPath $testPath | Where-Object { $_.BaseName -match "^$actorID\s" }
-            if ($null -ne $filename -and (Test-Path -LiteralPath $filename.FullName)) {
-                $existingJson = $filename.FullName
-                break;
-            }
-        }
+    # Attempt to scrape data
+    $result = Get-VMGQueryData $operation $query $variables
+    if ($null -eq $result) {
+        Write-Host "No $operation data found with $contentType ID $contentID." -ForegroundColor Red
+        return $null
     }
-
-    if ($null -eq $existingJson) {
-        # Output the actor JSON file
-        $actorName = Get-SanitizedFilename -title $actorResult.name
-        $filename = "$actorID $actorName.json"
-        $outputDir = Join-Path $dataDownloadDirectory $subDir
-        if (!(Test-Path -LiteralPath $outputDir)) { New-Item -ItemType "directory" -Path $outputDir }
-        $outputDest = Join-Path $outputDir $filename
-        $actorResult | ConvertTo-Json -Depth 32 | Out-File -LiteralPath $outputDest
-
-        if (!(Test-Path -LiteralPath $outputDest)) {
-            Write-Host "ERROR: actor JSON generation failed - $outputDest" -ForegroundColor Red
-            return $null
-        }  
-        else {
-            Write-Host "SUCCESS: actor JSON generated - $outputDest" -ForegroundColor Green
-            return $outputDest
-        }  
-    }
-    else {
-        Write-Host "JSON already exists at $($existingJson). Skipping JSON generation for actor #$actorID."
-        return $existingJson
-    }
-
+    return $result
 }
 
-# Get data for a piece of content
-function Get-AyloJson {
+# Get data for content related to the given VMG scene and output it to a JSON
+# file. Returns the path to the JSON file.
+function Get-VMGSceneJson {
     param (
-        [Parameter(Mandatory)][ValidateSet('gallery', 'movie', 'scene', 'serie', 'trailer')][String]$apiType,
-        [Parameter(Mandatory)][Int]$contentID,
-        [Parameter(Mandatory)][String]$pathToUserConfig
+        [Parameter(Mandatory)][String]$pathToUserConfig,
+        [Parameter(Mandatory)][Int]$sceneID
     )
-    Write-Host `n"Starting scrape for $apiType #$contentID." -ForegroundColor Cyan
-
     $userConfig = Get-Content $pathToUserConfig -raw | ConvertFrom-Json
     $contentDir = $userConfig.general.contentDirectory
     $contentDownloadDir = $userConfig.general.contentDownloadDirectory
     $dataDir = $userConfig.general.dataDirectory
     $dataDownloadDir = $userConfig.general.dataDownloadDirectory
 
-    if ($apiType -eq "trailer") {
-        $contentDir = $userConfig.general.assetsDirectory
-        $contentDownloadDir = $userConfig.general.assetsDownloadDirectory
+    $getVideoQuery = 'query getVideo($videoId:ID,$site:Site){findOneVideo(input:{videoId:$videoId,site:$site}){id:uuid videoId newId:videoId uuid slug site title description descriptionHtml absoluteUrl denied:isDenied isUpcoming releaseDate runLength directors{name __typename}categories{slug name __typename}channel{channelId isThirdPartyChannel __typename}chapters{trailerThumbPattern videoThumbPattern video{title seconds _id:videoChapterId __typename}__typename}showcase{showcaseId title itsupId{mobile desktop __typename}__typename}tour{views __typename}modelsSlugged:models{name slugged:slug __typename}expertReview{global properties{name slug rating __typename}models{slug rating name __typename}__typename}runLengthFormatted:runLength releaseDate videoUrl1080P:videoTokenId trailerTokenId picturesInSet carousel{listing{...PictureSetInfo __typename}main{...PictureSetInfo __typename}__typename}images{poster{...ImageInfo __typename}__typename}tags downloadResolutions{label size width res __typename}freeVideo isFreeLimitedTrial userVideoReview{slug rating __typename}crossNavigation{slug channel{slug __typename}__typename}__typename}}fragment PictureSetInfo on PictureSetImage{src width height name __typename}fragment ImageInfo on Image{src placeholder width height highdpi{double triple __typename}__typename}'
+    $getVideoVariables = @{
+        "videoId" = "105058"
     }
 
-    # Attempt to scrape content data
-    $result = Get-AyloQueryData -apiType $apiType -contentID $contentID -pathToUserConfig $pathToUserConfig
-    if ($result.meta.count -eq 0) {
-        Write-Host "No $apiType found with ID $contentID." -ForegroundColor Red
-    }
-
-    $result = $result.result[0]
-    $parentStudio = $result.brandMeta.displayName
-    if ($result.collections.count -gt 0) { $studio = $result.collections[0].name }
-    else { $studio = $parentStudio }
-    $subDir = Join-Path "aylo" $apiType $parentStudio $studio
-
-    # Series JSON - skip if it already exists and no new content is available
-    if ($apiType -eq "serie") {
-        $existingJson = $null
-        $existingJsonUpdated = $false
-        foreach ($dDir in @($dataDir, $dataDownloadDir)) {
-            $dataTestPath = Join-Path $dDir $subDir
-            if (Test-Path -LiteralPath $dataTestPath) {
-                $jsonFilename = Get-ChildItem -LiteralPath $dataTestPath | Where-Object { $_.BaseName -match "^$contentID\s" }
-                # Check the file exists in the directory
-                if ($null -ne $jsonFilename -and (Test-Path -LiteralPath $jsonFilename.FullName)) {
-                    $existingJson = $jsonFilename.FullName
-
-                    # Check if there is additional data in the newly scraped data
-                    $existingData = Get-Content -LiteralPath $existingJson -raw | ConvertFrom-Json
-                    if ($existingData.children.Count -lt $result.children.Count) {
-                        $existingJsonUpdated = $true
-                    }
-                }
-            }
-        }
-
-        # Scrape series data if it doesn't already exist, or it has been updated
-        if (($null -eq $existingJson) -or $existingJsonUpdated) {
-            $title = Get-SanitizedFilename -title $result.title
-            $filename = "$contentID $title.json"
-            $outputDir = Join-Path $userConfig.general.dataDownloadDirectory $subDir
-            if (!(Test-Path -LiteralPath $outputDir)) { New-Item -ItemType "directory" -Path $outputDir }
-            $outputDest = Join-Path $outputDir $filename
-
-            Write-Host "Generating JSON: $filename"
-            $result | ConvertTo-Json -Depth 32 | Out-File -LiteralPath $outputDest
-
-            if (!(Test-Path -LiteralPath $outputDest)) {
-                Write-Host "ERROR: series JSON generation failed - $outputDest" -ForegroundColor Red
-                return $null
-            }  
-            else {
-                Write-Host "SUCCESS: series JSON generated - $outputDest" -ForegroundColor Green
-                return $outputDest
-            }  
-        }
-        else {
-            Write-Host "Series data already exists at $($existingJson). Skipping JSON generation for series #$contentID."
-            return $existingJson
-        }    
-    }
+    $getVideoResult = Get-VMGJson -contentType "scene" -contentID $sceneID -operation "getVideo" -query $getVideoQuery -variables $getVideoVariables
+    $studio = (Get-Culture).TextInfo.ToTitleCase($getVideoResult.data.findOneVideo.site)
+    $subDir = Join-Path $apiName "getVideo" "Vixen Media Group" $studio
 
     # Skip creating JSON if both the JSON and the content already exist in either directory
     $existingPath = $null
@@ -210,13 +123,13 @@ function Get-AyloJson {
     foreach ($dir in @($contentDir, $contentDownloadDir)) {
         $testPath = Join-Path $dir $subDir
         if (Test-Path -LiteralPath $testPath) {
-            $filename = Get-ChildItem -LiteralPath $testPath | Where-Object { $_.BaseName -match "^$contentID\s" }
+            $filename = Get-ChildItem -LiteralPath $testPath | Where-Object { $_.BaseName -match "^$sceneID\s" }
             if ($null -ne $filename -and (Test-Path -LiteralPath $filename.FullName)) {
                 # Check the associated JSON also exists
                 foreach ($dDir in @($dataDir, $dataDownloadDir)) {
                     $dataTestPath = Join-Path $dDir $subDir
                     if (Test-Path -LiteralPath $dataTestPath) {
-                        $jsonFilename = Get-ChildItem -LiteralPath $dataTestPath | Where-Object { $_.BaseName -match "^$contentID\s" }
+                        $jsonFilename = Get-ChildItem -LiteralPath $dataTestPath | Where-Object { $_.BaseName -match "^$sceneID\s" }
                         if ($null -ne $jsonFilename -and (Test-Path -LiteralPath $jsonFilename.FullName)) {
                             # Check the file exists in the directory
                             $existingPath = $filename.FullName
@@ -230,173 +143,40 @@ function Get-AyloJson {
 
     if ($null -eq $existingPath -or $null -eq $existingJson) {
         # Output the JSON file
-        $title = Get-SanitizedFilename -title $result.title
-        $filename = "$contentID $title.json"
+        $title = Get-SanitizedFilename -title $getVideoResult.data.findOneVideo.title
+        $filename = "$sceneID $title.json"
         $outputDir = Join-Path $userConfig.general.dataDownloadDirectory $subDir
         if (!(Test-Path -LiteralPath $outputDir)) { New-Item -ItemType "directory" -Path $outputDir }
         $outputDest = Join-Path $outputDir $filename
-
+    
         Write-Host "Generating JSON: $filename"
-        $result | ConvertTo-Json -Depth 32 | Out-File -LiteralPath $outputDest
-
+        $getVideoResult | ConvertTo-Json -Depth 32 | Out-File -LiteralPath $outputDest
+    
         if (!(Test-Path -LiteralPath $outputDest)) {
-            Write-Host "ERROR: $apiType JSON generation failed - $outputDest" -ForegroundColor Red
+            Write-Host "ERROR: getVideo JSON generation failed - $outputDest" -ForegroundColor Red
             return $null
         }  
         else {
-            Write-Host "SUCCESS: $apiType JSON generated - $outputDest" -ForegroundColor Green
+            Write-Host "SUCCESS: getVideo JSON generated - $outputDest" -ForegroundColor Green
             return $outputDest
         }  
     }
     else {
-        Write-Host "Media already exists at $($existingPath). Skipping JSON generation for $apiType #$contentID."
+        Write-Host "Media already exists at $($existingPath). Skipping JSON generation for getVideo #$sceneID."
         return $existingJson
     }
 }
 
-# Get data for content related to the given Aylo gallery and output it to a JSON
-# file. Returns the path to the JSON file.
-function Get-AyloGalleryJson {
-    param (
-        [Parameter(Mandatory)][Int]$galleryID,
-        [Parameter(Mandatory)][String]$pathToUserConfig
-    )
-    Get-AyloJson -apiType "gallery" -contentID $galleryID -pathToUserConfig $pathToUserConfig
-}
 
-# Get data for content related to the given Aylo scene and output it to a JSON
-# file. Returns the path to the JSON file.
-function Get-AyloSceneJson {
-    param (
-        [Parameter(Mandatory)][String]$pathToUserConfig,
-        [Parameter(Mandatory)][Int]$sceneID
-    )
-    Get-AyloJson -apiType "scene" -contentID $sceneID -pathToUserConfig $pathToUserConfig
-}
-
-# Get data for content related to the given Aylo series and output it to a JSON
-# file. Returns the path to the JSON file.
-function Get-AyloSeriesJson {
-    param(
-        [Parameter(Mandatory)][String]$pathToUserConfig,
-        [Parameter(Mandatory)][Int]$seriesID
-    )
-    Get-AyloJson -apiType "serie" -contentID $seriesID -pathToUserConfig $pathToUserConfig
-}
-
-# Get data for content related to the given Aylo trailer and output it to a JSON
-# file. Returns the path to the JSON file.
-function Get-AyloTrailerJson {
-    param (
-        [Parameter(Mandatory)][String]$pathToUserConfig,
-        [Parameter(Mandatory)][Int]$trailerID
-    )
-    Get-AyloJson -apiType "trailer" -contentID $trailerID -pathToUserConfig $pathToUserConfig
-}
-
-# Get data for all content related to the given Aylo scene and output it to JSON
+# Get data for all content related to the given VMG scene and output it to JSON
 # files. Returns the path to the scene JSON file.
-function Get-AyloAllJson {
+function Get-VMGAllJson {
     param(
         [Parameter(Mandatory)][String]$pathToUserConfig,
         [Parameter(Mandatory)][Int]$sceneID
     )
     # Generate the scene JSON first, and use it to create the rest
-    $pathToSceneJson = Get-AyloSceneJson -pathToUserConfig $pathToUserConfig -sceneID $sceneID
-    $sceneData = Get-Content -LiteralPath $pathToSceneJson -raw | ConvertFrom-Json
+    $pathToSceneJson = Get-VMGSceneJson -pathToUserConfig $pathToUserConfig -sceneID $sceneID
 
-    # Galleries
-    [array]$galleries = $sceneData.children | Where-Object { $_.type -eq "gallery" }
-    foreach ($gID in $galleries.id) {
-        $null = Get-AyloGalleryJson -pathToUserConfig $pathToUserConfig -galleryID $gID
-    }
-
-    # Trailers
-    [array]$trailers = $sceneData.children | Where-Object { $_.type -eq "trailer" }
-    foreach ($tID in $trailers.id) {
-        $null = Get-AyloTrailerJson -pathToUserConfig $pathToUserConfig -trailerID $tID
-    }
-
-    # Actors
-    Write-Host `n"Starting scrape for actors in scene #$sceneID." -ForegroundColor Cyan
-    foreach ($aID in $sceneData.actors.id) {
-        $null = Get-AyloActorJson -actorID $aID -pathToUserConfig $pathToUserConfig
-    }
-    
-    # Series
-    if ($sceneData.parent -and $sceneData.parent.type -eq "serie") {
-        $pathToSeriesJson = Get-AyloSeriesJson -pathToUserConfig $pathToUserConfig -seriesID $sceneData.parent.id
-        $seriesData = Get-Content -LiteralPath $pathToSeriesJson -raw | ConvertFrom-Json
-        
-        # Series galleries
-        [array]$galleries = $seriesData.children | Where-Object { $_.type -eq "gallery" }
-        foreach ($gID in $galleries.id) {
-            $null = Get-AyloGalleryJson -pathToUserConfig $pathToUserConfig -galleryID $gID
-        }
-
-        # Series trailers
-        [array]$trailers = $seriesData.children | Where-Object { $_.type -eq "trailer" }
-        foreach ($tID in $trailers.id) {
-            $null = Get-AyloTrailerJson -pathToUserConfig $pathToUserConfig -trailerID $tID
-        }
-    }
     return $pathToSceneJson
-}
-
-# ---------------------------- Get scene IDs by... --------------------------- #
-
-# Get IDs for scenes featuring the provided actor's ID
-function Get-AyloSceneIDsByActorID {
-    param (
-        [Parameter(Mandatory)][Int]$actorID,
-        [Parameter(Mandatory)][String]$pathToUserConfig,
-        [String]$parentStudio
-    )
-
-    Write-Host `n"Searching for scenes featuring actor ID $actorID." -ForegroundColor Cyan
-
-    $results = Get-AyloQueryData -apiType "scene" -actorID $actorID -parentStudio $parentStudio -pathToUserConfig $pathToUserConfig
-    
-    if ($results.meta.count -eq 0) {
-        Write-Host "No scenes found with the provided actor ID $actorID." -ForegroundColor Red
-    }
-    else {
-        if ($results.meta.count -eq 1) { $sceneWord = "scene" }
-        else { $sceneWord = "scenes" }
-        Write-Host "$($results.meta.count) $sceneWord found featuring actor ID $actorID."
-    }
-
-    $sceneIDs = @()
-    foreach ($scene in $results.result) {
-        $sceneIDs += $scene.id
-    }
-    return $sceneIDs
-}
-
-
-# Get IDs for scenes featured in the provided series ID
-function Get-AyloSceneIDsBySeriesID {
-    param (
-        [Parameter(Mandatory)][Int]$seriesID,
-        [Parameter(Mandatory)][String]$pathToUserConfig
-    )
-
-    Write-Host `n"Searching for scenes featured in series ID $seriesID." -ForegroundColor Cyan
-
-    $results = Get-AyloQueryData -apiType "scene" -parentId $seriesID -pathToUserConfig $pathToUserConfig
-    
-    if ($results.meta.count -eq 0) {
-        Write-Host "No scenes found with the provided series ID $seriesID." -ForegroundColor Red
-    }
-    else {
-        if ($results.meta.count -eq 1) { $sceneWord = "scene" }
-        else { $sceneWord = "scenes" }
-        Write-Host "$($results.meta.count) $sceneWord found featuring series ID $seriesID."
-    }
-
-    $sceneIDs = @()
-    foreach ($scene in $results.result) {
-        $sceneIDs += $scene.id
-    }
-    return $sceneIDs
 }
