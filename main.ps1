@@ -241,35 +241,45 @@ function Set-Entry {
     # ---------------------------------------- VMG : Download ---------------------------------------- #
 
     if ($operationSelection -eq 1 -and $apiData.name -eq "Vixen Media Group") {
-        Write-Host `n"Specify the networks you wish to download from in a space-separated list, e.g. 'vixen blacked deeper'. Leave blank to scan all networks you have access to."
-        Write-Host "Accepted networks are: $($apiData.networks)"
+        Write-Host `n"Specify the sites you wish to download from in a space-separated list, e.g. 'vixen blacked deeper'. Leave blank to scan all sites you have access to."
+        Write-Host "Accepted sites are: $($apiData.networks)"
         do {
-            $networks = read-host "Networks"
-            $networksValid = $true
+            $sites = read-host "Sites"
+            $sitesValid = $true
 
             # Check if the answer is an empty string
-            if ($networks.Length -ne 0) {
-                # If not, check all networks are valid
-                foreach ($s in ($networks -split " ")) {
+            if ($sites.Length -ne 0) {
+                # If not, check all sites are valid
+                foreach ($s in ($sites -split " ")) {
                     if ($apiData.networks -notcontains $s.Trim()) {
-                        $networksValid = $false
+                        $sitesValid = $false
                     }
                 }
             }
         }
-        while ($networksValid -eq $false)
+        while ($sitesValid -eq $false)
 
-        $networks = $networks -split (" ")
+        $sites = $sites -split (" ")
         # Next, user specifies what to download
         Write-Host `n"What content do you want to download?"
+        Write-Host "1. All content from a single performer"
         Write-Host "2. All content from a list of scenes"
-        do { $contentSelection = read-host "Enter your selection (2)" }
-        while (($contentSelection -notmatch "[2]"))
+        do { $contentSelection = read-host "Enter your selection (1-2)" }
+        while (($contentSelection -notmatch "[1-2]"))
         
         # Load the required files
         . "./apis/vmg/vmg-actions.ps1"
         . "./apis/vmg/vmg-scraper.ps1"
 
+        if ($contentSelection -eq 1) {
+            # Next, user specifies model slugs
+            Write-Host `n"Specify the slug for the model you wish to download."
+            $modelSlug = read-host "Model slug"
+
+            foreach ($site in $sites) {
+                Get-VMGAllContentByModelSlug -modelSlug $modelSlug -pathToUserConfig $pathToUserConfig -site $site
+            }
+        }
         if ($contentSelection -eq 2) {
             # Next, user specifies scene IDs
             Write-Host `n"Specify all scene IDs you wish to download in a space-separated list, e.g. '123 2534 1563'."

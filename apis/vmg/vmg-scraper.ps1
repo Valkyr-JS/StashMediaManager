@@ -175,7 +175,11 @@ function Get-VMGModelJson {
         [Parameter(Mandatory)][String]$pathToUserConfig,
         [Parameter(Mandatory)][String]$studio
     )
+    $userConfig = Get-Content $pathToUserConfig -raw | ConvertFrom-Json
+    $dataDir = $userConfig.general.dataDirectory
+    $dataDownloadDir = $userConfig.general.dataDownloadDirectory
 
+    # Attempt to scrape the model data
     $query = 'query getModel($slug:String!,$site:Site!){findOneModel(input:{slug:$slug,site:$site}){modelId globalId name slug biography rating globalRating onlyFans images{listing{...ImageInfo __typename}poster{...ImageInfo __typename}profile{...ImageInfo __typename}__typename}__typename}}fragment ImageInfo on Image{src placeholder width height highdpi{double triple __typename}__typename}'
     $variables = @{
         "slug" = $modelSlug
@@ -186,7 +190,42 @@ function Get-VMGModelJson {
     $subDir = Join-Path $API_NAME "model" "getModel"
     $name = $result.data.findOneModel.name
 
-    Set-VMGJson -contentID $modelSlug -data $result -operation "getModel" -pathToUserConfig $pathToUserConfig -subDir $subDir -title $name
+    # Skip creating JSON if the JSON already exists in either directory
+    $existingJson = $null
+    foreach ($dDir in @($dataDir, $dataDownloadDir)) {
+        $dataTestPath = Join-Path $dDir $subDir
+        if (Test-Path -LiteralPath $dataTestPath) {
+            $jsonFilename = Get-ChildItem -LiteralPath $dataTestPath | Where-Object { $_.BaseName -match "^$modelSlug\s" }
+            if ($null -ne $jsonFilename -and (Test-Path -LiteralPath $jsonFilename.FullName)) {
+                $existingJson = $jsonFilename.FullName
+            }
+        }
+    }
+
+    if ($null -eq $existingJson) {
+        # Output the JSON file
+        $name = Get-SanitizedFilename -title $name
+        $filename = "$modelSlug $name.json"
+        $outputDir = Join-Path $userConfig.general.dataDownloadDirectory $subDir
+        if (!(Test-Path -LiteralPath $outputDir)) { New-Item -ItemType "directory" -Path $outputDir }
+        $outputDest = Join-Path $outputDir $filename
+    
+        Write-Host "Generating JSON: $filename"
+        $result | ConvertTo-Json -Depth 32 | Out-File -LiteralPath $outputDest
+    
+        if (!(Test-Path -LiteralPath $outputDest)) {
+            Write-Host "ERROR: model JSON generation failed - $outputDest" -ForegroundColor Red
+            return $null
+        }  
+        else {
+            Write-Host "SUCCESS: model JSON generated - $outputDest" -ForegroundColor Green
+            return $outputDest
+        }  
+    }
+    else {
+        Write-Host "JSON already exists at $($existingJson). Skipping JSON generation for getModel #$modelSlug."
+        return $existingJson
+    }
 }
 
 # Get the getPictureSet data for the given VMG gallery and output it to a JSON
@@ -284,4 +323,39 @@ function Get-VMGAllJson {
     }
 
     return $pathToSceneJson
+}
+
+# -------------------------------------- Get scene IDs by... ------------------------------------- #
+
+# Get IDs for scenes featuring the provided model slug
+function Get-VMGSceneIDsByModelSlug {
+    param (
+        [Parameter(Mandatory)][String]$modelSlug,
+        [Parameter(Mandatory)][String]$pathToUserConfig,
+        [Parameter(Mandatory)][String]$site
+    )
+    Write-Host `n"Searching for scenes featuring model slug $modelSlug." -ForegroundColor Cyan
+
+    $query = 'query getModel($slug:String!,$site:Site!,$first:Int,$skip:Int){findOneModel(input:{slug:$slug,site:$site}){allVideos(input:{site:$site,first:$first,skip:$skip}){totalCount results{id:uuid videoId slug title site __typename}__typename}__typename}}'
+    $variables = @{
+        "first" = 100
+        "site"  = $site.ToUpper()
+        "skip"  = 0
+        "slug"  = $modelSlug
+    }
+
+    $results = Get-VMGQueryData -operation "getModel" -query $query -variables $variables
+    $scenes = $results.data.findOneModel.allVideos.results | Where-Object { $_.site -match $site.ToLower() }
+    $count = $scenes.count
+
+    if ($count -eq 0) {
+        Write-Host "No scenes found with the provided model slug $modelSlug for $site." -ForegroundColor Red
+    }
+    else {
+        if ($count -eq 1) { $sceneWord = "scene" }
+        else { $sceneWord = "scenes" }
+        Write-Host "$($count) $sceneWord found featuring model slug $modelSlug."
+    }
+
+    return $scenes.videoId
 }
