@@ -1,7 +1,7 @@
 # This is the API name used in the string, akin to "aylo" in the Aylo paths.
 # This distinguishes from the parent studio "Vixen Media Group", which will sit
 # alongside "Channels" as the other parent studio.
-$apiName = "VMG"
+$API_NAME = "VMG"
 
 $headers = @{
     "Content-Length" = $null
@@ -83,7 +83,7 @@ function Get-VMGQueryData {
 # Get data for a piece of content
 function Get-VMGJson {
     param (
-        [Parameter(Mandatory)][ValidateSet('scene')][String]$contentType,
+        [Parameter(Mandatory)][ValidateSet('gallery', 'scene')][String]$contentType,
         [Parameter(Mandatory)][Int]$contentID,
         [Parameter(Mandatory)][String]$operation,
         [Parameter(Mandatory)][String]$query,
@@ -167,6 +167,29 @@ function Set-VMGJson {
     }
 }
 
+# Get the getPictureSet data for the given VMG gallery and output it to a JSON
+# file. Returns the path to the JSON file.
+function Get-VMGPictureSetJson {
+    param (
+        [Parameter(Mandatory)][Int]$galleryID,
+        [Parameter(Mandatory)][String]$parentStudio,
+        [Parameter(Mandatory)][String]$pathToUserConfig,
+        [Parameter(Mandatory)][String]$studio,
+        [Parameter(Mandatory)][String]$title
+    )
+
+    $query = 'query getPictureSet($pictureSetId:ID,$site:Site!){findOnePictureSet(input:{pictureSetId:$pictureSetId,site:$site}){pictureSetId zip video{id:uuid videoId freeVideo isFreeLimitedTrial site categories{slug name __typename}__typename}images{listing{src width height __typename}main{src width height __typename}__typename}__typename}}'
+    $variables = @{
+        "pictureSetId" = $galleryID
+        "site"         = $studio.ToUpper()
+    }
+
+    $result = Get-VMGJson -contentType "gallery" -contentID $galleryID -operation "getPictureSet" -query $query -variables $variables
+    $subDir = Join-Path $API_NAME "getPictureSet" $parentStudio $studio
+
+    Set-VMGJson -contentID $galleryID -data $result -operation "getPictureSet" -pathToUserConfig $pathToUserConfig -subDir $subDir -title $title
+}
+
 # Get the getToken data for the given VMG content and output it to a JSON file.
 # Returns the path to the JSON file.
 function Get-VMGTokenJson {
@@ -185,15 +208,14 @@ function Get-VMGTokenJson {
     if ($contentType -eq "scene") { $variables.Add("videoId", $contentID) }
 
     $result = Get-VMGJson -contentType $contentType -contentID $sceneID -operation "getToken" -query $query -variables $variables
-    $studio = (Get-Culture).TextInfo.ToTitleCase($result.data.findOneVideo.site)
-    $subDir = Join-Path $apiName "getToken" $parentStudio $studio
+    $subDir = Join-Path $API_NAME "getToken" $parentStudio $studio
 
     Set-VMGJson -contentID $sceneID -data $result -operation "getToken" -pathToUserConfig $pathToUserConfig -subDir $subDir -title $title
 }
 
 # Get the getVideo data for the given VMG content and output it to a JSON file.
 # Returns the path to the JSON file.
-function Get-VMGGetVideoJson {
+function Get-VMGVideoJson {
     param (
         [Parameter(Mandatory)][String]$pathToUserConfig,
         [Parameter(Mandatory)][Int]$sceneID
@@ -203,11 +225,10 @@ function Get-VMGGetVideoJson {
 
     $result = Get-VMGJson -contentType "scene" -contentID $sceneID -operation "getVideo" -query $query -variables $variables
     $studio = (Get-Culture).TextInfo.ToTitleCase($result.data.findOneVideo.site)
-    $subDir = Join-Path $apiName "getVideo" "Vixen Media Group" $studio
+    $subDir = Join-Path $API_NAME "getVideo" "Vixen Media Group" $studio
 
     Set-VMGJson -contentID $sceneID -data $result -operation "getVideo" -pathToUserConfig $pathToUserConfig -subDir $subDir -title $result.data.findOneVideo.title
 }
-
 
 # Get data for all content related to the given VMG scene and output it to JSON
 # files. Returns the path to the scene JSON file.
@@ -217,13 +238,17 @@ function Get-VMGAllJson {
         [Parameter(Mandatory)][Int]$sceneID
     )
     # Generate the scene JSON first, and use it to create the rest
-    $pathToSceneJson = Get-VMGGetVideoJson -pathToUserConfig $pathToUserConfig -sceneID $sceneID
+    $pathToSceneJson = Get-VMGVideoJson -pathToUserConfig $pathToUserConfig -sceneID $sceneID
     $sceneData = Get-Content -LiteralPath $pathToSceneJson -raw | ConvertFrom-Json
 
     $studio = (Get-Culture).TextInfo.ToTitleCase($sceneData.data.findOneVideo.site)
     $title = $sceneData.data.findOneVideo.title
 
+    # Get scene token
     Get-VMGTokenJson -contentType "scene" -contentID $sceneID -parentStudio "Vixen Media Group" -pathToUserConfig $pathToUserConfig -studio $studio -title $title
+
+    #Gallery - scene ID matches the gallery ID.
+    Get-VMGPictureSetJson -galleryID $sceneID -parentStudio "Vixen Media Group" -pathToUserConfig $pathToUserConfig -studio $studio -title $title
 
     return $pathToSceneJson
 }
