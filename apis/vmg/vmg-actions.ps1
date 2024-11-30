@@ -7,7 +7,7 @@ function Get-VMGAllContentBySceneIDs {
     $sceneIndex = 1
     foreach ($sceneID in $sceneIDs) {
         Write-Host `n"Scene $sceneIndex/$($sceneIDs.Length)" -Foreground Cyan
-        Get-VMGSceneJson -pathToUserConfig $pathToUserConfig -sceneID $sceneID
+        Get-VMGAllJson -pathToUserConfig $pathToUserConfig -sceneID $sceneID
         $sceneIndex++
     }
 }

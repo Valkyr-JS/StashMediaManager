@@ -95,12 +95,15 @@ function Get-VMGJson {
     return $result
 }
 
-# Get data for content related to the given VMG scene and output it to a JSON
-# file. Returns the path to the JSON file.
-function Get-VMGSceneJson {
+# Create a JSON file from the retrieved data after checking existing data
+function Set-VMGJson {
     param (
+        [Parameter(Mandatory)][Int]$contentID,
+        [Parameter(Mandatory)][Object]$data,
+        [Parameter(Mandatory)][String]$operation,
         [Parameter(Mandatory)][String]$pathToUserConfig,
-        [Parameter(Mandatory)][Int]$sceneID
+        [Parameter(Mandatory)][String]$subDir,
+        [Parameter(Mandatory)][String]$title
     )
     $userConfig = Get-Content $pathToUserConfig -raw | ConvertFrom-Json
     $contentDir = $userConfig.general.contentDirectory
@@ -108,28 +111,20 @@ function Get-VMGSceneJson {
     $dataDir = $userConfig.general.dataDirectory
     $dataDownloadDir = $userConfig.general.dataDownloadDirectory
 
-    $getVideoQuery = 'query getVideo($videoId:ID,$site:Site){findOneVideo(input:{videoId:$videoId,site:$site}){id:uuid videoId newId:videoId uuid slug site title description descriptionHtml absoluteUrl denied:isDenied isUpcoming releaseDate runLength directors{name __typename}categories{slug name __typename}channel{channelId isThirdPartyChannel __typename}chapters{trailerThumbPattern videoThumbPattern video{title seconds _id:videoChapterId __typename}__typename}showcase{showcaseId title itsupId{mobile desktop __typename}__typename}tour{views __typename}modelsSlugged:models{name slugged:slug __typename}expertReview{global properties{name slug rating __typename}models{slug rating name __typename}__typename}runLengthFormatted:runLength releaseDate videoUrl1080P:videoTokenId trailerTokenId picturesInSet carousel{listing{...PictureSetInfo __typename}main{...PictureSetInfo __typename}__typename}images{poster{...ImageInfo __typename}__typename}tags downloadResolutions{label size width res __typename}freeVideo isFreeLimitedTrial userVideoReview{slug rating __typename}crossNavigation{slug channel{slug __typename}__typename}__typename}}fragment PictureSetInfo on PictureSetImage{src width height name __typename}fragment ImageInfo on Image{src placeholder width height highdpi{double triple __typename}__typename}'
-    $getVideoVariables = @{
-        "videoId" = "105058"
-    }
-
-    $getVideoResult = Get-VMGJson -contentType "scene" -contentID $sceneID -operation "getVideo" -query $getVideoQuery -variables $getVideoVariables
-    $studio = (Get-Culture).TextInfo.ToTitleCase($getVideoResult.data.findOneVideo.site)
-    $subDir = Join-Path $apiName "getVideo" "Vixen Media Group" $studio
-
-    # Skip creating JSON if both the JSON and the content already exist in either directory
+    # Skip creating JSON if both the JSON and the content already exist in
+    # either directory
     $existingPath = $null
     $existingJson = $null
     foreach ($dir in @($contentDir, $contentDownloadDir)) {
         $testPath = Join-Path $dir $subDir
         if (Test-Path -LiteralPath $testPath) {
-            $filename = Get-ChildItem -LiteralPath $testPath | Where-Object { $_.BaseName -match "^$sceneID\s" }
+            $filename = Get-ChildItem -LiteralPath $testPath | Where-Object { $_.BaseName -match "^$contentID\s" }
             if ($null -ne $filename -and (Test-Path -LiteralPath $filename.FullName)) {
                 # Check the associated JSON also exists
                 foreach ($dDir in @($dataDir, $dataDownloadDir)) {
                     $dataTestPath = Join-Path $dDir $subDir
                     if (Test-Path -LiteralPath $dataTestPath) {
-                        $jsonFilename = Get-ChildItem -LiteralPath $dataTestPath | Where-Object { $_.BaseName -match "^$sceneID\s" }
+                        $jsonFilename = Get-ChildItem -LiteralPath $dataTestPath | Where-Object { $_.BaseName -match "^$contentID\s" }
                         if ($null -ne $jsonFilename -and (Test-Path -LiteralPath $jsonFilename.FullName)) {
                             # Check the file exists in the directory
                             $existingPath = $filename.FullName
@@ -143,28 +138,45 @@ function Get-VMGSceneJson {
 
     if ($null -eq $existingPath -or $null -eq $existingJson) {
         # Output the JSON file
-        $title = Get-SanitizedFilename -title $getVideoResult.data.findOneVideo.title
-        $filename = "$sceneID $title.json"
+        $title = Get-SanitizedFilename -title $title
+        $filename = "$contentID $title.json"
         $outputDir = Join-Path $userConfig.general.dataDownloadDirectory $subDir
         if (!(Test-Path -LiteralPath $outputDir)) { New-Item -ItemType "directory" -Path $outputDir }
         $outputDest = Join-Path $outputDir $filename
     
         Write-Host "Generating JSON: $filename"
-        $getVideoResult | ConvertTo-Json -Depth 32 | Out-File -LiteralPath $outputDest
+        $data | ConvertTo-Json -Depth 32 | Out-File -LiteralPath $outputDest
     
         if (!(Test-Path -LiteralPath $outputDest)) {
-            Write-Host "ERROR: getVideo JSON generation failed - $outputDest" -ForegroundColor Red
+            Write-Host "ERROR: $operation JSON generation failed - $outputDest" -ForegroundColor Red
             return $null
         }  
         else {
-            Write-Host "SUCCESS: getVideo JSON generated - $outputDest" -ForegroundColor Green
+            Write-Host "SUCCESS: $operation JSON generated - $outputDest" -ForegroundColor Green
             return $outputDest
         }  
     }
     else {
-        Write-Host "Media already exists at $($existingPath). Skipping JSON generation for getVideo #$sceneID."
+        Write-Host "Media already exists at $($existingPath). Skipping JSON generation for $operation #$contentID."
         return $existingJson
     }
+} 
+
+# Get the getVideo data for the given VMG content and output it to a JSON file.
+# Returns the path to the JSON file.
+function Get-VMGGetVideoJson {
+    param (
+        [Parameter(Mandatory)][String]$pathToUserConfig,
+        [Parameter(Mandatory)][Int]$sceneID
+    )
+    $query = 'query getVideo($videoId:ID){findOneVideo(input:{videoId:$videoId}){id:uuid videoId newId:videoId uuid slug site title description descriptionHtml absoluteUrl denied:isDenied isUpcoming releaseDate runLength directors{name __typename}categories{slug name __typename}channel{channelId isThirdPartyChannel __typename}chapters{trailerThumbPattern videoThumbPattern video{title seconds _id:videoChapterId __typename}__typename}showcase{showcaseId title itsupId{mobile desktop __typename}__typename}tour{views __typename}modelsSlugged:models{name slugged:slug __typename}expertReview{global properties{name slug rating __typename}models{slug rating name __typename}__typename}runLengthFormatted:runLength releaseDate videoUrl1080P:videoTokenId trailerTokenId picturesInSet carousel{listing{...PictureSetInfo __typename}main{...PictureSetInfo __typename}__typename}images{poster{...ImageInfo __typename}__typename}tags downloadResolutions{label size width res __typename}freeVideo isFreeLimitedTrial userVideoReview{slug rating __typename}crossNavigation{slug channel{slug __typename}__typename}__typename}}fragment PictureSetInfo on PictureSetImage{src width height name __typename}fragment ImageInfo on Image{src placeholder width height highdpi{double triple __typename}__typename}'
+    $variables = @{ "videoId" = $sceneID }
+
+    $result = Get-VMGJson -contentType "scene" -contentID $sceneID -operation "getVideo" -query $query -variables $variables
+    $studio = (Get-Culture).TextInfo.ToTitleCase($result.data.findOneVideo.site)
+    $subDir = Join-Path $apiName "getVideo" "Vixen Media Group" $studio
+
+    Set-VMGJson -contentID $sceneID -data $result -operation "getVideo" -pathToUserConfig $pathToUserConfig -subDir $subDir -title $result.data.findOneVideo.title
 }
 
 
@@ -176,7 +188,7 @@ function Get-VMGAllJson {
         [Parameter(Mandatory)][Int]$sceneID
     )
     # Generate the scene JSON first, and use it to create the rest
-    $pathToSceneJson = Get-VMGSceneJson -pathToUserConfig $pathToUserConfig -sceneID $sceneID
+    $pathToSceneJson = Get-VMGGetVideoJson -pathToUserConfig $pathToUserConfig -sceneID $sceneID
 
     return $pathToSceneJson
 }
