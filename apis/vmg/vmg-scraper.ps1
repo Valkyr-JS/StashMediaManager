@@ -83,8 +83,8 @@ function Get-VMGQueryData {
 # Get data for a piece of content
 function Get-VMGJson {
     param (
-        [Parameter(Mandatory)][ValidateSet('gallery', 'scene', 'trailer')][String]$contentType,
-        [Parameter(Mandatory)][Int]$contentID,
+        [Parameter(Mandatory)][ValidateSet('gallery', 'model', 'scene', 'trailer')][String]$contentType,
+        [Parameter(Mandatory)][String]$contentID,
         [Parameter(Mandatory)][String]$operation,
         [Parameter(Mandatory)][String]$query,
         [Object]$variables
@@ -103,7 +103,7 @@ function Get-VMGJson {
 # Create a JSON file from the retrieved data after checking existing data
 function Set-VMGJson {
     param (
-        [Parameter(Mandatory)][Int]$contentID,
+        [Parameter(Mandatory)][String]$contentID,
         [Parameter(Mandatory)][Object]$data,
         [Parameter(Mandatory)][String]$operation,
         [Parameter(Mandatory)][String]$pathToUserConfig,
@@ -165,6 +165,28 @@ function Set-VMGJson {
         Write-Host "Media already exists at $($existingPath). Skipping JSON generation for $operation #$contentID."
         return $existingJson
     }
+}
+
+# Get the getModel data for the given VMG model and output it to a JSON file.
+# Returns the path to the JSON file.
+function Get-VMGModelJson {
+    param (
+        [Parameter(Mandatory)][String]$modelSlug,
+        [Parameter(Mandatory)][String]$pathToUserConfig,
+        [Parameter(Mandatory)][String]$studio
+    )
+
+    $query = 'query getModel($slug:String!,$site:Site!){findOneModel(input:{slug:$slug,site:$site}){modelId globalId name slug biography rating globalRating onlyFans images{listing{...ImageInfo __typename}poster{...ImageInfo __typename}profile{...ImageInfo __typename}__typename}__typename}}fragment ImageInfo on Image{src placeholder width height highdpi{double triple __typename}__typename}'
+    $variables = @{
+        "slug" = $modelSlug
+        "site" = $studio.ToUpper()
+    }
+
+    $result = Get-VMGJson -contentType "model" -contentID $modelSlug -operation "getModel" -query $query -variables $variables
+    $subDir = Join-Path $API_NAME "model" "getModel"
+    $name = $result.data.findOneModel.name
+
+    Set-VMGJson -contentID $modelSlug -data $result -operation "getModel" -pathToUserConfig $pathToUserConfig -subDir $subDir -title $name
 }
 
 # Get the getPictureSet data for the given VMG gallery and output it to a JSON
@@ -241,9 +263,10 @@ function Get-VMGAllJson {
     # Generate the scene JSON first, and use it to create the rest
     $pathToSceneJson = Get-VMGVideoJson -pathToUserConfig $pathToUserConfig -sceneID $sceneID
     $sceneData = Get-Content -LiteralPath $pathToSceneJson -raw | ConvertFrom-Json
+    $sceneData = $sceneData.data.findOneVideo
 
-    $studio = (Get-Culture).TextInfo.ToTitleCase($sceneData.data.findOneVideo.site)
-    $title = $sceneData.data.findOneVideo.title
+    $studio = (Get-Culture).TextInfo.ToTitleCase($sceneData.site)
+    $title = $sceneData.title
 
     # Get scene token
     Get-VMGTokenJson -contentType "scene" -contentID $sceneID -parentStudio "Vixen Media Group" -pathToUserConfig $pathToUserConfig -studio $studio -title $title
@@ -253,6 +276,12 @@ function Get-VMGAllJson {
 
     #Trailer
     Get-VMGTokenJson -contentType "trailer" -contentID $sceneID -parentStudio "Vixen Media Group" -pathToUserConfig $pathToUserConfig -studio $studio -title $title
+
+    # Actors
+    Write-Host `n"Starting scrape for actors in scene #$sceneID." -ForegroundColor Cyan
+    foreach ($aID in $sceneData.modelsSlugged.slugged) {
+        $null = Get-VMGModelJson -modelSlug $aID -pathToUserConfig $pathToUserConfig -studio $studio
+    }
 
     return $pathToSceneJson
 }
