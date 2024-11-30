@@ -83,7 +83,7 @@ function Get-VMGQueryData {
 # Get data for a piece of content
 function Get-VMGJson {
     param (
-        [Parameter(Mandatory)][ValidateSet('gallery', 'scene')][String]$contentType,
+        [Parameter(Mandatory)][ValidateSet('gallery', 'scene', 'trailer')][String]$contentType,
         [Parameter(Mandatory)][Int]$contentID,
         [Parameter(Mandatory)][String]$operation,
         [Parameter(Mandatory)][String]$query,
@@ -185,7 +185,7 @@ function Get-VMGPictureSetJson {
     }
 
     $result = Get-VMGJson -contentType "gallery" -contentID $galleryID -operation "getPictureSet" -query $query -variables $variables
-    $subDir = Join-Path $API_NAME "getPictureSet" $parentStudio $studio
+    $subDir = Join-Path $API_NAME "gallery" "getPictureSet" $parentStudio $studio
 
     Set-VMGJson -contentID $galleryID -data $result -operation "getPictureSet" -pathToUserConfig $pathToUserConfig -subDir $subDir -title $title
 }
@@ -194,7 +194,7 @@ function Get-VMGPictureSetJson {
 # Returns the path to the JSON file.
 function Get-VMGTokenJson {
     param (
-        [Parameter(Mandatory)][ValidateSet('scene')][String]$contentType,
+        [Parameter(Mandatory)][ValidateSet('scene', 'trailer')][String]$contentType,
         [Parameter(Mandatory)][Int]$contentID,
         [Parameter(Mandatory)][String]$parentStudio,
         [Parameter(Mandatory)][String]$pathToUserConfig,
@@ -204,11 +204,12 @@ function Get-VMGTokenJson {
 
     $query = 'query getToken($videoId:ID!,$device:Device!){generateVideoToken(input:{videoId:$videoId,device:$device}){p270{token cdn __typename}p360{token cdn __typename}p480{token cdn __typename}p480l{token cdn __typename}p720{token cdn __typename}p1080{token cdn __typename}p2160{token cdn __typename}hls{token cdn __typename}__typename}}'
 
-    $variables = @{ "device" = "desktop" }
-    if ($contentType -eq "scene") { $variables.Add("videoId", $contentID) }
+    $variables = @{ "videoId" = $contentID }
+    if ($contentType -eq "scene") { $variables.Add("device", "desktop") }
+    elseif ($contentType -eq "trailer") { $variables.Add("device", "trailer") }
 
     $result = Get-VMGJson -contentType $contentType -contentID $sceneID -operation "getToken" -query $query -variables $variables
-    $subDir = Join-Path $API_NAME "getToken" $parentStudio $studio
+    $subDir = Join-Path $API_NAME $contentType "getToken" $parentStudio $studio
 
     Set-VMGJson -contentID $sceneID -data $result -operation "getToken" -pathToUserConfig $pathToUserConfig -subDir $subDir -title $title
 }
@@ -225,7 +226,7 @@ function Get-VMGVideoJson {
 
     $result = Get-VMGJson -contentType "scene" -contentID $sceneID -operation "getVideo" -query $query -variables $variables
     $studio = (Get-Culture).TextInfo.ToTitleCase($result.data.findOneVideo.site)
-    $subDir = Join-Path $API_NAME "getVideo" "Vixen Media Group" $studio
+    $subDir = Join-Path $API_NAME "scene" "getVideo" "Vixen Media Group" $studio
 
     Set-VMGJson -contentID $sceneID -data $result -operation "getVideo" -pathToUserConfig $pathToUserConfig -subDir $subDir -title $result.data.findOneVideo.title
 }
@@ -249,6 +250,9 @@ function Get-VMGAllJson {
 
     #Gallery - scene ID matches the gallery ID.
     Get-VMGPictureSetJson -galleryID $sceneID -parentStudio "Vixen Media Group" -pathToUserConfig $pathToUserConfig -studio $studio -title $title
+
+    #Trailer
+    Get-VMGTokenJson -contentType "trailer" -contentID $sceneID -parentStudio "Vixen Media Group" -pathToUserConfig $pathToUserConfig -studio $studio -title $title
 
     return $pathToSceneJson
 }
