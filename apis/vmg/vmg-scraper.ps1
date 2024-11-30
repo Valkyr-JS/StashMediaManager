@@ -21,12 +21,17 @@ function Set-VMGHeaders {
     param (
         [Parameter(Mandatory)][Int]$contentLength
     )
-    Write-Host `n"Please copy-paste the access_token and refresh_token from the login cookie" -ForegroundColor Cyan
-    do { $access_token = read-host "access_token" }
-    while ($access_token.Length -eq 0)
-    do { $refresh_token = read-host "refresh_token" }
-    while ($refresh_token.Length -eq 0)
-    $headers.Cookie = "access_token=$access_token; refresh_token=$refresh_token"
+    # Only set the header cookie when it is null
+    if ($null -eq $headers.Cookie) {
+        Write-Host `n"Please copy-paste the access_token and refresh_token from the login cookie" -ForegroundColor Cyan
+        do { $access_token = read-host "access_token" }
+        while ($access_token.Length -eq 0)
+        do { $refresh_token = read-host "refresh_token" }
+        while ($refresh_token.Length -eq 0)
+        $headers.Cookie = "access_token=$access_token; refresh_token=$refresh_token"
+    }
+
+    # Content length needs to be updated on every request.
     $headers["Content-Length"] = $contentLength
 }
 
@@ -63,7 +68,7 @@ function Get-VMGQueryData {
     } | ConvertTo-Json
 
     $params = Set-VMGQueryParameters $body
-    if ($null -eq $headers.Cookie) { Set-VMGHeaders $body.Length }
+    Set-VMGHeaders $body.Length
     
     try { $result = Invoke-RestMethod -Method Post @params }
     catch {
@@ -160,7 +165,31 @@ function Set-VMGJson {
         Write-Host "Media already exists at $($existingPath). Skipping JSON generation for $operation #$contentID."
         return $existingJson
     }
-} 
+}
+
+# Get the getToken data for the given VMG content and output it to a JSON file.
+# Returns the path to the JSON file.
+function Get-VMGTokenJson {
+    param (
+        [Parameter(Mandatory)][ValidateSet('scene')][String]$contentType,
+        [Parameter(Mandatory)][Int]$contentID,
+        [Parameter(Mandatory)][String]$parentStudio,
+        [Parameter(Mandatory)][String]$pathToUserConfig,
+        [Parameter(Mandatory)][String]$studio,
+        [Parameter(Mandatory)][String]$title
+    )
+
+    $query = 'query getToken($videoId:ID!,$device:Device!){generateVideoToken(input:{videoId:$videoId,device:$device}){p270{token cdn __typename}p360{token cdn __typename}p480{token cdn __typename}p480l{token cdn __typename}p720{token cdn __typename}p1080{token cdn __typename}p2160{token cdn __typename}hls{token cdn __typename}__typename}}'
+
+    $variables = @{ "device" = "desktop" }
+    if ($contentType -eq "scene") { $variables.Add("videoId", $contentID) }
+
+    $result = Get-VMGJson -contentType $contentType -contentID $sceneID -operation "getToken" -query $query -variables $variables
+    $studio = (Get-Culture).TextInfo.ToTitleCase($result.data.findOneVideo.site)
+    $subDir = Join-Path $apiName "getToken" $parentStudio $studio
+
+    Set-VMGJson -contentID $sceneID -data $result -operation "getToken" -pathToUserConfig $pathToUserConfig -subDir $subDir -title $title
+}
 
 # Get the getVideo data for the given VMG content and output it to a JSON file.
 # Returns the path to the JSON file.
@@ -189,6 +218,12 @@ function Get-VMGAllJson {
     )
     # Generate the scene JSON first, and use it to create the rest
     $pathToSceneJson = Get-VMGGetVideoJson -pathToUserConfig $pathToUserConfig -sceneID $sceneID
+    $sceneData = Get-Content -LiteralPath $pathToSceneJson -raw | ConvertFrom-Json
+
+    $studio = (Get-Culture).TextInfo.ToTitleCase($sceneData.data.findOneVideo.site)
+    $title = $sceneData.data.findOneVideo.title
+
+    Get-VMGTokenJson -contentType "scene" -contentID $sceneID -parentStudio "Vixen Media Group" -pathToUserConfig $pathToUserConfig -studio $studio -title $title
 
     return $pathToSceneJson
 }
