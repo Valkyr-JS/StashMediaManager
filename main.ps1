@@ -269,6 +269,7 @@ function Set-Entry {
         
         # Load the required files
         . "./apis/vmg/vmg-actions.ps1"
+        . "./apis/vmg/vmg-downloader.ps1"
         . "./apis/vmg/vmg-scraper.ps1"
 
         if ($contentSelection -eq 1) {

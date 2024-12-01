@@ -239,7 +239,7 @@ function Get-VMGPictureSetJson {
         [Parameter(Mandatory)][String]$title
     )
 
-    $query = 'query getPictureSet($pictureSetId:ID,$site:Site!){findOnePictureSet(input:{pictureSetId:$pictureSetId,site:$site}){pictureSetId zip video{id:uuid videoId freeVideo isFreeLimitedTrial site categories{slug name __typename}__typename}images{listing{src width height __typename}main{src width height __typename}__typename}__typename}}'
+    $query = 'query getPictureSet($pictureSetId:ID,$site:Site!){findOnePictureSet(input:{pictureSetId:$pictureSetId,site:$site}){pictureSetId zip video{id:uuid videoId title freeVideo isFreeLimitedTrial site categories{slug name __typename}__typename}images{listing{src width height __typename}main{src width height __typename}__typename}__typename}}'
     $variables = @{
         "pictureSetId" = $galleryID
         "site"         = $studio.ToUpper()
