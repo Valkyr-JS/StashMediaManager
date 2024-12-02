@@ -162,7 +162,7 @@ function Set-Entry {
         # Load the required files
         . "./apis/addfriends/addfriends-json-to-stash-staging.ps1"
         
-        Set-AFJsonToMetaStash -pathToUserConfig $pathToUserConfig
+        Set-AFJsonToStashStaging -pathToUserConfig $pathToUserConfig
     }
 
     # ------------------------------ Aylo : Download ----------------------------- #

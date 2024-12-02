@@ -1,4 +1,4 @@
-function Set-AFJsonToMetaStash {
+function Set-AFJsonToStashStaging {
     param(
         [Parameter(Mandatory)][String]$pathToUserConfig
     )
