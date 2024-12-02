@@ -48,13 +48,23 @@ function Get-VMGScene {
 
     # Get the highest resolution file
     $tokenLinkData = $null
-    if ($tokenData.p2160) { $tokenLinkData = $tokenData.p2160 }
-    elseif ($tokenData.p1080) { $tokenLinkData = $tokenData.p1080 }
-    else { $tokenLinkData = $tokenData.p720 }
+    $sceneRes = $null
+    if ($tokenData.p2160) {
+        $tokenLinkData = $tokenData.p2160
+        $sceneRes = "2160p"
+    }
+    elseif ($tokenData.p1080) {
+        $tokenLinkData = $tokenData.p1080
+        $sceneRes = "1080p"
+    }
+    else {
+        $tokenLinkData = $tokenData.p720
+        $sceneRes = "720p"
+    }
     $tokenLink = $tokenLinkData.token
 
     # Download the scene file
-    $filename = Set-MediaFilename -mediaType "scene" -extension "mp4" -id $sceneData.videoId -title $sceneData.title
+    $filename = Set-MediaFilename -mediaType "scene" -extension "mp4" -id $sceneData.videoId -resolution $sceneRes -title $sceneData.title
     return Get-VMGMediaFile -downloadDir $downloadDir -filename $filename -mediaType "scene" -storageDir $storageDir -subDir $subDir -target $tokenLink
 }
 
