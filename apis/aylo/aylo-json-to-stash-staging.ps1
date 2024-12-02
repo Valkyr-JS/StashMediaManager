@@ -68,8 +68,11 @@ function Set-AyloJsonToStashStaging {
     $seriesDataDir = Join-Path $dataDir "serie"
 
     # Logging meta
-    $metaScenesUpdated = 0
+    $metaGalleriesSkipped = 0
     $metaGalleriesUpdated = 0
+    $metaScenesSkipped = 0
+    $metaScenesUpdated = 0
+    $metaStudiosSkipped = 0
 
     # ---------------------------------------------------------------------------- #
     #                                    Scenes                                    #
@@ -106,14 +109,15 @@ function Set-AyloJsonToStashStaging {
     $processTagID = Get-ProcessTagIDByName "0020 Local scrape | Aylo"
 
     foreach ($stashScene in $stashScenesToProcess) {
-        Write-Host "Updating Stash scene $($stashScene.id)" -ForegroundColor Cyan
+        $stashSceneID = $stashScene.id
+        Write-Host "Updating Stash scene $stashSceneID" -ForegroundColor Cyan
 
         # Get the associated data file
         $ayloID = $stashScene.files.path.split("/")[6].split(" ")[0]
         $sceneData = Get-ChildItem -LiteralPath $scenesDataDir -Recurse -File -Filter "*.json" | Where-Object { $_.BaseName -match "^$ayloID\s" }
 
         if (!($sceneData)) {
-            Write-Host "FAILED: No data file found that matches Stash scene $($stashScene.id)." -ForegroundColor Red
+            Write-Host "FAILED: No data file found that matches Stash scene $stashSceneID." -ForegroundColor Red
         }
         else {
             $sceneData = Get-Content -LiteralPath $sceneData -raw | ConvertFrom-Json
@@ -153,6 +157,11 @@ function Set-AyloJsonToStashStaging {
                     $aliases = "| Aylo #group $($seriesData.id)"
 
                     $stashStudio = Get-StashStudioFromData -collectionsDataDir $collectionsDataDir -data $seriesData
+                    if ($null -eq $stashStudio) {
+                        Write-Host "Skipping Stash group creation for $($seriesData.title)." -ForegroundColor Red
+                        $metaGroupsSkipped++
+                        break
+                    }
                     if ($stashStudio.data.findStudios) { $stashStudioID = $stashStudio.data.findStudios.studios.id }
                     else { $stashStudioID = $stashStudio.data.studioCreate.id }
                     
@@ -196,6 +205,11 @@ function Set-AyloJsonToStashStaging {
             # ---------------------------------- Studio ---------------------------------- #
             
             $stashStudio = Get-StashStudioFromData -collectionsDataDir $collectionsDataDir -data $sceneData
+            if ($null -eq $stashStudio) {
+                Write-Host "Skipping Stash scene #$stashSceneID." -ForegroundColor Red
+                $metaScenesSkipped++
+                break
+            }
 
             # ----------------------------------- Tags ----------------------------------- #
 
@@ -319,11 +333,12 @@ function Set-AyloJsonToStashStaging {
 
         # Get the associated data file
         $ayloID = $stashGallery.files.path.split("/")[6].split(" ")[0]
+        $stashGalleryID = $stashGallery.id
 
         $galleryData = Get-ChildItem -LiteralPath $galleriesDataDir -Recurse -File -Filter "*.json" | Where-Object { $_.BaseName -match "^$ayloID\s" }
 
         if (!($galleryData)) {
-            Write-Host "FAILED: No data file found that matches Stash gallery $($stashGallery.id)." -ForegroundColor Red
+            Write-Host "FAILED: No data file found that matches Stash gallery $stashGalleryID." -ForegroundColor Red
         }
         else {
             $galleryData = Get-Content -LiteralPath $galleryData -raw | ConvertFrom-Json
@@ -350,6 +365,11 @@ function Set-AyloJsonToStashStaging {
             # ---------------------------------- Studio ---------------------------------- #
             
             $stashStudio = Get-StashStudioFromData -collectionsDataDir $collectionsDataDir -data $galleryData
+            if ($null -eq $stashStudio) {
+                Write-Host "Skipping Stash gallery #$stashGalleryID." -ForegroundColor Red
+                $metaGalleriesSkipped++
+                break
+            }
 
             # ---------------------------- Update the gallery ---------------------------- #
 
@@ -360,7 +380,10 @@ function Set-AyloJsonToStashStaging {
 
     Write-Host `n"All updates complete" -ForegroundColor Cyan
     Write-Host "Scenes updated: $metaScenesUpdated"
+    Write-Host "Scenes skipped: $metaScenesSkipped"
     Write-Host "Galleries updated: $metaGalleriesUpdated"
+    Write-Host "Galleries skipped: $metaGalleriesSkipped"
+    Write-Host "Studios skipped: $metaStudiosSkipped"
 }
 
 # ---------------------------------------------------------------------------- #
@@ -539,7 +562,8 @@ function Set-PerformersFromActorList {
 }
 
 # Get the Stash studio data from a piece of scene or group data, and create a
-# new one if required. Returns the Stash studio data
+# new one if required. Returns the Stash studio data, or null if not data is
+# found.
 function Get-StashStudioFromData {
     param (
         [Parameter(Mandatory)][string]$collectionsDataDir,
@@ -549,6 +573,14 @@ function Get-StashStudioFromData {
 
     # Get the studio data from the manually-scraped collections file
     $studioData = Get-ChildItem -LiteralPath $collectionsDataDir -Filter "*.json" | Where-Object { $_.BaseName -match $data.brand }
+
+    # Return null if studio data is not found
+    if ($null -eq $studioData) {
+        Write-Host "ERROR: No studio data found for $($data.name)." -ForegroundColor Red
+        $metaStudiosSkipped++
+        return $null
+    }
+
     $studioData = Get-Content -LiteralPath $studioData -raw | ConvertFrom-Json
 
     # If collections count is null, no studio is assigned so it should be filed
