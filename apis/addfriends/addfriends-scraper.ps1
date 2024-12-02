@@ -92,7 +92,7 @@ function Get-AFModelSiteJson {
         }
 
         Write-Host "Generating site JSON: $filename"
-        $result | ConvertTo-Json -Depth 32 | Out-File -FilePath $outputDest
+        $result | ConvertTo-Json -Depth 32 | Out-File -LiteralPath $outputDest
 
         if (!(Test-Path -LiteralPath $outputDest)) {
             Write-Host "ERROR: site JSON generation failed - $outputDest" -ForegroundColor Red
@@ -149,7 +149,7 @@ function Get-AFSceneJson {
         $videoDest = Join-Path $outputDir $filename
         
         Write-Host "Generating site JSON: $filename"
-        $video | ConvertTo-Json -Depth 32 | Out-File -FilePath $videoDest
+        $video | ConvertTo-Json -Depth 32 | Out-File -LiteralPath $videoDest
         
         if (!(Test-Path -LiteralPath $videoDest)) {
             Write-Host "ERROR: site JSON generation failed - $videoDest" -ForegroundColor Red
@@ -164,7 +164,7 @@ function Get-AFSceneJson {
             $outputDir = Join-Path $userConfig.general.dataDownloadDirectory $subDir
             if (!(Test-Path -LiteralPath $outputDir)) { New-Item -ItemType "directory" -Path $outputDir }
             $tagsDest = Join-Path $outputDir $filename
-            $tags.success | ConvertTo-Json -Depth 32 | Out-File -FilePath $tagsDest
+            $tags.success | ConvertTo-Json -Depth 32 | Out-File -LiteralPath $tagsDest
         }
 
         Write-Host "SUCCESS: site JSON generated - $videoDest" -ForegroundColor Green

@@ -137,23 +137,28 @@ function Set-Entry {
     
         $addFriendsApiData = $addFriendsApiData.sites[$siteSelection - 1]
     
-        Write-Host `n"Begin downloading all missing content from addfriends.com/vip/$($addFriendsApiData.url)?"
-        do { $userInput = Read-Host "[Y/N]" }
-        while ($userInput -notlike "Y" -and $userInput -notlike "N")
+        # Next, user specifies what to download
+        Write-Host `n"What content do you want to download?"
+        Write-Host "1. All content from a site"
+        Write-Host "2. All content from a list of scenes"
+        do { $contentSelection = read-host "Enter your selection (1-2)" }
+        while (($contentSelection -notmatch "[1-2]"))
 
-        if ($userInput -like "Y") {
-            # Load the required files
-            . "./apis/addfriends/addfriends-actions.ps1"
-            . "./apis/addfriends/addfriends-downloader.ps1"
-            . "./apis/addfriends/addfriends-scraper.ps1"
+        # Load the required files
+        . "./apis/addfriends/addfriends-actions.ps1"
+        . "./apis/addfriends/addfriends-downloader.ps1"
+        . "./apis/addfriends/addfriends-scraper.ps1"
 
+        if ($contentSelection -eq 1) {
             Get-AFAllContentBySite -pathToUserConfig $pathToUserConfig -siteName $addFriendsApiData.site_name -slug $addFriendsApiData.url
         }
-        else {
-            Write-Host "Closing the script."
-            exit
+        elseif ($contentSelection -eq 2) {
+            # Next, user specifies scene IDs
+            Write-Host `n"Specify all scene IDs you wish to download in a space-separated list, e.g. '123 2534 1563'."
+            $sceneIDs = read-host "Scene IDs"
+            $sceneIDs = $sceneIDs -split (" ")
+            Get-AFAllContentBySceneIDs -pathToUserConfig $pathToUserConfig -sceneIDs $sceneIDs -siteName $addFriendsApiData.site_name -slug $addFriendsApiData.url
         }
-    
     }
 
     # ----------------------------- AddFriend : Stash ---------------------------- #
