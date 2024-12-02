@@ -165,7 +165,7 @@ function Set-AyloJsonToStashStaging {
                     if ($stashStudio.data.findStudios) { $stashStudioID = $stashStudio.data.findStudios.studios.id }
                     else { $stashStudioID = $stashStudio.data.studioCreate.id }
                     
-                    $tagIDs = @()
+                    $tagIDs = @($processTagID)
                     foreach ($id in $seriesData.tags.id) {
                         $result = Get-StashTagByAlias -alias "| Aylo #tag $id"
                         $tagIDs += $result.data.findTags.tags.id
